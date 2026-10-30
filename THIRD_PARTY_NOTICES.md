@@ -389,8 +389,15 @@ adapts `Features/Tools/ScrollStitcher.swift` and the scroll tracker, frame
 stream, and session from `Features/Tools/ScreenshotCapture.swift`
 (`ScrollStitcher.swift`, `ScrollTracker.swift`, `ScreenGrab.swift`,
 `ScrollingSession.swift`), with its stitching tests, renamed for Topdeck and
-with comments translated from Spanish. The Performance tab adapts
-`Features/Performance` (`SystemProbes.swift`, `SystemStats.swift`,
+with comments translated from Spanish. The menu bar icon hider adapts
+`Features/MenuBar/MenuBarFeature.swift` (`MenuBarLayout.swift`,
+`MenuBarHider.swift`, `StatusBarSurface.swift`), the command bar adapts
+`Features/CommandBar` (`CommandMatcher.swift`, and the search, panel, and
+installed-app listing from `CommandBarFeature.swift` and
+`CommandBarPanel.swift`), and the window switcher adapts
+`Features/WindowSwitcher` (`SwitcherPanel.swift`, `WindowSwitcher.swift`,
+`SwitcherList.swift`), likewise renamed and translated. The Performance tab
+adapts `Features/Performance` (`SystemProbes.swift`, `SystemStats.swift`,
 `TopProcesses.swift`, `BatteryReport.swift`, `Temperature.swift`): the per-core
 CPU, GPU, memory, disk, process, and battery readings and the temperature
 sensor lookup, in `Sources/TopdeckFeatures/Performance`, shortened and without
