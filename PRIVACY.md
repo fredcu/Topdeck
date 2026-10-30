@@ -26,6 +26,9 @@ Topdeck is local-first.
   doesn't follow symbolic links, enter other volumes, or download iCloud files,
   and sends nothing. Items you pick go to the Trash after you review the list;
   nothing is deleted outright.
+- The Monitors tab talks to the monitors attached to your Mac over DDC, the
+  control channel in the display cable, to read and set their brightness and
+  volume. It sends nothing over the network.
 - Messages sent with the Show in Notch action or an `topdeck://` link are
   only displayed: they're never stored, and nothing in them is opened.
 - Clipboard history is off until you turn it on in the Clipboard tab. Then it

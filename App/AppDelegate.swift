@@ -29,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let timer = TimerFeature()
     private let storage = StorageFeature()
     private let network = NetworkFeature()
+    private let monitors = MonitorsFeature()
     /// Window snapping and layouts: a Settings page and shortcuts, no tab.
     private let windows = WindowManager()
     private lazy var features = FeatureHost(featureList)
@@ -70,7 +71,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         featureSettings: { [unowned self] in self.settingsView(for: $0) })
 
     private var featureList: [any NotchFeature] {
-        [media, shelf, clipboard, capture, calendar, tasks, notes, shortcuts, timer, storage, network, usage, agents]
+        [
+            media, shelf, clipboard, capture, calendar, tasks, notes, shortcuts, timer, storage, network, usage,
+            agents, monitors,
+        ]
     }
 
     private func tabView(for feature: FeatureID) -> AnyView {
@@ -93,6 +97,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return AnyView(usage.view)
         case .agents:
             return AnyView(agents.view)
+        case .monitors: return AnyView(monitors.view)
         }
     }
 
@@ -120,6 +125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return AnyView(usage.settingsView)  // sections of its own
         case .agents:
             return section(agents.settingsView)
+        case .monitors: return nil
         }
     }
 
