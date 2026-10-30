@@ -282,7 +282,7 @@ extension NoteColor {
 }
 
 /// One note in the list. The selection highlight slides between rows; hovering shows a lighter
-/// highlight, a preview tooltip, and pin and delete buttons.
+/// highlight, a preview tooltip, and window, pin, and delete buttons.
 private struct NoteRow: View {
     let notes: NotesFeature
     let note: Note
@@ -304,6 +304,15 @@ private struct NoteRow: View {
             Spacer(minLength: 0)
             if hovering {
                 HStack(spacing: 5) {
+                    Menu {
+                        windowPicker
+                    } label: {
+                        Image(systemName: note.window?.symbol ?? "macwindow")
+                    }
+                    .menuStyle(.button)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .accessibilityLabel("Window")
                     Button {
                         notes.togglePin(note.id)
                     } label: {
@@ -321,8 +330,13 @@ private struct NoteRow: View {
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.7))
                 .transition(.opacity.combined(with: .move(edge: .trailing)))
-            } else if note.isPinned {
-                Image(systemName: "pin.fill").font(.system(size: 8)).foregroundStyle(.white.opacity(0.5))
+            } else {
+                if let window = note.window {
+                    Image(systemName: window.symbol).font(.system(size: 8)).foregroundStyle(.white.opacity(0.5))
+                }
+                if note.isPinned {
+                    Image(systemName: "pin.fill").font(.system(size: 8)).foregroundStyle(.white.opacity(0.5))
+                }
             }
         }
         .padding(.horizontal, 6)
@@ -348,6 +362,7 @@ private struct NoteRow: View {
         }
         .contextMenu {
             Button(note.isPinned ? "Unpin" : "Pin to Top") { notes.togglePin(note.id) }
+            Menu("Window") { windowPicker }
             Picker("Color", selection: Binding(get: { note.color }, set: { notes.setColor(note.id, $0) })) {
                 Text("None").tag(NoteColor?.none)
                 ForEach(NoteColor.allCases) { color in Text(color.name).tag(NoteColor?.some(color)) }
@@ -366,6 +381,23 @@ private struct NoteRow: View {
         .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
         .accessibilityAction(named: note.isPinned ? "Unpin" : "Pin") { notes.togglePin(note.id) }
         .accessibilityAction(named: "Move to Trash") { notes.delete(note.id) }
+        .accessibilityActions {
+            ForEach(NoteWindow.allCases) { window in
+                Button(window.name) { notes.setWindow(note.id, window) }
+            }
+            if note.window != nil {
+                Button("Back to Notch") { notes.setWindow(note.id, nil) }
+            }
+        }
+    }
+
+    /// In the notch only, or in a window on the desktop or on top.
+    private var windowPicker: some View {
+        Picker("Window", selection: Binding(get: { note.window }, set: { notes.setWindow(note.id, $0) })) {
+            Text("In Notch").tag(NoteWindow?.none)
+            ForEach(NoteWindow.allCases) { window in Text(window.name).tag(NoteWindow?.some(window)) }
+        }
+        .pickerStyle(.inline)
     }
 
     private var tooltip: String {

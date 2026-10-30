@@ -16,17 +16,31 @@ public enum NoteColor: String, CaseIterable, Identifiable, Sendable {
     public var name: String { rawValue.capitalized }
 }
 
-/// One note: a Markdown file. Its colour and pin live in a small front matter block at the top of the
-/// file (the `---` header Obsidian and other Markdown apps read), written only when one is set, so an
-/// uncoloured note stays plain text.
+/// Where a note shows outside the notch: in a window just above the desktop icons, or above other
+/// windows. Stored by name in the note's front matter.
+public enum NoteWindow: String, CaseIterable, Identifiable, Sendable {
+    case desktop
+    case top
+
+    public var id: String { rawValue }
+}
+
+/// One note: a Markdown file. Its colour, pin, and window live in a small front matter block at the
+/// top of the file (the `---` header Obsidian and other Markdown apps read), written only when one is
+/// set, so an uncoloured note stays plain text. A note that has had a window also keeps its `id:` there,
+/// since its window's place is stored by that id.
 public struct Note: Identifiable, Equatable, Sendable {
-    public let id: UUID
+    public internal(set) var id: UUID
     /// The note's text, without the front matter.
     public var text: String
     public var modified: Date
     public var created: Date
     public var color: NoteColor?
     public var isPinned = false
+    /// The window the note shows in; nil while it lives only in the notch.
+    public var window: NoteWindow?
+    /// Whether `id` is written to the file, so it survives a relaunch and a rename.
+    var storesID = false
     /// The file's name in the notes folder; nil until the note is first saved.
     var fileName: String?
     /// Whether the file is named after the title the way Topdeck names notes, so a new title
@@ -46,20 +60,30 @@ public struct Note: Identifiable, Equatable, Sendable {
         self.isPinned = isPinned
     }
 
-    /// Reads a note file's contents.
+    /// Reads a note file's contents. `id` is used when the file doesn't store one of its own.
     init(id: UUID, fileName: String, contents: String, modified: Date, created: Date?) {
         let (fields, body) = Self.splitFrontMatter(contents)
-        self.init(id: id, text: body, modified: modified, created: created)
-        self.fileName = fileName
-        for line in fields {
+        let parsed = fields.map { line in
             let parts = line.split(separator: ":", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
-            switch (parts.first?.lowercased(), parts.count == 2 ? parts[1] : nil) {
+            return (line: line, key: parts.first?.lowercased(), value: parts.count == 2 ? parts[1] : nil)
+        }
+        // Another app's `id:` that isn't a UUID is that app's, and stays among its fields.
+        let stored = parsed.lazy.compactMap { $0.key == "id" ? $0.value.flatMap(UUID.init(uuidString:)) : nil }.first
+        self.init(id: stored ?? id, text: body, modified: modified, created: created)
+        self.fileName = fileName
+        storesID = stored != nil
+        for field in parsed {
+            switch (field.key, field.value) {
             case ("color"?, let value?), ("colour"?, let value?):
                 color = NoteColor(rawValue: value.lowercased())
             case ("pinned"?, let value?):
                 isPinned = value.lowercased() == "true"
+            case ("window"?, let value?) where NoteWindow(rawValue: value.lowercased()) != nil:
+                window = NoteWindow(rawValue: value.lowercased())
+            case ("id"?, let value?) where UUID(uuidString: value) != nil:
+                break
             default:
-                otherFields.append(line)
+                otherFields.append(field.line)
             }
         }
         let base = (fileName as NSString).deletingPathExtension
@@ -120,6 +144,8 @@ public struct Note: Identifiable, Equatable, Sendable {
         var fields: [String] = []
         if let color { fields.append("color: \(color.rawValue)") }
         if isPinned { fields.append("pinned: true") }
+        if let window { fields.append("window: \(window.rawValue)") }
+        if storesID { fields.append("id: \(id.uuidString)") }
         fields += otherFields
         guard !fields.isEmpty else { return text }
         return "---\n" + fields.joined(separator: "\n") + "\n---\n" + text

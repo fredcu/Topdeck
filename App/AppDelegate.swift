@@ -20,6 +20,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let calendar: CalendarFeature
     private let tasks: TasksFeature
     private let notes = NotesFeature()
+    /// Notes taken out of the notch, in windows of their own.
+    private lazy var pinnedNotes = PinnedNoteWindows(notes: notes)
     private let shortcuts = ShortcutsFeature()
     private let timer = TimerFeature()
     private let network = NetworkFeature()
@@ -143,6 +145,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         shortcuts.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         tasks.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         notes.onSendToTasks = { [tasks] in tasks.add($0) }
+        pinnedNotes.start()
         quickNoteKey.onPress = { [weak self] in self?.startQuickNote() }
         volume.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         battery.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
@@ -211,6 +214,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         // Stops every feature, including the media helper process and the camera.
         features.update(presentations: [], enabled: [])
+        pinnedNotes.stop()
         mixer.isEnabled = false  // every app back to its own volume
         timer.allowSleep()
         volume.stop()
