@@ -43,15 +43,15 @@ struct AccessibilityWindow {
         return AccessibilityWindow(element: bounded(window), pid: pid)
     }
 
-    /// An app's standard windows that aren't minimized, front to back.
-    static func windows(of pid: pid_t) -> [AccessibilityWindow] {
+    /// An app's standard windows, front to back; minimized ones only when asked for.
+    static func windows(of pid: pid_t, includingMinimized: Bool = false) -> [AccessibilityWindow] {
         var value: CFTypeRef?
         let app = bounded(AXUIElementCreateApplication(pid))
         guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value) == .success,
             let elements = value as? [AXUIElement]
         else { return [] }
         return elements.map { AccessibilityWindow(element: bounded($0), pid: pid) }
-            .filter { $0.isStandard && !$0.isMinimized }
+            .filter { $0.isStandard && (includingMinimized || !$0.isMinimized) }
     }
 
     var title: String { Self.string(element, kAXTitleAttribute) ?? "" }
@@ -89,6 +89,15 @@ struct AccessibilityWindow {
         set(origin: frame.origin)
         set(size: frame.size)
         if wasEnhanced { AXUIElementSetAttributeValue(app, enhanced, kCFBooleanTrue) }
+    }
+
+    /// Brings the window to the front, restoring it if it's minimized, and its app with it.
+    func raise() {
+        AXUIElementSetAttributeValue(element, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+        AXUIElementPerformAction(element, kAXRaiseAction as CFString)
+        AXUIElementSetAttributeValue(element, kAXMainAttribute as CFString, kCFBooleanTrue)
+        AXUIElementSetAttributeValue(
+            Self.bounded(AXUIElementCreateApplication(pid)), kAXFrontmostAttribute as CFString, kCFBooleanTrue)
     }
 
     private func set(origin: CGPoint) {

@@ -13,3 +13,4 @@
 - Shelf: upload a file to your Cloudflare R2 bucket from its menu and copy its link. Keys stay in the keychain.
 - Monitors: set external monitors' brightness and volume over DDC, and put every display to sleep.
 - System Admin: start, stop, load, disable, and remove your launch agents, and upgrade, uninstall, and check Homebrew packages, from the notch. Off by default.
+- Window Switcher: Option-Tab (or your own shortcut) shows every window with a thumbnail; type to filter, let go to pick. Off by default.

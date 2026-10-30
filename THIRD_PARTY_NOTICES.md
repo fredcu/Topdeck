@@ -389,8 +389,10 @@ adapts `Features/Tools/ScrollStitcher.swift` and the scroll tracker, frame
 stream, and session from `Features/Tools/ScreenshotCapture.swift`
 (`ScrollStitcher.swift`, `ScrollTracker.swift`, `ScreenGrab.swift`,
 `ScrollingSession.swift`), with its stitching tests, renamed for Topdeck and
-with comments translated from Spanish. Each adapted file names its origin in
-its header.
+with comments translated from Spanish. The window switcher adapts
+`Features/WindowSwitcher` (`SwitcherPanel.swift`, `WindowSwitcher.swift`,
+`SwitcherList.swift`), likewise renamed and translated. Each adapted file names
+its origin in its header.
 
 ```text
 MIT License

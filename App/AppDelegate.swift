@@ -33,6 +33,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let monitors = MonitorsFeature()
     /// Window snapping and layouts: a Settings page and shortcuts, no tab.
     private let windows = WindowManager()
+    /// Option-Tab between every window: a Settings page and a shortcut, no tab.
+    private let windowSwitcher = WindowSwitcher()
     private lazy var features = FeatureHost(featureList)
     // System live activities, which belong to no tab.
     private let volume = VolumeMonitor()
@@ -68,6 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         clipboardKey: clipboardKey,
         inputSwitch: inputSwitch,
         windows: windows,
+        windowSwitcher: windowSwitcher,
         previewAnimation: { [weak self] in self?.coordinator?.previewAnimation() },
         featureSettings: { [unowned self] in self.settingsView(for: $0) })
 
@@ -202,6 +205,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         coordinator.start()
         windows.activate()
+        windowSwitcher.activate()
         self.coordinator = coordinator
         pendingMessages.forEach(showInNotch)
         pendingMessages = []
