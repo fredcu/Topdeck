@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let media = MediaFeature()
     private let shelf = ShelfFeature()
     private let clipboard = ClipboardFeature()
+    private let capture = CaptureFeature()
     private let calendar: CalendarFeature
     private let tasks: TasksFeature
     private let notes = NotesFeature()
@@ -63,7 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         featureSettings: { [unowned self] in self.settingsView(for: $0) })
 
     private var featureList: [any NotchFeature] {
-        [media, shelf, clipboard, calendar, tasks, notes, shortcuts, timer, network, usage, agents]
+        [media, shelf, clipboard, capture, calendar, tasks, notes, shortcuts, timer, network, usage, agents]
     }
 
     private func tabView(for feature: FeatureID) -> AnyView {
@@ -74,6 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .shelf:
             return AnyView(shelf.view)
         case .clipboard: return AnyView(clipboard.view)
+        case .capture: return AnyView(capture.view)
         case .calendar: return AnyView(calendar.view)
         case .tasks: return AnyView(tasks.view)
         case .notes: return AnyView(notes.view)
@@ -99,6 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     Section { shelf.settingsView }
                 })
         case .clipboard: return section(clipboard.settingsView)
+        case .capture: return section(capture.settingsView)
         case .calendar: return section(calendar.settingsView)
         case .tasks: return section(tasks.settingsView)
         case .shortcuts: return section(shortcuts.settingsView)
@@ -140,6 +143,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         media.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         media.onOngoing = { [weak coordinator] in coordinator?.setOngoing($0, for: .media) }
         shelf.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
+        capture.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
+        capture.onBegin = { [weak coordinator] in coordinator?.dismissAll() }
+        capture.isEnabled = { [preferences] in preferences.isEnabled(.capture) }
+        capture.addToShelf = { [preferences, shelf] urls in preferences.isEnabled(.shelf) && shelf.add(urls) }
         calendar.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         calendar.onOngoing = { [weak coordinator] in coordinator?.setOngoing($0, for: .calendar) }
         timer.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }

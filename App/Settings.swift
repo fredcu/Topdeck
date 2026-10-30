@@ -157,6 +157,7 @@ extension SettingsSelection.Page {
             case .sound: (feature.symbol, .red)
             case .shelf: (feature.symbol, .blue)
             case .clipboard: (feature.symbol, .teal)
+            case .capture: (feature.symbol, .gray)
             case .calendar: (feature.symbol, .red)
             case .tasks: (feature.symbol, .orange)
             case .notes: (feature.symbol, .yellow)
@@ -184,6 +185,7 @@ extension SettingsSelection.Page {
             case .sound: "Your speakers and microphone, and every app's volume on its own fader."
             case .shelf: "Files you drop on the notch, at hand to drag out, preview, or share."
             case .clipboard: "A searchable history of what you copy, with favorites that stay."
+            case .capture: "Screenshots to mark up or pin, scrolling captures, text, QR codes, and colors."
             case .calendar: "Today's events, with a Join button and a countdown for calls."
             case .tasks: "Your Reminders, synced to your iPhone through iCloud."
             case .notes: "Markdown notes that save as you type."
