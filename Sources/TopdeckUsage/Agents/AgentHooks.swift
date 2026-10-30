@@ -34,8 +34,8 @@ public enum AgentTool: String, CaseIterable, Identifiable, Sendable {
     /// The tool's hook events, what each one means for the notch, and which of an event's cases
     /// count. Claude Code tells hooks it needs approval through a notification, sent once a prompt
     /// has waited a few seconds; Codex has an event for it. Claude's "waiting for your input" after
-    /// every idle minute isn't asking for anything, so it's left out. Both ask `PermissionRequest`
-    /// hooks before they show a prompt, which is where the notch answers (`approve`).
+    /// every idle minute isn't asking for anything, so it's left out. Both run `PermissionRequest`
+    /// hooks when a permission dialog appears, which is where the notch answers (`approve`).
     var events: [(event: String, matcher: String?, state: String)] {
         let waiting: (String, String?, String) =
             switch self {

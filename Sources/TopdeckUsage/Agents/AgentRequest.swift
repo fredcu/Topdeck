@@ -25,7 +25,15 @@ public struct AgentRequest: Identifiable, Sendable, Equatable {
     let rule: Data?
 
     public var isQuestion: Bool { !questions.isEmpty }
-    public var canAlwaysAllow: Bool { rule != nil }
+    public var canAlwaysAllow: Bool { alwaysAllowRule != nil }
+
+    /// What "always allow" would add, as Claude Code writes a rule: `Bash(npm test)`, or `Bash` for
+    /// a whole tool, several joined with ", ". Nil when it can't be told, and then it isn't offered.
+    public var alwaysAllowRule: String? {
+        guard let rule, let suggestion = try? JSONSerialization.jsonObject(with: rule) as? [String: Any]
+        else { return nil }
+        return Self.describe(suggestion["rules"])
+    }
 
     /// The hook event that asks for approval, in Claude Code and in Codex.
     static let event = "PermissionRequest"
@@ -82,10 +90,25 @@ public struct AgentRequest: Identifiable, Sendable, Equatable {
         guard let suggestions = suggestions as? [Any] else { return nil }
         for case let suggestion as [String: Any] in suggestions
         where suggestion["type"] as? String == "addRules" && suggestion["behavior"] as? String == "allow" {
-            guard suggestion["rules"] is [Any] else { continue }
+            guard describe(suggestion["rules"]) != nil else { continue }
             return try? JSONSerialization.data(withJSONObject: suggestion, options: .sortedKeys)
         }
         return nil
+    }
+
+    /// `Bash(npm test)` for each of `[{"toolName": "Bash", "ruleContent": "npm test"}]`. Nil for no
+    /// rules, a malformed one, or text too long to show whole: the user must see the whole rule.
+    static func describe(_ rules: Any?) -> String? {
+        guard let rules = rules as? [Any], !rules.isEmpty else { return nil }
+        var parts: [String] = []
+        for case let rule as [String: Any] in rules {
+            guard let name = rule["toolName"] as? String, isToolName(name) else { return nil }
+            let content = rule["ruleContent"] as? String
+            parts.append(content.map { $0.isEmpty ? name : "\(name)(\($0))" } ?? name)
+        }
+        guard parts.count == rules.count else { return nil }
+        let text = parts.joined(separator: ", ")
+        return text.count <= 300 ? clip(text, 300) : nil
     }
 
     /// The input field that says most about the call, on one line.
@@ -103,7 +126,11 @@ public struct AgentRequest: Identifiable, Sendable, Equatable {
             // Codex passes its command as an argument list.
             if let value = input[key] as? [String], !value.isEmpty { return clip(value.joined(separator: " "), 300) }
         }
-        return ""
+        // A tool with none of those, an MCP tool say, still shows what it was given.
+        let options: JSONSerialization.WritingOptions = [.sortedKeys, .withoutEscapingSlashes]
+        guard !input.isEmpty, let data = try? JSONSerialization.data(withJSONObject: input, options: options)
+        else { return "" }
+        return clip(String(decoding: data, as: UTF8.self), 300)
     }
 
     /// One line, no control characters, at most `limit` characters.
@@ -169,7 +196,7 @@ public enum AgentDecision: Sendable, Equatable {
             guard !request.isQuestion else { return nil }
             decision = ["behavior": "allow"]
         case .allowAlways:
-            guard !request.isQuestion, let data = request.rule,
+            guard !request.isQuestion, request.canAlwaysAllow, let data = request.rule,
                 let rule = try? JSONSerialization.jsonObject(with: data)
             else { return nil }
             decision = ["behavior": "allow", "updatedPermissions": [rule]]

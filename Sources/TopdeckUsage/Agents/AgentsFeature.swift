@@ -113,10 +113,17 @@ public final class AgentsFeature: NotchFeature {
     private static let answerKey = "agents.answersRequests"
     /// How long a request waits in the notch before the agent's own prompt takes over.
     static let holdLimit: TimeInterval = 110
+    /// After an answer, how long a click that approves is ignored. The next card slides under the
+    /// pointer, and the second click of a double-click would approve what the user never read.
+    static let answerPause: TimeInterval = 0.5
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var watcher: DispatchSourceFileSystemObject?
     @ObservationIgnored private var shownWaiting: Activity?
     @ObservationIgnored private var server: AgentSocket?
+    /// When the last request was answered, for `answerPause`.
+    @ObservationIgnored private var lastAnswered: Date?
+    /// The time, which tests replace.
+    @ObservationIgnored var clock: () -> Date = { .now }
 
     public convenience init(defaults: UserDefaults = .standard) {
         self.init(hooks: AgentHooks(), defaults: defaults)
@@ -163,6 +170,9 @@ public final class AgentsFeature: NotchFeature {
     /// and the agent asks in its own prompt.
     public func answer(_ request: AgentRequest, _ decision: AgentDecision) {
         guard requests.contains(where: { $0.id == request.id }) else { return }
+        // A refused click leaves the request pending. Denying is always safe.
+        if decision != .deny, let last = lastAnswered, clock().timeIntervalSince(last) < Self.answerPause { return }
+        lastAnswered = clock()
         if let payload = decision.payload(for: request) {
             server?.reply(to: request.id, with: payload)
         } else {
@@ -175,6 +185,7 @@ public final class AgentsFeature: NotchFeature {
     public func answerInTerminal(_ request: AgentRequest) {
         server?.release(request.id)
         drop(request.id)
+        lastAnswered = clock()
         if let session = sessions.first(where: { $0.id == "\(request.tool.rawValue)-\(request.session)" }) {
             open(session)
         }

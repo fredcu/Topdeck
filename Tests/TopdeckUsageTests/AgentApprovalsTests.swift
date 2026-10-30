@@ -139,6 +139,44 @@ struct AgentRequestTests {
         }
     }
 
+    @Test func theRuleAlwaysAllowAddsIsSpelledOut() throws {
+        #expect(try parse(bash).alwaysAllowRule == "Bash(rm -rf build)")
+        func rule(_ rules: Any) throws -> String? {
+            let suggestion: [[String: Any]] = [["type": "addRules", "behavior": "allow", "rules": rules]]
+            return try parse(changing(bash, "permission_suggestions", to: suggestion)).alwaysAllowRule
+        }
+        #expect(try rule([["toolName": "Read"]]) == "Read")
+        #expect(try rule([["toolName": "Bash", "ruleContent": ""]]) == "Bash")
+        let two: [[String: Any]] = [
+            ["toolName": "Bash", "ruleContent": "npm test"], ["toolName": "mcp__git__log"],
+        ]
+        #expect(try rule(two) == "Bash(npm test), mcp__git__log")
+        #expect(try rule([["toolName": "Bash", "ruleContent": "a\nb"]]) == "Bash(a b)", "one line")
+    }
+
+    @Test func aRuleThatCantBeSpelledOutIsNotOffered() throws {
+        let unparsable: [Any] = [
+            [Any](), [["ruleContent": "npm test"]], [["toolName": 7]], [["toolName": "Bash"], "Read"],
+            [["toolName": "Bash", "ruleContent": String(repeating: "x", count: 300)]], "Bash",
+        ]
+        for rules in unparsable {
+            let suggestion: [[String: Any]] = [["type": "addRules", "behavior": "allow", "rules": rules]]
+            let request = try parse(changing(bash, "permission_suggestions", to: suggestion))
+            #expect(request.alwaysAllowRule == nil && !request.canAlwaysAllow && request.rule == nil)
+            #expect(AgentDecision.allowAlways.payload(for: request) == nil)
+        }
+        #expect(try parse(codex, tool: .codex).alwaysAllowRule == nil)
+    }
+
+    @Test func aToolWithUnknownFieldsShowsItsInputAsJSON() throws {
+        let input: [String: Any] = ["zone": "eu", "args": ["id": 7, "path": "/a/b"]]
+        let mcp = try parse(changing(changing(bash, "tool_name", to: "mcp__db__run"), "tool_input", to: input))
+        #expect(mcp.summary == #"{"args":{"id":7,"path":"/a/b"},"zone":"eu"}"#)
+        let long = try parse(changing(bash, "tool_input", to: ["blob": String(repeating: "x", count: 500)]))
+        #expect(long.summary.count == 300 && long.summary.hasSuffix("…"))
+        #expect(try parse(changing(bash, "tool_input", to: [String: Any]())).summary.isEmpty)
+    }
+
     @Test func theSocketHeaderIsStrict() {
         let claude = AgentWire.header("topdeck-agent 1 claude 42")
         #expect(claude?.tool == .claude && claude?.length == 42)
@@ -475,6 +513,27 @@ struct AgentApprovalTests {
         hook.process.terminate()
         #expect(await eventually { agents.requests.isEmpty })
         agents.phase = .stopped
+    }
+
+    @Test func aSecondApprovalRightAfterTheFirstLeavesItPending() throws {
+        let agents = AgentsFeature(hooks: try Sandbox().hooks, defaults: defaults)
+        let start = Date.now
+        agents.clock = { start }
+        let first = try AgentRequest.parse(Data(bash.utf8), tool: .claude)
+        let second = try AgentRequest.parse(Data(bash.utf8), tool: .claude)
+        let third = try AgentRequest.parse(Data(bash.utf8), tool: .claude)
+        [first, second, third].forEach(agents.received)
+        agents.answer(first, .allow)
+        agents.answer(second, .allow)
+        agents.answer(second, .allowAlways)
+        agents.answer(second, .answer([["x"]]))
+        #expect(agents.requests.map(\.id) == [second.id, third.id], "a click that comes too soon is ignored")
+        agents.clock = { start.addingTimeInterval(AgentsFeature.answerPause / 2) }
+        agents.answer(second, .deny)
+        #expect(agents.requests.map(\.id) == [third.id], "denying is always accepted")
+        agents.clock = { start.addingTimeInterval(AgentsFeature.answerPause * 2) }
+        agents.answer(third, .allow)
+        #expect(agents.requests.isEmpty, "once the pause has passed")
     }
 
     @Test func aHeldRequestCountsAsWaitingInTheClosedNotch() throws {

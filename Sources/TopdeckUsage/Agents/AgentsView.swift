@@ -127,8 +127,11 @@ private struct AgentRequestCard: View {
                 HStack(spacing: 6) {
                     pill("Deny", tint: .white.opacity(0.14)) { agents.answer(request, .deny) }
                     pill("Allow", tint: .green.opacity(0.7)) { agents.answer(request, .allow) }
-                    if request.canAlwaysAllow {
-                        pill("Always Allow", tint: .white.opacity(0.14)) { agents.answer(request, .allowAlways) }
+                    if let rule = request.alwaysAllowRule {
+                        pill("Always Allow \(rule)", tint: .white.opacity(0.14), truncation: .middle) {
+                            agents.answer(request, .allowAlways)
+                        }
+                        .accessibilityLabel("Always Allow \(rule)")
                     }
                     Spacer(minLength: 0)
                     terminal
@@ -192,9 +195,11 @@ private struct AgentRequestCard: View {
             .accessibilityLabel("Answer in the terminal")
     }
 
-    private func pill(_ title: String, tint: Color, action: @escaping () -> Void) -> some View {
+    private func pill(
+        _ title: String, tint: Color, truncation: Text.TruncationMode = .tail, action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
-            Text(title).lineLimit(1)
+            Text(title).lineLimit(1).truncationMode(truncation)
         }
         .buttonStyle(.plain)
         .font(.caption.weight(.semibold))
