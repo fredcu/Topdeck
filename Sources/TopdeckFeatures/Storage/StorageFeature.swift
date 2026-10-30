@@ -115,12 +115,14 @@ public final class StorageFeature: NotchFeature {
         diskCounted = 0
         diskPath = []
         diskItems = []
-        let task = Task { [weak self, home] in
-            let usage = await DiskUsage.measure(home) { bytes in
-                Task { @MainActor [weak self] in
-                    if case .scanning = self?.disk { self?.diskCounted = bytes }
-                }
+        // Holds the feature only while the scan runs.
+        let counted: @Sendable (Int64) -> Void = { bytes in
+            Task { @MainActor in
+                if case .scanning = self.disk { self.diskCounted = bytes }
             }
+        }
+        let task = Task { [weak self, home] in
+            let usage = await DiskUsage.measure(home, progress: counted)
             guard !Task.isCancelled, let self else { return }
             disk = .done(usage)
             await open(usage.path)
