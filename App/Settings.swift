@@ -154,6 +154,7 @@ extension SettingsSelection.Page {
             case .network: ("arrow.up.arrow.down", .blue)
             case .usage: (feature.symbol, .purple)
             case .agents: (feature.symbol, .gray)
+            case .monitors: (feature.symbol, .cyan)
             }
         }
     }
@@ -180,6 +181,7 @@ extension SettingsSelection.Page {
             case .network: "Your download and upload speed, and how much you've used."
             case .usage: "How much of each AI coding plan you've used."
             case .agents: "When Claude Code or Codex needs you or finishes, in the closed notch."
+            case .monitors: "External monitors' brightness and volume, and sleeping every display at once."
             }
         }
     }
