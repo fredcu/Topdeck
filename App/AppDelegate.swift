@@ -112,6 +112,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func section(_ rows: some View) -> AnyView { AnyView(Section { rows }) }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.mainMenu = .hiddenEditMenu()
         let content = NotchContent(
             tab: { [unowned self] in self.tabView(for: $0) },
             dropFiles: { [preferences, shelf] urls in preferences.isEnabled(.shelf) && shelf.add(urls) },

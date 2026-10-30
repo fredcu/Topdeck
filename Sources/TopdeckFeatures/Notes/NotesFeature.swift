@@ -161,10 +161,11 @@ public final class NotesFeature: NotchFeature {
         }
     }
 
-    /// Loads the notes that have windows, at launch, before the notch has ever shown Notes.
+    /// Reads the folder for the notes that have windows, at launch and when the folder changes, even
+    /// while the notch has never shown Notes.
     public func loadWindowed() {
         load()
-        if phase != .foreground { keepOnlyWindowed() }
+        if phase == .stopped { keepOnlyWindowed() }
     }
 
     /// Sends a note's unticked checklist items to Tasks. Returns how many were added.
@@ -263,14 +264,14 @@ public final class NotesFeature: NotchFeature {
     }
 
     /// Writes every unsaved note now, renaming a file Topdeck named when its title changed; a note
-    /// emptied out is deleted rather than kept blank.
+    /// emptied out is deleted rather than kept blank, unless it has a window to come back to.
     func flush() {
         pendingSave?.cancel()
         let manager = FileManager.default
         for id in unsaved {
             guard let index = notes.firstIndex(where: { $0.id == id }) else { continue }
             let note = notes[index]
-            if note.isEmpty {
+            if note.isEmpty, note.window == nil {
                 if let name = note.fileName { try? manager.removeItem(at: directory.appending(path: name)) }
                 notes[index].fileName = nil
                 continue

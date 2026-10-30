@@ -27,8 +27,8 @@ public enum NoteWindow: String, CaseIterable, Identifiable, Sendable {
 
 /// One note: a Markdown file. Its colour, pin, and window live in a small front matter block at the
 /// top of the file (the `---` header Obsidian and other Markdown apps read), written only when one is
-/// set, so an uncoloured note stays plain text. A note that has had a window also keeps its `id:` there,
-/// since its window's place is stored by that id.
+/// set, so an uncoloured note stays plain text. A note that has had a window also keeps its
+/// `topdeck-id:` there, since its window's place is stored by that id. Other apps use plain `id:`.
 public struct Note: Identifiable, Equatable, Sendable {
     public internal(set) var id: UUID
     /// The note's text, without the front matter.
@@ -67,8 +67,8 @@ public struct Note: Identifiable, Equatable, Sendable {
             let parts = line.split(separator: ":", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
             return (line: line, key: parts.first?.lowercased(), value: parts.count == 2 ? parts[1] : nil)
         }
-        // Another app's `id:` that isn't a UUID is that app's, and stays among its fields.
-        let stored = parsed.lazy.compactMap { $0.key == "id" ? $0.value.flatMap(UUID.init(uuidString:)) : nil }.first
+        let stored = parsed.lazy.compactMap { $0.key == "topdeck-id" ? $0.value.flatMap(UUID.init(uuidString:)) : nil }
+            .first
         self.init(id: stored ?? id, text: body, modified: modified, created: created)
         self.fileName = fileName
         storesID = stored != nil
@@ -80,7 +80,7 @@ public struct Note: Identifiable, Equatable, Sendable {
                 isPinned = value.lowercased() == "true"
             case ("window"?, let value?) where NoteWindow(rawValue: value.lowercased()) != nil:
                 window = NoteWindow(rawValue: value.lowercased())
-            case ("id"?, let value?) where UUID(uuidString: value) != nil:
+            case ("topdeck-id"?, let value?) where UUID(uuidString: value) != nil:
                 break
             default:
                 otherFields.append(field.line)
@@ -145,7 +145,7 @@ public struct Note: Identifiable, Equatable, Sendable {
         if let color { fields.append("color: \(color.rawValue)") }
         if isPinned { fields.append("pinned: true") }
         if let window { fields.append("window: \(window.rawValue)") }
-        if storesID { fields.append("id: \(id.uuidString)") }
+        if storesID { fields.append("topdeck-id: \(id.uuidString)") }
         fields += otherFields
         guard !fields.isEmpty else { return text }
         return "---\n" + fields.joined(separator: "\n") + "\n---\n" + text

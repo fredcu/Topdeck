@@ -167,10 +167,9 @@ struct UsageFeatureTests {
 /// busy CI runner, where tests share the main actor.
 @MainActor
 func eventually(_ condition: @MainActor () -> Bool) async -> Bool {
-    let deadline = ContinuousClock.now + .seconds(30)
-    while !condition() {
-        guard ContinuousClock.now < deadline else { return false }
+    for _ in 0..<3000 {  // polls, not wall time: see the other `eventually`s
+        if condition() { return true }
         try? await Task.sleep(for: .milliseconds(10))
     }
-    return true
+    return condition()
 }

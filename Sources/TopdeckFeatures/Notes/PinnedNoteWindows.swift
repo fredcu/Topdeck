@@ -15,6 +15,8 @@ public final class PinnedNoteWindows: NSObject, NSWindowDelegate {
     /// Set while Topdeck moves windows itself, so only the user's moves are stored.
     private var placing = false
     private var screenObserver: NSObjectProtocol?
+    private var folderWatch: (folder: URL, source: any DispatchSourceFileSystemObject)?
+    private var pendingReload: Task<Void, Never>?
 
     public init(notes: NotesFeature, defaults: UserDefaults = .standard) {
         self.notes = notes
@@ -40,6 +42,7 @@ public final class PinnedNoteWindows: NSObject, NSWindowDelegate {
 
     /// Opens, updates, and closes windows to match the notes that have one.
     private func sync() {
+        watchFolder()
         let windowed = notes.windowed
         let ids = Set(windowed.map(\.id))
         for (id, window) in windows where !ids.contains(id) {
@@ -60,6 +63,36 @@ public final class PinnedNoteWindows: NSObject, NSWindowDelegate {
             windows[note.id] = window
             place(window, index: index)
             window.orderFrontRegardless()
+        }
+    }
+
+    /// Reads the notes again when the folder changes, so a window shows what iCloud or a Markdown app
+    /// wrote, and never saves over it. Edits not yet saved still win (`NotesFeature.load`).
+    // ponytail: rereads the whole folder and sees only files replaced, not written in place, as atomic
+    // saves and iCloud do. Use NSFilePresenter if a folder of thousands of notes or an editor that
+    // writes in place needs it.
+    private func watchFolder() {
+        let folder = notes.directory
+        guard folderWatch?.folder != folder else { return }
+        folderWatch?.source.cancel()
+        folderWatch = nil
+        let descriptor = open(folder.path, O_EVTONLY)
+        guard descriptor >= 0 else { return }
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: descriptor, eventMask: .write, queue: .main)
+        source.setEventHandler { [weak self] in
+            MainActor.assumeIsolated { self?.reloadSoon() }
+        }
+        source.setCancelHandler { close(descriptor) }
+        source.resume()
+        folderWatch = (folder, source)
+    }
+
+    private func reloadSoon() {
+        pendingReload?.cancel()
+        pendingReload = Task { [weak self] in
+            do { try await Task.sleep(for: .milliseconds(300)) } catch { return }
+            self?.notes.loadWindowed()
         }
     }
 
