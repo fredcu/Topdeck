@@ -101,7 +101,10 @@ for Codex) and first keeps a copy of the file as it was in
 file per session into `~/Library/Application Support/Topdeck/Agents`: the
 session's state, its project folder, the app it runs in, its process ID, and
 the tool's own words for what it's waiting for. Your prompts, code, and tool
-output are never written, and nothing leaves your Mac. Disconnecting removes the
+output are never written, and nothing leaves your Mac. When a tool asks for
+permission, the request, including the tool's input such as a command or file
+contents, goes to Topdeck over a local socket, stays in memory only while the
+request waits, and never leaves your Mac. Disconnecting removes the
 hooks, and with no tool connected, the script and the session files too.
 
 ## Sharing with Android

@@ -6,9 +6,10 @@ import TopdeckCore
 
 @testable import TopdeckUsage
 
-/// A throwaway home and support folder, with Claude Code's and Codex's settings folders in it.
-private struct Sandbox {
-    let root = FileManager.default.temporaryDirectory.appending(path: "Agents-\(UUID().uuidString)")
+/// A throwaway home and support folder, with Claude Code's and Codex's settings folders in it. Under
+/// /tmp with a short name, since a socket's path must fit in 104 bytes.
+struct Sandbox {
+    let root = URL(filePath: "/tmp").appending(path: "td-\(UUID().uuidString.prefix(8))")
     var home: URL { root.appending(path: "home") }
     var hooks: AgentHooks { AgentHooks(home: home, support: root.appending(path: "Topdeck")) }
 
@@ -59,7 +60,7 @@ private struct Sandbox {
 }
 
 /// Someone else's hooks, like the Agent Flow extension's, and a setting that isn't about hooks.
-private var theirs: [String: Any] {
+var theirs: [String: Any] {
     ["model": "opus", "hooks": ["Stop": [["hooks": [["type": "command", "command": "node flow.js", "timeout": 2]]]]]]
 }
 
@@ -73,7 +74,10 @@ struct AgentHooksTests {
 
         #expect(hooks.isInstalled(.claude) && !hooks.isInstalled(.codex))
         let events = try #require(try sandbox.settings(for: .claude)["hooks"] as? [String: [[String: Any]]])
-        #expect(Set(events.keys) == ["UserPromptSubmit", "Notification", "PostToolUse", "Stop", "SessionEnd"])
+        #expect(
+            Set(events.keys) == [
+                "UserPromptSubmit", "Notification", "PermissionRequest", "PostToolUse", "Stop", "SessionEnd",
+            ])
         #expect(events["Stop"]?.count == 2, "theirs first, then ours")
         let notification = try #require(events["Notification"]?.first)
         #expect(notification["matcher"] as? String == "permission_prompt|elicitation_dialog")
