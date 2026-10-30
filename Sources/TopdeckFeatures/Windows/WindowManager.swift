@@ -89,8 +89,12 @@ public final class WindowManager {
             layouts.forEach(listen)
         } else if !isEnabled, isRunning {
             isRunning = false
-            WindowAction.allCases.forEach { KeyboardShortcuts.removeHandler(for: .window($0)) }
-            layouts.forEach { KeyboardShortcuts.removeHandler(for: .layout($0.id)) }
+            for action in WindowAction.allCases {
+                KeyboardShortcuts.removeHandler(for: .window(action))
+            }
+            for layout in layouts {
+                KeyboardShortcuts.removeHandler(for: .layout(layout.id))
+            }
         }
         let watchesDrags = isEnabled && snapsOnDrag
         if watchesDrags, dragMonitor == nil {

@@ -19,7 +19,7 @@ let package = Package(
     ],
     dependencies: [
         // Recorders and global shortcuts for Windows (MIT, see THIRD_PARTY_NOTICES.md).
-        .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", exact: "3.1.0"),
+        .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", exact: "3.1.0")
     ],
     targets: [
         // State machine, feature lifecycle, diagnostics. No AppKit, so it tests anywhere.
