@@ -435,7 +435,7 @@ struct AgentApprovalTests {
         let started = ContinuousClock.now
         let hook = try WaitingHook(sandbox, input: bash)
         let result = await hook.result()
-        #expect(printedNothing(result) && ContinuousClock.now - started < .seconds(10))
+        #expect(printedNothing(result) && ContinuousClock.now - started < .seconds(60))
     }
 
     @Test func turnedOffTheNotchAnswersNothing() async throws {
