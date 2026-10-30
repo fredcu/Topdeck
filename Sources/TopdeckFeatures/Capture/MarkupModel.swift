@@ -49,7 +49,7 @@ final class MarkupModel {
         switch tool {
         case .select:
             selection = marks.indices.last { marks[$0].contains(point) }
-            moving = selection.map { _ in (point, marks) }
+            moving = selection == nil ? nil : (last: point, before: marks)
         case .counter:
             commit(marks + [Mark(shape: .counter(nextNumber, at: point), color: color, width: width)])
         case .text:

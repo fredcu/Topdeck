@@ -159,10 +159,10 @@ struct Mark: Equatable, Sendable {
     static func highlighterWidth(_ width: CGFloat) -> CGFloat { max(12, width * 5) }
 
     static func box(around points: [CGPoint]) -> CGRect {
-        guard let first = points.first else { return .null }
-        return points.dropFirst().reduce(CGRect(origin: first, size: .zero)) { box, point in
-            box.union(CGRect(origin: point, size: .zero))
-        }
+        guard let minX = points.map(\.x).min(), let maxX = points.map(\.x).max(),
+            let minY = points.map(\.y).min(), let maxY = points.map(\.y).max()
+        else { return .null }
+        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
     }
 
     static func distance(from point: CGPoint, toSegmentFrom start: CGPoint, to end: CGPoint) -> CGFloat {
@@ -235,8 +235,8 @@ struct TextLayout {
     let size: CGSize
 
     init(_ string: String, fontSize: CGFloat, color: CGColor? = nil) {
-        let font = CTFontCreateUIFontForLanguage(.emphasizedSystem, fontSize, nil)
-            ?? CTFontCreateWithName("Helvetica-Bold" as CFString, fontSize, nil)
+        let fallback = CTFontCreateWithName("Helvetica-Bold" as CFString, fontSize, nil)
+        let font = CTFontCreateUIFontForLanguage(.emphasizedSystem, fontSize, nil) ?? fallback
         var attributes: [NSAttributedString.Key: Any] = [NSAttributedString.Key(kCTFontAttributeName as String): font]
         if let color { attributes[NSAttributedString.Key(kCTForegroundColorAttributeName as String)] = color }
         let paragraphs = string.isEmpty ? [""] : string.components(separatedBy: .newlines)

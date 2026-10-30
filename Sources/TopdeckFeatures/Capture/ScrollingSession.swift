@@ -71,7 +71,7 @@ final class ScrollingSession {
         Task {
             await zone?.stop()
             // Whatever is left in the tracker's queue, then the stitching, right there.
-            let image = await withCheckedContinuation { continuation in
+            let image: CaptureImage? = await withCheckedContinuation { continuation in
                 tracker.queue.async {
                     let image = tracker.compose().map { CaptureImage(image: $0, scale: scale) }
                     tracker.discard()
