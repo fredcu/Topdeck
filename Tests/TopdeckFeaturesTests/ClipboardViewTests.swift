@@ -4,6 +4,7 @@ import Testing
 
 @testable import TopdeckFeatures
 
+@MainActor
 struct ClipboardViewTests {
     private let now = Date(timeIntervalSince1970: 1_800_000_000)
 
