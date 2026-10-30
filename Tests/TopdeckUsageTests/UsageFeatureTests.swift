@@ -2,6 +2,7 @@
 import Foundation
 import Testing
 import TopdeckCore
+import TopdeckFeatures
 
 @testable import TopdeckUsage
 

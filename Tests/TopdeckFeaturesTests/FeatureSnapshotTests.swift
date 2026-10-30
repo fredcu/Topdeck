@@ -200,6 +200,34 @@ struct FeatureSnapshotTests {
         try render(calendar.view, name: "calendar-meeting")
     }
 
+    /// One monitor with both controls, one without speakers, one that doesn't answer DDC; then none.
+    @Test func monitorsWithAndWithoutDDC() async throws {
+        let channels: [CGDirectDisplayID: any DDCChannel] = [
+            1: FakeMonitor([
+                .brightness: DDC.Level(current: 70, maximum: 100), .volume: DDC.Level(current: 30, maximum: 100),
+            ]),
+            2: FakeMonitor([.brightness: DDC.Level(current: 40, maximum: 100)]),
+        ]
+        final class Displays: @unchecked Sendable {
+            var list: [(id: CGDirectDisplayID, name: String)] = [
+                (1, "LG UltraFine"), (2, "DELL U2720Q"), (3, "Projector"),
+            ]
+        }
+        let displays = Displays()
+        let monitors = MonitorsFeature(
+            backend: .init(
+                displays: { displays.list }, channels: { ids in channels.filter { ids.contains($0.key) } },
+                perform: { $0() }, send: { $0() }, sleepDisplays: { true }))
+        monitors.phase = .foreground
+        #expect(await eventually { monitors.monitors.allSatisfy { $0.status != .checking } })
+        try render(monitors.view, name: "monitors")
+        displays.list = []
+        monitors.refresh()
+        #expect(await eventually { monitors.monitors.isEmpty && monitors.hasLooked })
+        try render(monitors.view, name: "monitors-none")
+        monitors.phase = .stopped
+    }
+
     @Test func eventKitTabsBeforeAccess() throws {
         let store = EventStore()
         try render(CalendarFeature(eventStore: store).view, name: "calendar-no-access")

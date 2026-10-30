@@ -6,6 +6,7 @@
 import Darwin
 import Foundation
 import Security
+import TopdeckFeatures
 
 protocol EnvironmentReading: Sendable {
     func value(for name: String) -> String?

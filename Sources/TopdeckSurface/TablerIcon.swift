@@ -48,15 +48,18 @@ extension FeatureID {
         case .sound: "volume"
         case .shelf: "inbox"
         case .clipboard: "clipboard-list"
+        case .capture: "capture"
         case .calendar: "calendar"
         case .tasks: "list-check"
         case .notes: "notes"
         case .shortcuts: "stack-2"
         case .timer: "alarm"
+        case .storage: "database"
         case .network: "ufo"  // beaming your data up and down
         case .usage: "gauge"
         case .agents: "terminal-2"
         case .admin: "server"
+        case .monitors: "device-desktop"
         }
     }
 }
