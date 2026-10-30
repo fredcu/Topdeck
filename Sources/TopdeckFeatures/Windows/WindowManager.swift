@@ -167,8 +167,12 @@ public final class WindowManager {
             guard var drag else { return }
             if !drag.isMoving {
                 // A window that moves without changing size is being dragged, not resized.
-                guard let frame = drag.window.frame, frame.origin != drag.start.origin, frame.size == drag.start.size
-                else { return }
+                // A call that fails, such as one to a hung app, ends the tracking.
+                guard let frame = drag.window.frame else {
+                    self.drag = nil
+                    return
+                }
+                guard frame.origin != drag.start.origin, frame.size == drag.start.size else { return }
                 drag.isMoving = true
             }
             let point = NSEvent.mouseLocation
@@ -233,7 +237,7 @@ public final class WindowManager {
         let open = openWindows()
         let windows = open.map { WindowLayout.Window(app: $0.app, title: $0.window.title) }
         for (index, placement) in layout.assignments(for: windows) {
-            let screen = NSScreen.screens.first { $0.windowDisplayUUID == placement.display } ?? NSScreen.main
+            let screen = NSScreen.screens.first { $0.displayUUID == placement.display } ?? NSScreen.main
             guard let screen else { continue }
             let frame = WindowLayout.frame(placement.frame, in: screen.visibleFrame)
             open[index].window.setFrame(WindowFrames.flipped(frame, primaryHeight: height))
@@ -258,7 +262,7 @@ public final class WindowManager {
             guard let index = WindowFrames.screen(for: frame, in: screens.map(\.frame)) else { return nil }
             let screen = screens[index]
             return WindowLayout.Placement(
-                app: app, title: window.title, display: screen.windowDisplayUUID,
+                app: app, title: window.title, display: screen.displayUUID,
                 frame: WindowLayout.unit(frame, in: screen.visibleFrame))
         }
     }

@@ -103,7 +103,7 @@ public final class PinnedNoteWindows: NSObject, NSWindowDelegate {
     }
 
     private func place(_ window: PinnedNoteWindow, index: Int) {
-        let screens = NSScreen.screens.map { NoteScreen(id: $0.noteDisplayID, visibleFrame: $0.visibleFrame) }
+        let screens = NSScreen.screens.map { NoteScreen(id: $0.displayUUID, visibleFrame: $0.visibleFrame) }
         let entry = frames.entry(for: window.noteID)
         guard let placement = NoteWindowPlacement.place(entry, on: screens, index: index) else { return }
         placing = true
@@ -115,8 +115,8 @@ public final class PinnedNoteWindows: NSObject, NSWindowDelegate {
         guard !placing, let window = notification.object as? PinnedNoteWindow, let screen = window.screen else {
             return
         }
-        let connected = Set(NSScreen.screens.map(\.noteDisplayID))
-        frames.record(window.frame, on: screen.noteDisplayID, for: window.noteID, connected: connected)
+        let connected = Set(NSScreen.screens.map(\.displayUUID))
+        frames.record(window.frame, on: screen.displayUUID, for: window.noteID, connected: connected)
     }
 
     public func windowDidMove(_ notification: Notification) { record(notification) }
@@ -271,14 +271,5 @@ extension NoteWindow {
         case .desktop: "menubar.dock.rectangle"
         case .top: "rectangle.stack"
         }
-    }
-}
-
-extension NSScreen {
-    /// The display's UUID, which, unlike its number, stays the same across reconnects and restarts.
-    fileprivate var noteDisplayID: String {
-        let number = (deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value ?? 0
-        guard let uuid = CGDisplayCreateUUIDFromDisplayID(number)?.takeRetainedValue() else { return "\(number)" }
-        return CFUUIDCreateString(nil, uuid) as String
     }
 }

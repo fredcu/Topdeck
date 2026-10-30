@@ -11,35 +11,46 @@ struct AccessibilityWindow {
     let element: AXUIElement
     let pid: pid_t
 
+    /// How long one call may wait on an app. A hung app would otherwise block the main actor for the
+    /// system default of six seconds.
+    private static let timeout: Float = 0.25
+
+    private static func bounded(_ element: AXUIElement) -> AXUIElement {
+        AXUIElementSetMessagingTimeout(element, timeout)
+        return element
+    }
+
     /// The frontmost app's focused window.
     static func focused() -> AccessibilityWindow? {
         guard let app = NSWorkspace.shared.frontmostApplication else { return nil }
         let pid = app.processIdentifier
-        guard let window = element(AXUIElementCreateApplication(pid), kAXFocusedWindowAttribute) else { return nil }
-        return AccessibilityWindow(element: window, pid: pid)
+        guard let window = element(bounded(AXUIElementCreateApplication(pid)), kAXFocusedWindowAttribute) else {
+            return nil
+        }
+        return AccessibilityWindow(element: bounded(window), pid: pid)
     }
 
     /// The window under `point`, in Accessibility coordinates.
     static func window(at point: CGPoint) -> AccessibilityWindow? {
         var hit: AXUIElement?
         let status = AXUIElementCopyElementAtPosition(
-            AXUIElementCreateSystemWide(), Float(point.x), Float(point.y), &hit)
-        guard status == .success, let hit else { return nil }
+            bounded(AXUIElementCreateSystemWide()), Float(point.x), Float(point.y), &hit)
+        guard status == .success, let hit = hit.map(bounded) else { return nil }
         var pid: pid_t = 0
         guard AXUIElementGetPid(hit, &pid) == .success, pid != getpid() else { return nil }
         let isWindow = string(hit, kAXRoleAttribute) == kAXWindowRole
         guard let window = isWindow ? hit : element(hit, kAXWindowAttribute) else { return nil }
-        return AccessibilityWindow(element: window, pid: pid)
+        return AccessibilityWindow(element: bounded(window), pid: pid)
     }
 
     /// An app's standard windows that aren't minimized, front to back.
     static func windows(of pid: pid_t) -> [AccessibilityWindow] {
         var value: CFTypeRef?
-        let app = AXUIElementCreateApplication(pid)
+        let app = bounded(AXUIElementCreateApplication(pid))
         guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value) == .success,
             let elements = value as? [AXUIElement]
         else { return [] }
-        return elements.map { AccessibilityWindow(element: $0, pid: pid) }
+        return elements.map { AccessibilityWindow(element: bounded($0), pid: pid) }
             .filter { $0.isStandard && !$0.isMinimized }
     }
 
@@ -68,7 +79,7 @@ struct AccessibilityWindow {
     /// where it was gets its full size once it has moved. Apps with AXEnhancedUserInterface on (set
     /// for VoiceOver and some window tools) animate and fight each change, so it's off meanwhile.
     func setFrame(_ frame: CGRect) {
-        let app = AXUIElementCreateApplication(pid)
+        let app = Self.bounded(AXUIElementCreateApplication(pid))
         let enhanced = "AXEnhancedUserInterface" as CFString
         var value: CFTypeRef?
         let wasEnhanced =
@@ -114,14 +125,5 @@ struct AccessibilityWindow {
             CFGetTypeID(value) == AXValueGetTypeID()
         else { return nil }
         return unsafeDowncast(value, to: AXValue.self)
-    }
-}
-
-extension NSScreen {
-    /// The display's UUID, which, unlike its number, stays the same across reconnects and restarts.
-    var windowDisplayUUID: String {
-        let number = (deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value ?? 0
-        guard let uuid = CGDisplayCreateUUIDFromDisplayID(number)?.takeRetainedValue() else { return "\(number)" }
-        return CFUUIDCreateString(nil, uuid) as String
     }
 }
