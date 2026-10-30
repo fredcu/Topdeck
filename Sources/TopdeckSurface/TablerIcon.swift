@@ -60,6 +60,7 @@ extension FeatureID {
         case .agents: "terminal-2"
         case .admin: "server"
         case .monitors: "device-desktop"
+        case .performance: "cpu"
         }
     }
 }

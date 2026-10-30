@@ -30,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let storage = StorageFeature()
     private let network = NetworkFeature()
     private let admin = SystemAdminFeature()
+    private let performance = PerformanceFeature()
     private let monitors = MonitorsFeature()
     /// Window snapping and layouts: a Settings page and shortcuts, no tab.
     private let windows = WindowManager()
@@ -83,7 +84,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var featureList: [any NotchFeature] {
         [
             media, shelf, clipboard, capture, calendar, tasks, notes, shortcuts, timer, storage, network, usage,
-            agents, monitors, admin,
+            agents, monitors, admin, performance,
         ]
     }
 
@@ -167,6 +168,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return AnyView(agents.view)
         case .monitors: return AnyView(monitors.view)
         case .admin: return AnyView(admin.view)
+        case .performance: return AnyView(performance.view)
         }
     }
 
@@ -196,6 +198,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return section(agents.settingsView)
         case .monitors: return nil
         case .admin: return nil
+        case .performance: return nil
         }
     }
 

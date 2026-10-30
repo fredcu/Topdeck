@@ -396,8 +396,13 @@ with comments translated from Spanish. The menu bar icon hider adapts
 installed-app listing from `CommandBarFeature.swift` and
 `CommandBarPanel.swift`), and the window switcher adapts
 `Features/WindowSwitcher` (`SwitcherPanel.swift`, `WindowSwitcher.swift`,
-`SwitcherList.swift`), likewise renamed and translated. Each adapted file names
-its origin in its header.
+`SwitcherList.swift`), likewise renamed and translated. The Performance tab
+adapts `Features/Performance` (`SystemProbes.swift`, `SystemStats.swift`,
+`TopProcesses.swift`, `BatteryReport.swift`, `Temperature.swift`): the per-core
+CPU, GPU, memory, disk, process, and battery readings and the temperature
+sensor lookup, in `Sources/TopdeckFeatures/Performance`, shortened and without
+history, alerts, or menu bar items. Each adapted file names its origin in its
+header.
 
 ```text
 MIT License

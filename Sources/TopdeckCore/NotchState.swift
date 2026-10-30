@@ -4,7 +4,7 @@ import Foundation
 /// A feature that can own the expanded notch.
 public enum FeatureID: String, CaseIterable, Hashable, Sendable {
     case media, sound, shelf, clipboard, capture, calendar, tasks, notes, shortcuts, timer, storage, network
-    case usage, agents, monitors, admin
+    case usage, agents, monitors, admin, performance
 
     /// SF Symbol for the tab's page in Settings, beside System Settings' own symbols. The notch draws
     /// Tabler icons instead (TopdeckSurface's `FeatureID.icon`). Every name here exists on macOS 14.6,
@@ -27,6 +27,7 @@ public enum FeatureID: String, CaseIterable, Hashable, Sendable {
         case .agents: "apple.terminal"
         case .admin: "gearshape.2"
         case .monitors: "display.2"
+        case .performance: "cpu"
         }
     }
 
@@ -54,6 +55,7 @@ public enum FeatureID: String, CaseIterable, Hashable, Sendable {
         case .agents: "Agents"
         case .admin: "System Admin"
         case .monitors: "Monitors"
+        case .performance: "Performance"
         }
     }
 }
