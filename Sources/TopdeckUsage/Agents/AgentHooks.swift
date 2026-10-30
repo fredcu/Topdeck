@@ -34,7 +34,8 @@ public enum AgentTool: String, CaseIterable, Identifiable, Sendable {
     /// The tool's hook events, what each one means for the notch, and which of an event's cases
     /// count. Claude Code tells hooks it needs approval through a notification, sent once a prompt
     /// has waited a few seconds; Codex has an event for it. Claude's "waiting for your input" after
-    /// every idle minute isn't asking for anything, so it's left out.
+    /// every idle minute isn't asking for anything, so it's left out. Both run `PermissionRequest`
+    /// hooks when a permission dialog appears, which is where the notch answers (`approve`).
     var events: [(event: String, matcher: String?, state: String)] {
         let waiting: (String, String?, String) =
             switch self {
@@ -42,8 +43,8 @@ public enum AgentTool: String, CaseIterable, Identifiable, Sendable {
             case .codex: ("PermissionRequest", nil, "waiting")
             }
         return [
-            ("UserPromptSubmit", nil, "working"), waiting, ("PostToolUse", nil, "resumed"), ("Stop", nil, "done"),
-            ("SessionEnd", nil, "ended"),
+            ("UserPromptSubmit", nil, "working"), waiting, ("PermissionRequest", nil, AgentHooks.approve),
+            ("PostToolUse", nil, "resumed"), ("Stop", nil, "done"), ("SessionEnd", nil, "ended"),
         ]
     }
 }
@@ -71,8 +72,15 @@ public struct AgentHooks: Sendable {
     let states: URL
     /// A copy of each settings file from just before Topdeck last changed it.
     let backups: URL
+    /// Where Topdeck answers permission requests while it runs (`AgentSocket`).
+    let socket: URL
 
     static let scriptName = "topdeck-agent-hook"
+    /// The state that waits for the notch's answer instead of only reporting.
+    static let approve = "approve"
+    /// Seconds the agent lets the waiting hook run. Topdeck lets go of a request before then
+    /// (`AgentsFeature.holdLimit`), and the hook script gives up after 120 seconds on its own.
+    static let approveTimeout = 130
 
     public init() {
         self.init(
@@ -85,6 +93,7 @@ public struct AgentHooks: Sendable {
         script = support.appending(path: Self.scriptName)
         states = support.appending(path: "Agents", directoryHint: .isDirectory)
         backups = support.appending(path: "Backups", directoryHint: .isDirectory)
+        socket = support.appending(path: "agent.sock")
     }
 
     func configFile(_ tool: AgentTool) -> URL { home.appending(path: tool.configPath) }
@@ -176,15 +185,20 @@ public struct AgentHooks: Sendable {
         }
     }
 
-    /// `settings` with the notch's hooks for `tool` after everyone else's, one group per event. It
-    /// runs in the background (`async`), so an agent never waits on it.
+    /// `settings` with the notch's hooks for `tool` after everyone else's, one group per state. A
+    /// status hook runs in the background (`async`), so an agent never waits on it; the approval
+    /// hook waits for the notch's answer, with a time limit.
     static func adding(_ tool: AgentTool, command: String, to settings: [String: Any]) -> [String: Any] {
         var settings = removing(from: settings)
         var events = settings["hooks"] as? [String: Any] ?? [:]
         for (event, matcher, state) in tool.events {
-            var group: [String: Any] = [
-                "hooks": [["type": "command", "command": "\(command) \(tool.rawValue) \(state)", "async": true]]
-            ]
+            var handler: [String: Any] = ["type": "command", "command": "\(command) \(tool.rawValue) \(state)"]
+            if state == approve {
+                handler["timeout"] = approveTimeout
+            } else {
+                handler["async"] = true
+            }
+            var group: [String: Any] = ["hooks": [handler]]
             if let matcher { group["matcher"] = matcher }
             events[event] = (events[event] as? [Any] ?? []) + [group]
         }
@@ -223,14 +237,55 @@ public struct AgentHooks: Sendable {
     /// Runs on the agent's hook events. It writes one small file per session beside itself: the
     /// state, the project folder, the app the agent runs in, its process, and what it's waiting
     /// for. Never the prompt or any code, and nothing leaves the Mac. `plutil` reads the hook's
-    /// JSON, since macOS 14 has no `jq`. It never blocks the agent and always exits 0.
+    /// JSON, since macOS 14 has no `jq`. It always exits 0, and only `approve` waits: it hands the
+    /// request to Topdeck's socket through the system `perl` and prints the answer, or nothing.
     static let scriptSource = #"""
         #!/bin/sh
         # Topdeck agent status, run by Claude Code's and Codex's hooks. Topdeck adds the hooks
         # when you connect a tool in Settings > Agents and removes them when you disconnect.
-        # Usage: topdeck-agent-hook <claude|codex> <working|waiting|resumed|done|ended> < hook.json
+        # Usage: topdeck-agent-hook <claude|codex> <working|waiting|approve|resumed|done|ended> < hook.json
         tool=$1
         event=$2
+        if [ "$event" = approve ]; then
+            # Asks Topdeck, which holds the request until it's answered in the notch. When Topdeck
+            # isn't running, refuses, or doesn't answer in time, this prints nothing and the agent
+            # asks in its own prompt. It never approves anything by itself.
+            sock="$(dirname "$0")/agent.sock"
+            case $tool in claude | codex) ;; *) cat >/dev/null; exit 0 ;; esac
+            [ -S "$sock" ] && [ -x /usr/bin/perl ] || { cat >/dev/null; exit 0; }
+            # exec: the agent stopping the hook stops the wait, which takes the request off the notch.
+            exec /usr/bin/perl -e '
+                use strict; use Socket;
+                eval {
+                    my ($path, $tool) = @ARGV;
+                    $SIG{PIPE} = "IGNORE"; $SIG{ALRM} = sub { exit 0 };
+                    binmode STDIN; binmode STDOUT;
+                    my $input = do { local $/; <STDIN> };
+                    exit 0 unless defined $input && length($input) > 0 && length($input) <= 1048576;
+                    socket(my $s, PF_UNIX, SOCK_STREAM, 0) or exit 0;
+                    connect($s, pack_sockaddr_un($path)) or exit 0;
+                    binmode $s;
+                    alarm 120;
+                    my $message = "topdeck-agent 1 $tool " . length($input) . "\n" . $input;
+                    my $sent = 0;
+                    while ($sent < length $message) {
+                        my $n = syswrite($s, $message, length($message) - $sent, $sent);
+                        exit 0 unless $n;
+                        $sent += $n;
+                    }
+                    my $reply = "";
+                    while (1) {
+                        my $n = sysread($s, my $chunk, 65536);
+                        exit 0 unless defined $n;
+                        last if $n == 0;
+                        $reply .= $chunk;
+                    }
+                    alarm 0;
+                    print $reply if $reply =~ /\A\{.*\}\n\z/s;
+                };
+                exit 0;
+            ' "$sock" "$tool" 2>/dev/null
+        fi
         dir="$(dirname "$0")/Agents"
         if [ ! -d "$dir" ]; then cat >/dev/null; exit 0; fi
         # After every tool call: only worth reading while one of this tool's sessions is waiting.
