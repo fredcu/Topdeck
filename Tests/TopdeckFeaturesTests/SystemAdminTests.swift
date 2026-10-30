@@ -272,7 +272,7 @@ struct BrewParsingTests {
         #expect(merged.filter(\.isOutdated).map(\.name) == ["iterm2", "wget"], "outdated wins over info")
     }
 
-    @Test func somethingThatIsntJSONThrows() {
+    @Test func somethingThatIsntJSONThrows() throws {
         #expect(throws: Brew.ParseError.self) { try Brew.parseInstalled(Data("Error: no such command".utf8)) }
         #expect(throws: Brew.ParseError.self) { try Brew.parseOutdated(Data()) }
         #expect(try Brew.parseInstalled(Data("{}".utf8)).isEmpty)
