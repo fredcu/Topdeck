@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 import AppKit
+import TopdeckFeatures
 
 /// The menu bar fallback: always reachable, even when the notch is hidden or misbehaving. The menu
 /// is rebuilt each time it opens, so it shows the running version and the updater's state. Its
 /// items carry symbols, as the system's own menus do.
 @MainActor
 final class StatusItemController: NSObject, NSMenuDelegate {
-    private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+    private var statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let updater: Updater
     private let openSettings: (SettingsSelection.Page?) -> Void
 
@@ -14,6 +15,19 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         self.updater = updater
         self.openSettings = openSettings
         super.init()
+        install()
+    }
+
+    /// Makes the item again, which takes up the position the menu bar hider has stored for it.
+    func recreate() {
+        NSStatusBar.system.removeStatusItem(statusItem)
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        install()
+    }
+
+    /// Named, so the menu bar hider can keep it to the right of its divider.
+    private func install() {
+        statusItem.autosaveName = MenuBarHider.statusItemName
         statusItem.button?.image = NSImage(
             systemSymbolName: "rectangle.topthird.inset.filled", accessibilityDescription: "Topdeck")
         let menu = NSMenu()
