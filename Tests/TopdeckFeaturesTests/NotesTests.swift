@@ -200,4 +200,145 @@ struct NotesFeatureTests {
         #expect(try FileManager.default.contentsOfDirectory(atPath: chosen.path) == ["Moving day.md"])
         #expect(notes.notes.map(\.title) == ["Moving day"])
     }
+
+    @Test func windowAndIDRoundTripThroughFrontMatter() {
+        let id = UUID()
+        let contents = "---\ncolor: blue\nwindow: top\ntopdeck-id: \(id.uuidString)\ntags: work\n---\nBody"
+        let note = Note(id: UUID(), fileName: "a.md", contents: contents, modified: .now, created: nil)
+        #expect(note.id == id && note.window == .top && note.color == .blue && note.text == "Body")
+        #expect(note.fileContents == contents)
+
+        let foreign = Note(
+            id: UUID(), fileName: "b.md", contents: "---\nid: 20260901-standup\nwindow: sideways\n---\nBody",
+            modified: .now, created: nil)
+        #expect(foreign.window == nil, "an unknown window stays among the other fields")
+        #expect(foreign.fileContents == "---\nid: 20260901-standup\nwindow: sideways\n---\nBody")
+    }
+
+    @Test func aNoteKeepsItsIDOnceItHasHadAWindow() throws {
+        let notes = NotesFeature(directory: folder)
+        notes.phase = .foreground
+        let id = notes.add()
+        notes.update(id, text: "Sticky")
+        notes.setWindow(id, .desktop)
+        notes.flush()
+        let contents = try String(contentsOf: folder.appending(path: "Sticky.md"), encoding: .utf8)
+        #expect(contents == "---\nwindow: desktop\ntopdeck-id: \(id.uuidString)\n---\nSticky")
+
+        notes.setWindow(id, nil)
+        notes.update(id, text: "Sticky, renamed")
+        notes.flush()
+        let relaunched = NotesFeature(directory: folder)
+        relaunched.phase = .foreground
+        let note = try #require(relaunched.notes.first)
+        #expect(note.id == id && note.window == nil, "the id outlives the window and the rename")
+    }
+
+    @Test func aCopiedFileGetsAnIDOfItsOwn() throws {
+        let id = UUID()
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let contents = "---\nwindow: top\ntopdeck-id: \(id.uuidString)\n---\nTwin"
+        try contents.write(to: folder.appending(path: "Twin.md"), atomically: true, encoding: .utf8)
+        try contents.write(to: folder.appending(path: "Twin copy.md"), atomically: true, encoding: .utf8)
+        let notes = NotesFeature(directory: folder)
+        notes.phase = .foreground
+        #expect(Set(notes.notes.map(\.id)).count == 2)
+        #expect(notes.notes.contains { $0.id == id })
+        notes.flush()
+
+        let relaunched = NotesFeature(directory: folder)
+        relaunched.phase = .foreground
+        #expect(Set(relaunched.notes.map(\.id)) == Set(notes.notes.map(\.id)), "the new id was written")
+    }
+
+    @Test func windowedNotesLoadAtLaunchAndKeepSavingWhileStopped() throws {
+        let notes = NotesFeature(directory: folder)
+        notes.phase = .foreground
+        let pinned = notes.add()
+        notes.update(pinned, text: "On the desktop")
+        notes.setWindow(pinned, .desktop)
+        notes.update(notes.add(), text: "In the notch")
+        notes.phase = .stopped
+        #expect(notes.notes.map(\.id) == [pinned], "only the windowed note stays in memory")
+
+        let relaunched = NotesFeature(directory: folder)
+        relaunched.loadWindowed()
+        #expect(relaunched.phase == .stopped)
+        #expect(relaunched.windowed.map(\.id) == [pinned])
+        #expect(relaunched.notes.count == 1)
+        relaunched.update(pinned, text: "On the desktop, edited")
+        relaunched.flush()
+        let contents = try String(contentsOf: folder.appending(path: "On the desktop, edited.md"), encoding: .utf8)
+        #expect(contents.hasSuffix("On the desktop, edited"))
+
+        relaunched.phase = .foreground
+        #expect(relaunched.notes.count == 2)
+        #expect(relaunched.notes.contains { $0.id == pinned && $0.window == .desktop })
+    }
+
+    @Test func anotherAppsIDStaysBesideOurs() throws {
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let file = folder.appending(path: "Standup.md")
+        try "---\nid: 20260901-standup\n---\nStandup".write(to: file, atomically: true, encoding: .utf8)
+        let notes = NotesFeature(directory: folder)
+        notes.phase = .foreground
+        let id = try #require(notes.notes.first?.id)
+        notes.setWindow(id, .top)
+        notes.flush()
+        let contents = try String(contentsOf: file, encoding: .utf8)
+        #expect(contents == "---\nwindow: top\ntopdeck-id: \(id.uuidString)\nid: 20260901-standup\n---\nStandup")
+    }
+
+    @Test func aWindowedNoteEmptiedOutStaysInItsWindow() throws {
+        let notes = NotesFeature(directory: folder)
+        notes.phase = .foreground
+        let id = notes.add()
+        notes.update(id, text: "Sticky")
+        notes.setWindow(id, .desktop)
+        notes.flush()
+        notes.update(id, text: "")
+        notes.flush()
+
+        let relaunched = NotesFeature(directory: folder)
+        relaunched.loadWindowed()
+        #expect(relaunched.windowed.map(\.id) == [id])
+
+        relaunched.setWindow(id, nil)
+        relaunched.flush()
+        #expect(files().isEmpty, "back in the notch, an empty note isn't kept")
+    }
+
+    @Test func aChangeOnDiskReachesAWindowButNotOverUnsavedEdits() throws {
+        let notes = NotesFeature(directory: folder)
+        notes.phase = .foreground
+        let id = notes.add()
+        notes.update(id, text: "From here")
+        notes.setWindow(id, .top)
+        notes.flush()
+        notes.phase = .stopped
+        let file = folder.appending(path: "From here.md")
+        let header = "---\nwindow: top\ntopdeck-id: \(id.uuidString)\n---\n"
+
+        try (header + "From iCloud").write(to: file, atomically: true, encoding: .utf8)
+        notes.loadWindowed()
+        #expect(notes.windowed.first?.text == "From iCloud")
+
+        notes.update(id, text: "Still typing")
+        try (header + "From iCloud again").write(to: file, atomically: true, encoding: .utf8)
+        notes.loadWindowed()
+        #expect(notes.windowed.first?.text == "Still typing")
+    }
+
+    @Test func deletingAWindowedNoteTellsItsWindow() {
+        let notes = NotesFeature(directory: folder)
+        notes.phase = .foreground
+        let id = notes.add()
+        notes.update(id, text: "Gone")
+        notes.setWindow(id, .top)
+        var deleted: [Note.ID] = []
+        notes.onDelete = { deleted.append($0) }
+        notes.delete(id)
+        #expect(deleted == [id])
+        #expect(notes.windowed.isEmpty)
+    }
 }

@@ -12,21 +12,36 @@ struct ClipboardTests {
     private let folder = FileManager.default.temporaryDirectory.appending(path: "Clipboard-\(UUID().uuidString)")
     private let defaults = UserDefaults(suiteName: "Clipboard.\(UUID().uuidString)")!
 
-    private func clipboard(in app: (id: String?, name: String?) = ("com.apple.TextEdit", "TextEdit")) throws
-        -> ClipboardFeature
-    {
+    private func clipboard(
+        in app: (id: String?, name: String?) = ("com.apple.TextEdit", "TextEdit"),
+        pasteInFront: @escaping @MainActor () -> Void = {}
+    ) throws -> ClipboardFeature {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         return ClipboardFeature(
             pasteboard: pasteboard, defaults: defaults, storeURL: folder.appending(path: "clipboard.json"),
-            imagesURL: folder.appending(path: "Clipboard"), frontmostApp: { app })
+            imagesURL: folder.appending(path: "Clipboard"), frontmostApp: { app }, pasteInFront: pasteInFront)
     }
 
-    private func copy(_ text: String, marked type: String? = nil) {
+    private func copy(_ text: String, marked type: String? = nil, from source: String? = nil, rtf: Data? = nil) {
         var types: [NSPasteboard.PasteboardType] = [.string]
         if let type { types.append(NSPasteboard.PasteboardType(type)) }
+        if source != nil { types.append(NSPasteboard.PasteboardType(ClipboardRules.sourceType)) }
+        if rtf != nil { types.append(.rtf) }
         pasteboard.clearContents()
         pasteboard.declareTypes(types, owner: nil)
         pasteboard.setString(text, forType: .string)
+        if let source { pasteboard.setString(source, forType: NSPasteboard.PasteboardType(ClipboardRules.sourceType)) }
+        if let rtf { pasteboard.setData(rtf, forType: .rtf) }
+    }
+
+    /// A recording clipboard with its feature running.
+    private func recording(in app: (id: String?, name: String?) = ("com.apple.TextEdit", "TextEdit")) throws
+        -> ClipboardFeature
+    {
+        let clipboard = try clipboard(in: app)
+        clipboard.phase = .background
+        clipboard.startRecording()
+        return clipboard
     }
 
     @Test func nothingIsReadUntilTheUserTurnsItOn() throws {
@@ -68,6 +83,91 @@ struct ClipboardTests {
         copy("correct horse battery staple")
         manager.check()
         #expect(manager.items.isEmpty, "copied in a password manager")
+    }
+
+    @Test(arguments: ["org.nspasteboard.ConcealedType", "org.nspasteboard.TransientType"])
+    func concealedAndTransientCopiesAreNeverKept(type: String) throws {
+        let clipboard = try recording()
+        copy("one-time code 123456", marked: type)
+        clipboard.check()
+        copy("kept")
+        clipboard.check()
+        #expect(clipboard.items.map(\.text) == ["kept"])
+        clipboard.phase = .stopped
+        let saved = try String(contentsOf: folder.appending(path: "clipboard.json"), encoding: .utf8)
+        #expect(!saved.contains("123456"), "not on disk either")
+    }
+
+    @Test func aPasswordManagerNamedAsTheSourceIsSkippedWhateverIsInFront() throws {
+        let clipboard = try recording(in: ("com.apple.Safari", "Safari"))
+        copy("correct horse battery staple", from: "com.bitwarden.desktop")
+        clipboard.check()
+        #expect(clipboard.items.isEmpty)
+    }
+
+    @Test func appsTheUserSkipsAreLeftOutUntilRemoved() throws {
+        let terminal = try recording(in: ("com.apple.Terminal", "Terminal"))
+        terminal.ignoreApp("com.apple.Terminal")
+        terminal.ignoreApp("com.apple.Terminal")
+        #expect(terminal.ignoredApps == ["com.apple.Terminal"], "listed once")
+        copy("export TOKEN=abc")
+        terminal.check()
+        #expect(terminal.items.isEmpty)
+
+        let relaunched = try recording(in: ("com.apple.Terminal", "Terminal"))
+        #expect(relaunched.ignoredApps == ["com.apple.Terminal"], "kept across launches")
+        relaunched.stopIgnoringApp("com.apple.Terminal")
+        copy("ls -la")
+        relaunched.check()
+        #expect(relaunched.items.map(\.text) == ["ls -la"])
+    }
+
+    @Test func linksLoseTheirTrackingOnlyWhenTheUserAsks() throws {
+        let clipboard = try recording()
+        copy("https://example.com/post?id=4&utm_source=newsletter")
+        clipboard.check()
+        #expect(clipboard.items.first?.text == "https://example.com/post?id=4&utm_source=newsletter", "off by default")
+
+        clipboard.cleansLinks = true
+        copy("https://example.com/post?id=5&utm_source=newsletter&fbclid=x")
+        clipboard.check()
+        copy("https://exa mple.com/?utm_source=x")
+        clipboard.check()
+        let unparsed = "https://exa mple.com/?utm_source=x"
+        let cleaned = "https://example.com/post?id=5"
+        #expect(clipboard.items.map(\.text).prefix(2) == [unparsed, cleaned], "unparsed: as is")
+        #expect(try self.clipboard().cleansLinks, "kept across launches")
+    }
+
+    @Test func theKeystrokeFindsVInTheLayout() {
+        #expect(PasteKeystroke.keyCode(for: "v") == 9, "the runner's U.S. layout")
+    }
+
+    @Test func formattingStaysUnlessPastedAsPlainText() throws {
+        var pasted = 0
+        let clipboard = try self.clipboard(pasteInFront: { pasted += 1 })
+        clipboard.phase = .background
+        clipboard.startRecording()
+        let bold = NSAttributedString(string: "bold", attributes: [.font: NSFont.boldSystemFont(ofSize: 12)])
+        let rtf = try #require(bold.rtf(from: NSRange(location: 0, length: bold.length), documentAttributes: [:]))
+        copy("bold", rtf: rtf)
+        clipboard.check()
+        let item = try #require(clipboard.items.first)
+        #expect(item.rich?[NSPasteboard.PasteboardType.rtf.rawValue] == rtf)
+
+        clipboard.pick(item)
+        #expect(pasteboard.data(forType: .rtf) == rtf && pasted == 0, "copied with its formatting, not pasted")
+
+        clipboard.pick(item, plainText: true, paste: true)
+        #expect(pasteboard.string(forType: .string) == "bold" && pasteboard.data(forType: .rtf) == nil)
+        #expect(pasted == 1)
+
+        clipboard.pastesAsPlainText = true
+        clipboard.pastesAfterPicking = true
+        clipboard.pick(item)
+        #expect(pasteboard.data(forType: .rtf) == nil && pasted == 2, "the settings are the defaults")
+        clipboard.check()
+        #expect(clipboard.items.count == 1, "its own paste isn't a new copy")
     }
 
     @Test func filesAndImagesAreKeptAsWhatTheyAre() throws {

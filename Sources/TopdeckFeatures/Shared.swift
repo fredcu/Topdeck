@@ -219,3 +219,12 @@ extension URL {
         URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)")!
     }
 }
+
+extension NSScreen {
+    /// The display's UUID, which, unlike its number, stays the same across reconnects and restarts.
+    var displayUUID: String {
+        let number = (deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value ?? 0
+        guard let uuid = CGDisplayCreateUUIDFromDisplayID(number)?.takeRetainedValue() else { return "\(number)" }
+        return CFUUIDCreateString(nil, uuid) as String
+    }
+}

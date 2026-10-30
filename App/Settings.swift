@@ -15,6 +15,7 @@ final class SettingsWindowController {
     private let updater: Updater
     private let notchKey: HotKey
     private let clipboardKey: HotKey
+    private let windows: WindowManager
     private let previewAnimation: () -> Void
     private let featureSettings: (FeatureID) -> AnyView?
     private let selection = SettingsSelection()
@@ -23,12 +24,14 @@ final class SettingsWindowController {
     /// `featureSettings` supplies each tab's own settings, as the sections of its page.
     init(
         preferences: NotchPreferences, updater: Updater, notchKey: HotKey, clipboardKey: HotKey,
-        previewAnimation: @escaping () -> Void, featureSettings: @escaping (FeatureID) -> AnyView?
+        windows: WindowManager, previewAnimation: @escaping () -> Void,
+        featureSettings: @escaping (FeatureID) -> AnyView?
     ) {
         self.preferences = preferences
         self.updater = updater
         self.notchKey = notchKey
         self.clipboardKey = clipboardKey
+        self.windows = windows
         self.previewAnimation = previewAnimation
         self.featureSettings = featureSettings
     }
@@ -39,7 +42,8 @@ final class SettingsWindowController {
         if window == nil {
             let root = SettingsView(
                 preferences: preferences, updater: updater, notchKey: notchKey, clipboardKey: clipboardKey,
-                previewAnimation: previewAnimation, featureSettings: featureSettings, selection: selection)
+                windows: windows, previewAnimation: previewAnimation, featureSettings: featureSettings,
+                selection: selection)
             let host = NSHostingController(rootView: root)
             // The page's name goes in the toolbar, over a sidebar that runs to the top of the window.
             host.sceneBridgingOptions = [.title, .toolbars]
@@ -62,7 +66,7 @@ final class SettingsWindowController {
 @Observable
 final class SettingsSelection {
     enum Page: Hashable {
-        case about, general, appearance, displays, activities
+        case about, general, appearance, displays, activities, windows
         case feature(FeatureID)
     }
     var page = Page.general
@@ -76,6 +80,7 @@ struct SettingsView: View {
     let updater: Updater
     let notchKey: HotKey
     let clipboardKey: HotKey
+    let windows: WindowManager
     let previewAnimation: () -> Void
     let featureSettings: (FeatureID) -> AnyView?
     @Bindable var selection: SettingsSelection
@@ -88,6 +93,9 @@ struct SettingsView: View {
                     ForEach([SettingsSelection.Page.general, .appearance, .displays, .activities], id: \.self) {
                         SidebarRow(page: $0).tag($0)
                     }
+                }
+                Section {
+                    SidebarRow(page: .windows, off: !windows.isEnabled).tag(SettingsSelection.Page.windows)
                 }
                 Section("Tabs") {
                     ForEach(preferences.tabOrder, id: \.self) { feature in
@@ -114,6 +122,7 @@ struct SettingsView: View {
         case .appearance: AppearancePage(preferences: preferences, previewAnimation: previewAnimation)
         case .displays: DisplaysPage(preferences: preferences)
         case .activities: ActivitiesPage(preferences: preferences)
+        case .windows: WindowsPage(windows: windows)
         case .feature(let feature):
             FeaturePage(feature: feature, preferences: preferences, settings: featureSettings(feature))
         }
@@ -128,6 +137,7 @@ extension SettingsSelection.Page {
         case .appearance: "Appearance"
         case .displays: "Displays"
         case .activities: "Live Activities"
+        case .windows: "Windows"
         case .feature(let feature): feature.title
         }
     }
@@ -140,6 +150,7 @@ extension SettingsSelection.Page {
         case .appearance: ("paintbrush", .indigo)
         case .displays: ("display", .blue)
         case .activities: ("bell.badge", .red)
+        case .windows: ("rectangle.split.2x1", .cyan)
         case .feature(let feature):
             switch feature {
             case .media: ("play", .pink)
@@ -167,6 +178,7 @@ extension SettingsSelection.Page {
         case .appearance: "How the open notch looks, and how it opens and closes."
         case .displays: "Which displays get a notch, and what the ones without one show."
         case .activities: "What the closed notch shows for a moment when something changes."
+        case .windows: "Halves, thirds, quarters, and saved layouts for any app's windows."
         case .feature(let feature):
             switch feature {
             case .media: "What's playing in any app, with artwork, controls, and a waveform."
@@ -279,6 +291,17 @@ private struct FeaturePage: View {
         let isOn = Binding(get: { preferences.isEnabled(feature) }, set: { preferences.setEnabled(feature, $0) })
         SettingsPage(page: .feature(feature), isOn: isOn) {
             if preferences.isEnabled(feature), let settings { settings }
+        }
+    }
+}
+
+/// Windows has no notch tab: its switch, then its shortcuts and layouts while it's on.
+private struct WindowsPage: View {
+    @Bindable var windows: WindowManager
+
+    var body: some View {
+        SettingsPage(page: .windows, isOn: $windows.isEnabled) {
+            if windows.isEnabled { windows.settingsView }
         }
     }
 }

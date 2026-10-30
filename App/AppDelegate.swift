@@ -21,9 +21,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let calendar: CalendarFeature
     private let tasks: TasksFeature
     private let notes = NotesFeature()
+    /// Notes taken out of the notch, in windows of their own.
+    private lazy var pinnedNotes = PinnedNoteWindows(notes: notes)
     private let shortcuts = ShortcutsFeature()
     private let timer = TimerFeature()
     private let network = NetworkFeature()
+    /// Window snapping and layouts: a Settings page and shortcuts, no tab.
+    private let windows = WindowManager()
     private lazy var features = FeatureHost(featureList)
     // System live activities, which belong to no tab.
     private let volume = VolumeMonitor()
@@ -55,6 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updater: updater,
         notchKey: notchKey,
         clipboardKey: clipboardKey,
+        windows: windows,
         previewAnimation: { [weak self] in self?.coordinator?.previewAnimation() },
         featureSettings: { [unowned self] in self.settingsView(for: $0) })
 
@@ -113,6 +118,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func section(_ rows: some View) -> AnyView { AnyView(Section { rows }) }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.mainMenu = .hiddenEditMenu()
         let content = NotchContent(
             tab: { [unowned self] in self.tabView(for: $0) },
             dropFiles: { [preferences, shelf] urls in preferences.isEnabled(.shelf) && shelf.add(urls) },
@@ -149,6 +155,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         shortcuts.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         tasks.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         notes.onSendToTasks = { [tasks] in tasks.add($0) }
+        pinnedNotes.start()
         quickNoteKey.onPress = { [weak self] in self?.startQuickNote() }
         volume.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         battery.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
@@ -172,6 +179,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         coordinator.start()
+        windows.activate()
         self.coordinator = coordinator
         pendingMessages.forEach(showInNotch)
         pendingMessages = []
@@ -217,6 +225,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         // Stops every feature, including the media helper process and the camera.
         features.update(presentations: [], enabled: [])
+        pinnedNotes.stop()
         mixer.isEnabled = false  // every app back to its own volume
         timer.allowSleep()
         volume.stop()
