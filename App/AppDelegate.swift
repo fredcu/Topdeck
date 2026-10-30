@@ -16,6 +16,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let mixer = Mixer()
     private let media = MediaFeature()
     private let shelf = ShelfFeature()
+    /// Shelf files sent to Cloudflare R2, from each file's menu.
+    private let r2 = R2Uploads()
     private let clipboard = ClipboardFeature()
     private let calendar: CalendarFeature
     private let tasks: TasksFeature
@@ -94,6 +96,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return AnyView(
                 Group {
                     Section { shelf.settingsView }
+                    Section("Upload to R2") { r2.settingsView }
                 })
         case .clipboard: return section(clipboard.settingsView)
         case .calendar: return section(calendar.settingsView)
@@ -137,6 +140,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         media.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         media.onOngoing = { [weak coordinator] in coordinator?.setOngoing($0, for: .media) }
         shelf.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
+        shelf.uploads = r2
+        r2.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         calendar.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         calendar.onOngoing = { [weak coordinator] in coordinator?.setOngoing($0, for: .calendar) }
         timer.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }

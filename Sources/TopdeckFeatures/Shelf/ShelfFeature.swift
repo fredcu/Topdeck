@@ -26,6 +26,8 @@ public final class ShelfFeature: NotchFeature {
     public private(set) var locations: [ShelfItem.ID: URL] = [:]
     /// Raised when files land on the shelf.
     @ObservationIgnored public var onActivity: ((Activity) -> Void)?
+    /// Uploads to Cloudflare R2, offered from each file's menu.
+    @ObservationIgnored public var uploads: R2Uploads?
 
     // ponytail: a fixed cap keeps the shelf and its bookmark checks bounded; make it a setting if asked.
     static let capacity = 100
@@ -70,11 +72,13 @@ public final class ShelfFeature: NotchFeature {
     public func remove(_ item: ShelfItem) {
         items.removeAll { $0.id == item.id }
         locations[item.id] = nil
+        uploads?.forget(item.id)
         accessing.removeValue(forKey: item.id)?.stopAccessingSecurityScopedResource()
         save()
     }
 
     public func removeAll() {
+        for item in items { uploads?.forget(item.id) }
         items = []
         locations = [:]
         for url in accessing.values { url.stopAccessingSecurityScopedResource() }
