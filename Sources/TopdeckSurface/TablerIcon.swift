@@ -54,6 +54,7 @@ extension FeatureID {
         case .notes: "notes"
         case .shortcuts: "stack-2"
         case .timer: "alarm"
+        case .storage: "database"
         case .network: "ufo"  // beaming your data up and down
         case .usage: "gauge"
         case .agents: "terminal-2"

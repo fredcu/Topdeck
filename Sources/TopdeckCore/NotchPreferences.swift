@@ -210,7 +210,7 @@ public final class NotchPreferences {
         }
 
     /// Features that start off: turning those on is the user's call.
-    public nonisolated static let offByDefault: Set<FeatureID> = []
+    public nonisolated static let offByDefault: Set<FeatureID> = [.storage]
 
     @ObservationIgnored private let defaults: UserDefaults
     /// Features this build can offer, in tab order. The App Store edition leaves out the ones the
