@@ -29,7 +29,7 @@ public struct R2Bucket: Codable, Equatable, Sendable {
         guard id.count == 32, id.allSatisfy({ $0.isASCII && $0.isHexDigit }) else { throw R2Error.invalidAccountID }
         let bucket = name.trimmed
         guard Self.isBucketName(bucket) else { throw R2Error.invalidBucket }
-        let folder = try R2ObjectKey.folder(folder)
+        let folder = try R2ObjectKey.folder(self.folder)
         guard publicURL.trimmed.isEmpty || publicBase != nil else { throw R2Error.invalidPublicURL }
         return ("\(id).r2.cloudflarestorage.com", bucket, folder)
     }
