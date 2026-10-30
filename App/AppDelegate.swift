@@ -35,6 +35,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let windows = WindowManager()
     /// A search panel for apps and the actions below: a Settings page and a shortcut, no tab.
     private let commandBar = CommandBar()
+    /// Hides menu bar icons behind a divider: a Settings page, no tab.
+    private let menuBar = MenuBarHider()
     private lazy var features = FeatureHost(featureList)
     // System live activities, which belong to no tab.
     private let volume = VolumeMonitor()
@@ -71,6 +73,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         inputSwitch: inputSwitch,
         windows: windows,
         commandBar: commandBar,
+        menuBar: menuBar,
         previewAnimation: { [weak self] in self?.coordinator?.previewAnimation() },
         featureSettings: { [unowned self] in self.settingsView(for: $0) })
 
@@ -129,7 +132,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         let pages =
-            SettingsSelection.Page.app + [.windows, .inputSources, .commandBar]
+            SettingsSelection.Page.app + [.windows, .inputSources, .commandBar, .menuBar]
             + preferences.tabOrder.map { .feature($0) }
         for page in pages {
             add("settings.\(page.title)", "\(page.title) Settings", "Settings", "gearshape", "preferences") {
@@ -265,6 +268,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windows.activate()
         commandBar.actions = { [unowned self] in self.commandActions }
         commandBar.activate()
+        // Before the menu bar item is made, so it takes its place right of the divider.
+        menuBar.onPlaced = { [weak self] in self?.statusItem?.recreate() }
+        menuBar.activate()
         self.coordinator = coordinator
         pendingMessages.forEach(showInNotch)
         pendingMessages = []
@@ -313,6 +319,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         pinnedNotes.stop()
         commandBar.stop()
         inputSwitch.stop()
+        menuBar.stop()  // every hidden icon back
         mixer.isEnabled = false  // every app back to its own volume
         timer.allowSleep()
         volume.stop()
