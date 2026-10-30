@@ -3,6 +3,7 @@
 import AppKit
 import Carbon.HIToolbox
 import SwiftUI
+import TopdeckSurface
 
 /// A scrolling capture in progress. **The user scrolls**, at their own pace: Topdeck moves nothing,
 /// takes the area 30 times a second, stitches what passes through it, and stops at Done. Cancel or
@@ -110,7 +111,7 @@ final class ScrollingSession {
         frame.isReleasedWhenClosed = false
         let outline = NSView(frame: CGRect(origin: .zero, size: frame.frame.size))
         outline.wantsLayer = true
-        outline.layer?.borderColor = NSColor.controlAccentColor.cgColor
+        outline.layer?.borderColor = NSColor(Deck.text).cgColor
         outline.layer?.borderWidth = 2
         outline.layer?.cornerRadius = 4
         frame.contentView = outline
@@ -165,37 +166,34 @@ final class ScrollingSession {
 /// What the panel shows while capturing: how far it got.
 @MainActor
 @Observable
-private final class ScrollingStatus {
+final class ScrollingStatus {
     var pixels = 0
     /// No frame has matched for a while: the user should scroll back a little.
     var lost = false
 }
 
-private struct ScrollingHUD: View {
+struct ScrollingHUD: View {
     let status: ScrollingStatus
     let done: () -> Void
     let cancel: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: status.lost ? "exclamationmark.triangle.fill" : "arrow.up.and.down")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(status.lost ? Color.orange : .white.opacity(0.85))
+            if status.lost {
+                DeckDot(.signal)
+            } else {
+                DeckIconView(.scrollingCapture, size: 14).foregroundStyle(Deck.secondary)
+            }
             Text(status.lost ? "Scroll back a little" : "Scroll through the area")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.white)
-            Text("\(status.pixels) px")
-                .font(.system(size: 11).monospacedDigit())
-                .foregroundStyle(.white.opacity(0.6))
-            Button("Cancel", action: cancel)
-                .controlSize(.small)
-            Button("Done", action: done)
-                .controlSize(.small)
-                .keyboardShortcut(.defaultAction)
+                .deckText(.detail, color: status.lost ? Deck.signal : Deck.text)
+            Text("\(status.pixels) px").deckText(.caption)
+            Button("Cancel", action: cancel).buttonStyle(.deck(compact: true))
+            Button("Done", action: done).buttonStyle(.deck(.primary, compact: true)).keyboardShortcut(.defaultAction)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
-        .background(Capsule().fill(.black.opacity(0.8)))
+        .background(Capsule().fill(Deck.Floating.panel))
+        .overlay(Capsule().strokeBorder(Deck.hairline, lineWidth: 1))
         .fixedSize()
         .environment(\.colorScheme, .dark)
     }

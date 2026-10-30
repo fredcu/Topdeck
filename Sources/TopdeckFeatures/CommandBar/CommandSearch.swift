@@ -12,12 +12,15 @@ public struct CommandAction: Identifiable {
     public let symbol: String
     /// More words that find it.
     public let keywords: String
+    /// Its keyboard shortcut as keys, such as "⌃⌥←", shown beside the highlighted row.
+    public let shortcut: String?
     public let run: @MainActor () -> Void
 
     public init(
-        id: String, title: String, area: String, symbol: String, keywords: String = "",
+        id: String, title: String, area: String, symbol: String, keywords: String = "", shortcut: String? = nil,
         run: @escaping @MainActor () -> Void
     ) {
+        self.shortcut = shortcut
         self.id = id
         self.title = title
         self.area = area
