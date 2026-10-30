@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 /// Locks the burn-rate pacing: the three-state thresholds (blue ahead / amber cutting-it-close /
 /// red behind), the even-pace tick on yellow/red (and blue when opted in), the "~N% spare" copy,

@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 /// Covers `SpendTileMapper.appendTokenUsage`'s no-usage handling.
 ///

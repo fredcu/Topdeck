@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 /// `Provider.visibleLinks` is the boundary that keeps a malformed link entry from shipping a dead or
 /// no-op button on the card. It mirrors the legacy Tauri `visibleLinks` filter: trim, require a

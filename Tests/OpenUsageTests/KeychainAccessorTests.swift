@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 final class KeychainAccessorTests: XCTestCase {
     /// Returns a fixed `ProcessResult` for any invocation — lets us drive the accessor's exit-code

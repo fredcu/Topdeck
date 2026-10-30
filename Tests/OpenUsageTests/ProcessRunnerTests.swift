@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 final class ProcessRunnerTests: XCTestCase {
     /// Regression: a child whose output exceeds the ~64KB OS pipe buffer must not deadlock. Before the

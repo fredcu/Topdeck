@@ -5,7 +5,7 @@
 
 import CryptoKit
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 /// A live `GET /api/usage` response, trimmed to the fields OpenUsage reads.
 private let usageJSON = #"""

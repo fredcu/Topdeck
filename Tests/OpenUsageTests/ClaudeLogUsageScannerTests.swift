@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 /// Line parsing, deduplication, and day aggregation for the native Claude log scanner — the
 /// dedup/validity fixtures are ported from ccusage's Claude adapter tests so the two agree on

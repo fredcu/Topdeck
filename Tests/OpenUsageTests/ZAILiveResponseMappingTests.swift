@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 /// Verifies the Swift mapper against a captured live Z.ai API response. Both endpoints are
 /// undocumented internal APIs, so this guards the mapping against the real shape — not just the

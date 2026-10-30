@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 /// Fetch/cache/TTL behavior of the pricing store, with stubbed HTTP, an injected clock, and tiny
 /// fixture feeds.

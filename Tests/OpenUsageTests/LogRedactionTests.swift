@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 /// The never-log-secrets regression guard. Each case mirrors a Rust test from
 /// `src-tauri/src/plugin_engine/host_api.rs` / `src-tauri/src/config.rs`, ported verbatim where a

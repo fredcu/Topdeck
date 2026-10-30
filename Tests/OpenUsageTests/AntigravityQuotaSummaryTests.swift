@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 /// Covers the `RetrieveUserQuotaSummary` support added by the merged-pools + weekly-limits fix:
 /// the lenient summary parser and the "a parsed summary is authoritative — even empty — and never

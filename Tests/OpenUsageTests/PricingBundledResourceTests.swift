@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 /// Guards the shipped pricing resources: the bundled supplement and snapshots must load, and every
 /// alias canonical must resolve against them — so a LiteLLM/models.dev key rename or a supplement

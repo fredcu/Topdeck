@@ -7,7 +7,7 @@ import CommonCrypto
 import CryptoKit
 import Foundation
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 extension ClaudeDesktopAuthStoreTests {
     /// The stock CLI keychain payload: one far-future OAuth token with the given scope.

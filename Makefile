@@ -2,7 +2,7 @@
 CONFIGURATION ?= Debug
 ARCH ?= $(shell uname -m)
 DERIVED_DATA := .build/xcode
-APP := $(DERIVED_DATA)/Build/Products/$(CONFIGURATION)/ILoveNotch.app
+APP := $(DERIVED_DATA)/Build/Products/$(CONFIGURATION)/Topdeck.app
 SWIFT_SOURCES := App Sources Tests Package.swift
 # The commit a build comes from, with "+" when the checkout has uncommitted changes (shown in the menu).
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null)$(shell git diff --quiet HEAD -- 2>/dev/null || echo +)
@@ -15,59 +15,41 @@ SIGNING = $(if $(SIGNING_IDENTITY),CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY='$(
 # More build settings for xcodebuild, such as CI's ONLY_ACTIVE_ARCH=YES to compile one architecture.
 XCODEBUILD_ARGS ?=
 
-.PHONY: setup project build build-app-store run install update ship release app-store test lint format licenses secrets changelog check clean
+.PHONY: setup project build run install update test lint format licenses secrets changelog check clean
 
-setup: ## Install developer tools (Brewfile) and fetch submodules
-	brew bundle
+setup: ## Fetch submodules
+
 	git submodule update --init --recursive
 
-project: ## Generate OpenNotch.xcodeproj from project.yml
+project: ## Generate Topdeck.xcodeproj from project.yml
 	git submodule update --init --recursive
 	xcodegen generate --quiet
 
 build: project ## Build the app; CONFIGURATION=Debug|Release
-	xcodebuild -project OpenNotch.xcodeproj -scheme OpenNotch -configuration $(CONFIGURATION) \
+	xcodebuild -project Topdeck.xcodeproj -scheme Topdeck -configuration $(CONFIGURATION) \
 		-destination 'platform=macOS,arch=$(ARCH)' -derivedDataPath $(DERIVED_DATA) \
-		OPENNOTCH_COMMIT='$(COMMIT)' $(SIGNING) $(XCODEBUILD_ARGS) -quiet build
-
-build-app-store: project ## Build the sandboxed App Store edition into its own folder
-	xcodebuild -project OpenNotch.xcodeproj -scheme "OpenNotch App Store" -configuration $(CONFIGURATION) \
-		-destination 'platform=macOS,arch=$(ARCH)' -derivedDataPath .build/xcode-appstore $(SIGNING) \
-		$(XCODEBUILD_ARGS) -quiet build
+		TOPDECK_COMMIT='$(COMMIT)' $(SIGNING) $(XCODEBUILD_ARGS) -quiet build
 
 run: build ## Build and relaunch the app
-	-osascript -e 'quit app "ILoveNotch"'
+	-osascript -e 'quit app "Topdeck"'
 	open $(APP)
 
-# The app was called OpenNotch before it was ILoveNotch: installing quits and removes that copy too.
+# The app was called Topdeck before it was Topdeck: installing quits and removes that copy too.
 install: ## Build a Release app into /Applications and (re)launch it
 	$(MAKE) build CONFIGURATION=Release
-	@for name in ILoveNotch OpenNotch; do osascript -e "quit app \"$$name\"" >/dev/null 2>&1 || true; done
-	@for _ in 1 2 3 4 5 6 7 8 9 10; do pgrep -x 'ILoveNotch|OpenNotch' >/dev/null || break; sleep 0.3; done; \
-		pkill -x 'ILoveNotch|OpenNotch' || true
-	rm -rf /Applications/ILoveNotch.app /Applications/OpenNotch.app
-	ditto $(DERIVED_DATA)/Build/Products/Release/ILoveNotch.app /Applications/ILoveNotch.app
-	open /Applications/ILoveNotch.app
+	@for name in Topdeck Topdeck; do osascript -e "quit app \"$$name\"" >/dev/null 2>&1 || true; done
+	@for _ in 1 2 3 4 5 6 7 8 9 10; do pgrep -x 'Topdeck|Topdeck' >/dev/null || break; sleep 0.3; done; \
+		pkill -x 'Topdeck|Topdeck' || true
+	rm -rf /Applications/Topdeck.app /Applications/Topdeck.app
+	ditto $(DERIVED_DATA)/Build/Products/Release/Topdeck.app /Applications/Topdeck.app
+	open /Applications/Topdeck.app
 
-update: ## Pull main when safe, rebuild, reinstall, relaunch (the app's "Update ILoveNotch")
+update: ## Pull main when safe, rebuild, reinstall, relaunch (the app's "Update Topdeck")
 	scripts/update.sh
 
 # Only what CI tested: dev as its pull request's head, every required check green (gh exits nonzero
 # while one is pending or failing), and a fast-forward, which main's rules already insist on.
-ship: ## Fast-forward main to dev once dev's pull request into main is green (CONTRIBUTING.md)
-	@git fetch --quiet origin
-	@test "$$(gh pr view dev --json headRefOid --jq .headRefOid)" = "$$(git rev-parse dev)" \
-		|| { echo "dev isn't what its pull request tested: push dev and let CI finish."; exit 1; }
-	gh pr checks dev --required
-	git push origin dev:main
-
-release: ## Sign, notarize, and draft a GitHub release: make release VERSION=0.3.0 (docs/releasing.md)
-	scripts/release.sh $(VERSION)
-
-app-store: ## Upload the App Store edition to App Store Connect: make app-store VERSION=0.3.0
-	scripts/app-store.sh $(VERSION)
-
-test: ## Run unit and performance tests (warnings are errors in OpenNotch's own targets: Package.swift)
+test: ## Run unit and performance tests (warnings are errors in Topdeck's own targets: Package.swift)
 	swift test
 
 lint: ## Fail on formatting drift (config: .swift-format)
@@ -89,4 +71,4 @@ changelog: ## CHANGELOG.md has release notes for the version in project.yml
 check: secrets lint changelog test build licenses ## Everything CI runs
 
 clean:
-	rm -rf .build OpenNotch.xcodeproj
+	rm -rf .build Topdeck.xcodeproj

@@ -5,7 +5,7 @@
 
 import Foundation
 import Testing
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 struct OpenUsageISO8601Tests {
     @Test func parsesZuluISO() {

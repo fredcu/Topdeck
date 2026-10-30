@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 /// Covers the Total Spend card's aggregation and metric projection: which providers contribute,
 /// how slices rank per metric, Cost/MTok math, and when the combined number counts as estimated.

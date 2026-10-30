@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 final class ProviderParseTests: XCTestCase {
     func testURLFormEncodingPreservesOnlyRFC3986UnreservedASCII() {

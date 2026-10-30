@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import XCTest
 
-@testable import NotchCore
+@testable import TopdeckCore
 
 /// A feature module that does no work, so the measurements cover only the engine.
 @MainActor

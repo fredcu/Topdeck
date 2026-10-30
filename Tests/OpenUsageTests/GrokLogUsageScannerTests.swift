@@ -5,7 +5,7 @@
 
 import Foundation
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 final class GrokLogUsageScannerTests: XCTestCase {
     private let since = OpenUsageISO8601.date(from: "2026-06-01T00:00:00.000Z")!

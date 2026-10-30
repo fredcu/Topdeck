@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 final class AntigravityProviderTests: XCTestCase {
 
@@ -20,7 +20,7 @@ final class AntigravityProviderTests: XCTestCase {
         return resetsAt
     }
 
-    // OpenNotch: the Google token refresh test is left out with the refresh itself.
+    // Topdeck: the Google token refresh test is left out with the refresh itself.
 
     // MARK: - Mapper: pooling
 
@@ -367,7 +367,7 @@ final class AntigravityProviderTests: XCTestCase {
 
     @MainActor
     func testRejectedTokenAsksForAntigravityWithoutAnOAuthRefresh() async {
-        // OpenNotch: the Google OAuth refresh is left out, so a usable token that 401s is expired auth
+        // Topdeck: the Google OAuth refresh is left out, so a usable token that 401s is expired auth
         // (opening Antigravity renews it) and Google's token endpoint is never called.
         let routing = RoutingHTTPClient { request in
             XCTAssertNotEqual(request.url.host, "oauth2.googleapis.com")

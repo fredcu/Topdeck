@@ -5,7 +5,7 @@
 
 import Foundation
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 final class CodexLogStreamingTests: XCTestCase {
     func testStreamingPreservesReplayBaselineModelAndServiceTierAcrossBatches() async throws {

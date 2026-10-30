@@ -15,7 +15,7 @@ while IFS= read -r file; do
 done < <(git ls-files --cached --others --exclude-standard '*.swift')
 
 # SwiftPM's pins, plus Xcode's once `make build` has resolved the app's packages.
-for resolved in Package.resolved OpenNotch.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved; do
+for resolved in Package.resolved Topdeck.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved; do
     [[ -f "$resolved" ]] || continue
     while IFS= read -r package; do
         if ! grep -qi -- "$package" THIRD_PARTY_NOTICES.md; then

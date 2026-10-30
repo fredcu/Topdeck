@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 let antigravityNow = OpenUsageISO8601.date(from: "2026-07-27T12:00:00.000Z")!
 

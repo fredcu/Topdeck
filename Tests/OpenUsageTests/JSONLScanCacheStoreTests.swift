@@ -5,7 +5,7 @@
 
 import Foundation
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 final class JSONLScanCacheStoreTests: XCTestCase {
     private var base: URL!

@@ -1,11 +1,11 @@
 name: Feature request
-description: Suggest something ILoveNotch should do.
+description: Suggest something Topdeck should do.
 labels: [enhancement]
 body:
   - type: markdown
     attributes:
       value: |
-        Not sure yet, or want to talk it through first? Start in [Ideas](https://github.com/niyamvora/ILoveNotch/discussions/categories/ideas) instead.
+        Not sure yet, or want to talk it through first? Start in [Ideas](https://github.com/fredcu/Topdeck/discussions/categories/ideas) instead.
   - type: textarea
     id: problem
     attributes:
@@ -17,7 +17,7 @@ body:
     id: solution
     attributes:
       label: What should happen?
-      description: Describe the behavior you want, not how another app does it (ILoveNotch is clean-room; see CONTRIBUTING.md).
+      description: Describe the behavior you want, not how another app does it (Topdeck is clean-room; see CONTRIBUTING.md).
     validations:
       required: true
   - type: textarea

@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 /// The pi log fold-in: parse pi's assistant usage lines, attribute them to the mapped OpenUsage card,
 /// and price by pi's carried cost (else the engine). Also covers the shared scan-merge that folds the

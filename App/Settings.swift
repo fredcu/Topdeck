@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 import AppKit
 import Carbon.HIToolbox
-import NotchCore
-import NotchFeatures
 import ServiceManagement
 import SwiftUI
+import TopdeckCore
+import TopdeckFeatures
 
 /// Accessory apps have no app menu, so Settings opens from the menu bar item or the notch's gear
 /// button, and activates the app while it's up. It's laid out like System Settings: a sidebar of
@@ -152,7 +152,6 @@ extension SettingsSelection.Page {
             case .shortcuts: (feature.symbol, .indigo)
             case .timer: (feature.symbol, .orange)
             case .network: ("arrow.up.arrow.down", .blue)
-            case .mirror: (feature.symbol, .green)
             case .usage: (feature.symbol, .purple)
             case .agents: (feature.symbol, .gray)
             }
@@ -179,7 +178,6 @@ extension SettingsSelection.Page {
             case .shortcuts: "The shortcuts you make in the Shortcuts app, a click away."
             case .timer: "Timers, a stopwatch with laps, and Keep Awake."
             case .network: "Your download and upload speed, and how much you've used."
-            case .mirror: "Your camera, on only while its tab is open."
             case .usage: "How much of each AI coding plan you've used."
             case .agents: "When Claude Code or Codex needs you or finishes, in the closed notch."
             }
@@ -203,7 +201,7 @@ private struct SettingsIcon: View {
     }
 }
 
-/// ILoveNotch itself, at the top of the sidebar where System Settings puts your account: it opens
+/// Topdeck itself, at the top of the sidebar where System Settings puts your account: it opens
 /// About.
 private struct AppRow: View {
     var body: some View {
@@ -213,7 +211,7 @@ private struct AppRow: View {
                 .frame(width: 36, height: 36)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
-                Text("ILoveNotch").font(.headline)
+                Text("Topdeck").font(.headline)
                 Text("Version \(Updater.version)").font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -328,7 +326,7 @@ private struct GeneralPage: View {
                     Text("Reset to defaults")
                     Text("Tabs, their order, shortcuts, appearance, and displays. Your notes, shelf, and history stay.")
                 }
-                .confirmationDialog("Reset ILoveNotch's settings?", isPresented: $confirmsReset) {
+                .confirmationDialog("Reset Topdeck's settings?", isPresented: $confirmsReset) {
                     Button("Reset to Defaults", role: .destructive) { preferences.reset() }
                 } message: {
                     Text("Every tab comes back in its first place, with the original shortcuts and look.")
@@ -481,7 +479,7 @@ private struct DisplaysPage: View {
             Section {
                 Toggle(isOn: $preferences.showOnAllDisplays) {
                     Text("Show on all displays")
-                    Text("Otherwise ILoveNotch uses the built-in display's notch, or the main display.")
+                    Text("Otherwise Topdeck uses the built-in display's notch, or the main display.")
                 }
             }
             Section {
@@ -524,32 +522,28 @@ private struct ActivitiesPage: View {
         SettingsPage(page: .activities) {
             Section("Volume") {
                 Toggle("Show volume changes", isOn: $preferences.showsVolume)
-                #if !APP_STORE  // the App Sandbox allows neither the volume-key tap nor the accessory monitor
-                    // A closure, not a method reference: see GeneralPage.
-                    let replaces = Binding(
-                        get: { preferences.replacesVolumeDisplay }, set: { setReplacesVolumeDisplay($0) })
-                    Toggle(isOn: replaces) {
-                        Text("Replace the macOS volume display")
-                        Text("Catches the volume keys so the change shows in the notch. Needs Accessibility access.")
-                    }
-                    .disabled(!preferences.showsVolume)
-                    if preferences.replacesVolumeDisplay, !trusted {
-                        LabeledContent("Accessibility") {
-                            Button("Open Accessibility Settings") {
-                                NSWorkspace.shared.open(.privacySettings("Privacy_Accessibility"))
-                            }
+                // A closure, not a method reference: see GeneralPage.
+                let replaces = Binding(
+                    get: { preferences.replacesVolumeDisplay }, set: { setReplacesVolumeDisplay($0) })
+                Toggle(isOn: replaces) {
+                    Text("Replace the macOS volume display")
+                    Text("Catches the volume keys so the change shows in the notch. Needs Accessibility access.")
+                }
+                .disabled(!preferences.showsVolume)
+                if preferences.replacesVolumeDisplay, !trusted {
+                    LabeledContent("Accessibility") {
+                        Button("Open Accessibility Settings") {
+                            NSWorkspace.shared.open(.privacySettings("Privacy_Accessibility"))
                         }
                     }
-                #endif
+                }
             }
             Section("Battery") {
                 Toggle("Show charging and battery", isOn: $preferences.showsBattery)
-                #if !APP_STORE
-                    Toggle(isOn: $preferences.showsAccessoryBattery) {
-                        Text("Show a Bluetooth accessory's battery when it connects")
-                        Text("Experimental: Apple keyboards, mice, and trackpads.")
-                    }
-                #endif
+                Toggle(isOn: $preferences.showsAccessoryBattery) {
+                    Text("Show a Bluetooth accessory's battery when it connects")
+                    Text("Experimental: Apple keyboards, mice, and trackpads.")
+                }
             }
         }
         .onAppear { trusted = VolumeKeyTap.isTrusted }
@@ -642,25 +636,23 @@ private struct AboutSettings: View {
                     .padding(.vertical, 2)
                     .background(.quaternary, in: Capsule())
             }
-            #if !APP_STORE  // the App Store updates its edition
-                if updater.sourceDirectory != nil {
-                    Button(
-                        updater.state == .updating ? "Updating…" : "Update ILoveNotch", action: updater.updateFromSource
-                    )
-                    .disabled(updater.state == .updating)
-                    if updater.state == .failed {
-                        Button("The update failed. Show Log", action: updater.showLog).buttonStyle(.link)
-                    }
-                    Text("Rebuilds from this Mac's checkout and relaunches.").font(.caption).foregroundStyle(.secondary)
-                } else {
-                    Button("Check for Updates…", action: updater.checkForUpdates)
+            if updater.sourceDirectory != nil {
+                Button(
+                    updater.state == .updating ? "Updating…" : "Update Topdeck", action: updater.updateFromSource
+                )
+                .disabled(updater.state == .updating)
+                if updater.state == .failed {
+                    Button("The update failed. Show Log", action: updater.showLog).buttonStyle(.link)
                 }
-            #endif
+                Text("Rebuilds from this Mac's checkout and relaunches.").font(.caption).foregroundStyle(.secondary)
+            } else {
+                Button("Check for Updates…", action: updater.checkForUpdates)
+            }
             AboutCard(url: Links.repository, glow: Self.coral) {
                 HStack(spacing: 12) {
                     Image(systemName: "star.fill").font(.title)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Star ILoveNotch on GitHub").font(.headline)
+                        Text("Star Topdeck on GitHub").font(.headline)
                         Text("A star is how other Mac users find it.").font(.callout).opacity(0.9)
                     }
                     Spacer(minLength: 0)
@@ -679,11 +671,6 @@ private struct AboutSettings: View {
                 AboutTile(
                     title: "Report a Bug", detail: "Or ask for a feature", symbol: "ladybug.fill", tint: .orange,
                     url: Links.newIssue)
-                #if !APP_STORE  // the App Store takes no outside payments (3.1.1)
-                    AboutTile(
-                        title: "Sponsor", detail: "Fuel the next one", symbol: "heart.fill", tint: .pink,
-                        url: Links.sponsor)
-                #endif
             }
             Spacer(minLength: 0)
             VStack(spacing: 4) {

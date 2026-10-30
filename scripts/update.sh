@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# "Update ILoveNotch" for builds made from this checkout. The app's menu bar item runs it, and so
+# "Update Topdeck" for builds made from this checkout. The app's menu bar item runs it, and so
 # does `make update`: fast-forward main when that's safe, rebuild, reinstall into /Applications,
-# and relaunch. Output goes to ~/Library/Logs/OpenNotch/update.log when the app runs it.
+# and relaunch. Output goes to ~/Library/Logs/Topdeck/update.log when the app runs it.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 # Apps don't inherit your shell's PATH; add Homebrew's so make can find xcodegen.

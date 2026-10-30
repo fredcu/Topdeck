@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Samples the running ILoveNotch's CPU and memory and checks them against the performance gates
+# Samples the running Topdeck's CPU and memory and checks them against the performance gates
 # (docs/plan/implementation-plan.md#8-performance-gates):
 #
 #   scripts/soak.sh          # 10 minutes, a sample every 10 seconds
@@ -13,7 +13,7 @@ cd "$(dirname "$0")/.."
 
 minutes=${1:-10}
 interval=${2:-10}
-pid=$(pgrep -x ILoveNotch) || { echo "ILoveNotch isn't running" >&2; exit 1; }
+pid=$(pgrep -x Topdeck) || { echo "Topdeck isn't running" >&2; exit 1; }
 mkdir -p build/soak
 csv="build/soak/$(date +%Y%m%d-%H%M%S).csv"
 echo "seconds,cpu_percent,footprint_mb,helper_footprint_mb" >"$csv"
@@ -29,9 +29,9 @@ footprint_mb() {
 }
 
 samples=$((minutes * 60 / interval))
-echo "Sampling ILoveNotch ($pid) every ${interval}s for $minutes min into $csv"
+echo "Sampling Topdeck ($pid) every ${interval}s for $minutes min into $csv"
 for ((sample = 0; sample < samples; sample++)); do
-    kill -0 "$pid" 2>/dev/null || { echo "ILoveNotch quit during the soak" >&2; exit 1; }
+    kill -0 "$pid" 2>/dev/null || { echo "Topdeck quit during the soak" >&2; exit 1; }
     helper=$(pgrep -f mediaremote-adapter.pl | head -1 || true)
     echo "$((sample * interval)),$(ps -o %cpu= -p "$pid" | tr -d ' '),$(footprint_mb "$pid"),$(footprint_mb "$helper")" >>"$csv"
     sleep "$interval"

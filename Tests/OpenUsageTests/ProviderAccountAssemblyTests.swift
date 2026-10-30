@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 /// The launch account pass end to end: observer outcomes → account registry records → the per-card
 /// identity map consumed by the snapshot cache stamp and the bare-id resolver.

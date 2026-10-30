@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 /// Scanner behavior against real SQLite databases and real conversation-store layouts: schema
 /// variations, WAL-mode reads, and how stores are discovered under `~/.gemini`.

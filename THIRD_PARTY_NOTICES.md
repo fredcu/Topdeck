@@ -5,11 +5,16 @@ copyright notice. Allowed licenses: MIT, BSD, Apache-2.0, ISC, and zlib. CI
 (`make licenses`) fails when a resolved package or git submodule is missing
 from this file.
 
+## ILoveNotch (MIT)
+
+https://github.com/niyamvora/ILoveNotch at commit
+108c5bf77ec3d16e735293c391b1a41786bde6a7, the base of Topdeck. See `LICENSE`.
+
 ## mediaremote-adapter (BSD-3-Clause)
 
 https://github.com/ungive/mediaremote-adapter, v0.7.7
 (commit e3ff5021eb0875858bd05f48d2e9ba2e962d1cf6), vendored as a git submodule
-in `ThirdParty/mediaremote-adapter`. ILoveNotch ships its framework and perl
+in `ThirdParty/mediaremote-adapter`. Topdeck ships its framework and perl
 script and runs them with the system perl to read now-playing information.
 
 ```text
@@ -43,42 +48,6 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-## Sparkle (MIT)
-
-https://github.com/sparkle-project/Sparkle, 2.10.0 and later 2.x, a Swift
-package of the app target. It checks the signed appcast and installs updates in
-release builds (docs/updates.md). Its notice follows; the full license, with the
-external notices for bsdiff (BSD-2-Clause), sais-lite (MIT), and ed25519
-(zlib), is at https://github.com/sparkle-project/Sparkle/blob/2.x/LICENSE.
-
-```text
-Copyright (c) 2006-2013 Andy Matuschak.
-Copyright (c) 2009-2013 Elgato Systems GmbH.
-Copyright (c) 2011-2014 Kornel Lesiński.
-Copyright (c) 2015-2017 Mayur Pawashe.
-Copyright (c) 2014 C.W. Betts.
-Copyright (c) 2014 Petroules Corporation.
-Copyright (c) 2014 Big Nerd Ranch.
-All rights reserved.
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of
-this software and associated documentation files (the "Software"), to deal in
-the Software without restriction, including without limitation the rights to
-use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software is furnished to do so,
-subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-```
-
 ## OpenUsage (MIT)
 
 https://github.com/robinebers/openusage at commit
@@ -86,10 +55,10 @@ https://github.com/robinebers/openusage at commit
 `Sources/NotchUsage/OpenUsage`: the provider integrations, usage models, pricing
 engine, and services behind the AI Usage tab. Its price supplement ships as
 `Sources/NotchUsage/Resources/pricing_supplement.json`. Each adapted file names
-its origin in its header. ILoveNotch's changes: its own cache folder and
+its origin in its header. Topdeck's changes: its own cache folder and
 User-Agent, no reset-credit claiming, no Antigravity token renewal (it embeds
 Antigravity's OAuth client secret), and a rebuilt UI. "OpenUsage" and its
-logo are Robin Ebers' trademarks. ILoveNotch doesn't use the logo, and isn't
+logo are Robin Ebers' trademarks. Topdeck doesn't use the logo, and isn't
 affiliated with or endorsed by OpenUsage.
 
 ```text
@@ -195,7 +164,7 @@ theSVG lists for each:
 | `opencode.svg` | opencode | MIT |
 | `zai.svg` | zhipu | MIT |
 
-Each logo is its owner's trademark. ILoveNotch shows them only to identify each
+Each logo is its owner's trademark. Topdeck shows them only to identify each
 provider, and doesn't suggest any endorsement.
 
 ```text
@@ -255,33 +224,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Quick Share protocol definitions (Apache-2.0)
 
-https://github.com/google/nearby and https://github.com/google/ukey2
-Copyright 2020–2023 Google LLC
-
-The messages in `Sources/NotchTransfer/QuickShare` (`Frames.swift` and
-`Crypto.swift`) follow the field numbers and values of Nearby Connections'
-`offline_wire_formats.proto`, Quick Share's `wire_format.proto`, and UKEY2's
-`ukey.proto`, `securemessage.proto`, and `securegcm.proto`, so ILoveNotch can
-talk to Android phones. No Google code is included: ILoveNotch encodes these
-messages itself.
-
-```text
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-```
-
-<!-- Entry format:
 ## Name (License)
 https://github.com/owner/repo
 Copyright (c) YEAR Holder

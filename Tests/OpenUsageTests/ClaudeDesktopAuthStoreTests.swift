@@ -7,7 +7,7 @@ import CommonCrypto
 import CryptoKit
 import Foundation
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 final class ClaudeDesktopAuthStoreTests: XCTestCase {
     let home = URL(fileURLWithPath: "/fixture-home", isDirectory: true)

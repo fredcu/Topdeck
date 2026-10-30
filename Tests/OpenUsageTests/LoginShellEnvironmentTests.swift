@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 final class LoginShellEnvironmentTests: XCTestCase {
     private let begin = "__OPENUSAGE_ENV_BEGIN__"

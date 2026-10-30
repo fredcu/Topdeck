@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import Foundation
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 /// Builders and a captured payload for Grok's `/v1/billing?format=credits` JSON response, shared by
 /// the decoder/mapper tests and the provider-level tests.

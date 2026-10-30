@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 /// Resolution and cost math for the pricing engine, against small fixture catalogs.
 final class ModelPricingTests: XCTestCase {

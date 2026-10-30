@@ -1,12 +1,12 @@
 name: Bug report
-description: Something in ILoveNotch doesn't work the way it should.
+description: Something in Topdeck doesn't work the way it should.
 labels: [bug]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting. Search [existing issues](https://github.com/niyamvora/ILoveNotch/issues?q=is%3Aissue) first; a 👍 on an open one helps more than a duplicate.
-        Security problem? Report it privately instead: [SECURITY.md](https://github.com/niyamvora/ILoveNotch/blob/main/SECURITY.md).
+        Thanks for reporting. Search [existing issues](https://github.com/fredcu/Topdeck/issues?q=is%3Aissue) first; a 👍 on an open one helps more than a duplicate.
+        Security problem? Report it privately instead: [SECURITY.md](https://github.com/fredcu/Topdeck/blob/main/SECURITY.md).
   - type: dropdown
     id: area
     attributes:
@@ -47,7 +47,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: ILoveNotch version
+      label: Topdeck version
       description: Shown at the top of the menu bar menu.
       placeholder: "0.2.0 (c94187a)"
     validations:
@@ -83,6 +83,6 @@ body:
       label: Logs or screenshots
       description: |
         Optional. Capture logs while reproducing with:
-        `log stream --level debug --predicate 'subsystem == "cafe.opennotch.app"'`
+        `log stream --level debug --predicate 'subsystem == "net.icuai.topdeck"'`
         Logs can include event, reminder, or file names; remove anything private before posting.
       render: text

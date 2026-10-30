@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 /// OpenCode's ChatGPT OAuth slice is attributed to Codex, following the same carried-cost-else-price
 /// policy as pi. API-key OpenAI traffic must never enter the Codex card.

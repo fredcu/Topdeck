@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 final class CredentialSystemClientIntegrityTests: XCTestCase {
     func testReadTextIfPresentReturnsNilOnlyForMissingFile() throws {
@@ -170,7 +170,7 @@ final class AntigravityCredentialCacheIntegrityTests: XCTestCase {
 
         let snapshot = await provider.refresh()
 
-        // OpenNotch: without the Google OAuth refresh, the expired login asks for Antigravity instead,
+        // Topdeck: without the Google OAuth refresh, the expired login asks for Antigravity instead,
         // and the previous account's cached token is still never sent.
         XCTAssertEqual(snapshot.errorCategory, .authExpired)
         let authorizations = http.requests.compactMap { $0.headers["Authorization"] }

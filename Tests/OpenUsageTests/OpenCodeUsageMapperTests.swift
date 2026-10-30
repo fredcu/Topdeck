@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 /// Go plan meters from `/zen/go/v1/usage`: percent format, resets, periods, and boundary failures.
 final class OpenCodeUsageMapperTests: XCTestCase {

@@ -5,7 +5,7 @@
 
 import Foundation
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 final class ClaudeDesktopTokenCacheTests: XCTestCase {
     private let account = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"

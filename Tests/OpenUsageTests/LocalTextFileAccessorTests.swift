@@ -5,7 +5,7 @@
 
 import Foundation
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 /// Real-filesystem coverage for the credential writer. Every test stays inside a unique temporary
 /// directory and verifies both data integrity and the POSIX boundary that protects local secrets.

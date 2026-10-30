@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 /// Issue #1258: the plan badge must follow Anthropic's live profile, not the tier Claude Code stamped into
 /// the login at sign-in — while never becoming a second poll against the rate-limited usage API.

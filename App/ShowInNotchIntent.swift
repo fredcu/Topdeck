@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 import AppIntents
 import AppKit
-import NotchFeatures
+import TopdeckFeatures
 
 /// The Show in Notch action in Shortcuts: a short message in the notch for a few seconds. It runs
-/// in the background; ILoveNotch starts if it isn't running.
+/// in the background; Topdeck starts if it isn't running.
 struct ShowInNotchIntent: AppIntent {
     static let title: LocalizedStringResource = "Show in Notch"
     static let description = IntentDescription(

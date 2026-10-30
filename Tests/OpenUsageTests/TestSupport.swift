@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 /// The shipped pricing resources (supplement + LiteLLM/models.dev snapshots) as a ready-to-use
 /// `ModelPricing` — loaded once, entirely offline (no store, no network, no disk cache). Tests that

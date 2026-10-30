@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 /// Go-key detection from `auth.json`, including tolerance of unrelated sibling entries (regression for the
 /// atomic-decode gap that let one odd top-level value hide a valid `opencode-go` key) and the

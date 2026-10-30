@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 /// End-to-end provider behavior: detection via the Go auth key or local usage, Go meters from the
 /// usage API, and local spend tiles + trend, plus auth/empty paths.

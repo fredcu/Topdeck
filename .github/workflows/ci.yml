@@ -3,6 +3,9 @@ name: CI
 # Pull requests into main, and by hand from the Actions tab. Not pushes to main: the pull request
 # already tested that code, so a run there would repeat it.
 on:
+  # Cloud sessions cannot compile this app, so every branch push gets a macOS build.
+  push:
+    branches-ignore: [main]
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
@@ -15,7 +18,7 @@ concurrency:
 permissions:
   contents: read
 
-# main requires the three checks below by name. A job skipped by its `if` still reports success, so
+# main requires the checks below by name. A job skipped by its `if` still reports success, so
 # a draft or a change to docs alone passes in seconds without starting a Mac. Otherwise three jobs
 # run side by side, so a run takes about as long as its slowest compile.
 jobs:
@@ -94,22 +97,3 @@ jobs:
       # After the build, so Xcode has resolved the app's packages (Sparkle) for the check.
       - name: License check
         run: make licenses
-
-  app-store:
-    name: App Store edition
-    needs: changes
-    if: needs.changes.outputs.code == 'true'
-    runs-on: macos-26
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          submodules: true
-
-      - name: Install XcodeGen
-        run: brew install xcodegen
-
-      # Debug: this checks the edition's own code (APP_STORE) compiles, in 40% less time. The job
-      # above runs the optimizer over the same modules, and uploads build Release (scripts/app-store.sh).
-      - name: Debug build
-        run: make build-app-store CONFIGURATION=Debug

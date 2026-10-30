@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 /// The SQLite scanner: unions `opencode*.db` files and sums combined hosted spend for the tiles/trend.
 /// Fed a stub `SQLiteAccessing` that returns crafted `json_group_array` payloads keyed by path.

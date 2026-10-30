@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 /// Direct pins for the shared accumulate-then-assemble contract behind the Claude/Codex/Grok scanners
 /// (the class of drift behind the ccusage false-zero fix): one `dayKey` spelling, newest-first day

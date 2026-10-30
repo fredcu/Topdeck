@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 /// `CodexLogUsageScanner` against fixture rollout files — parsing, totals deltas, model tracking,
 /// subagent replay skipping, dedup, aggregation, and the end-to-end scan. Fixture semantics ported

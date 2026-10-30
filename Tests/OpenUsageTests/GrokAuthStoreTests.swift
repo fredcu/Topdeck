@@ -4,7 +4,7 @@
 // swift-format-ignore-file
 
 import XCTest
-@testable import NotchUsage
+@testable import TopdeckUsage
 
 final class GrokAuthStoreTests: XCTestCase {
     func testReadsTokenExpiryFromJWT() {
