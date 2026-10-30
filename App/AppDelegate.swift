@@ -230,6 +230,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         open: { [weak self] in self?.coordinator?.open($0) }))
             },
             badge: { [unowned self] in $0 == .agents ? waitingAgents : 0 },
+            actions: { [unowned self] _, feature in
+                switch feature {
+                case .shelf: AnyView(shelf.headerActions)
+                case .clipboard: AnyView(clipboard.headerActions)
+                case .notes: AnyView(notes.headerActions)
+                default: AnyView(EmptyView())
+                }
+            },
             dropFiles: { [preferences, shelf] urls in preferences.isEnabled(.shelf) && shelf.add(urls) },
             openSettings: { [weak self] in self?.settings.show() })
         let coordinator = PanelCoordinator(preferences: preferences, content: content)
