@@ -3,8 +3,9 @@
 Topdeck is local-first.
 
 - No accounts, analytics, telemetry, or device fingerprinting.
-- The network is used only for the AI Usage providers you turn on (below).
-  With no provider on, the AI Usage tab never touches the network.
+- The network is used only for the AI Usage providers you turn on and for
+  uploads to your own Cloudflare R2 bucket (both below). With no provider on
+  and no upload started, neither touches the network.
 - Everything Topdeck creates (settings, notes, shelf items) stays on your Mac,
   unless you choose a notes folder that syncs, such as one in iCloud Drive.
 - System permissions (Calendar, Reminders, Camera, and so on) are requested only
@@ -143,6 +144,15 @@ or a server, and every connection is end-to-end encrypted.
 Topdeck keeps nothing about the phones it meets. macOS asks once for Local
 Network access; turning it off in **System Settings › Privacy & Security ›
 Local Network** turns this feature off and nothing else.
+
+## Uploading to R2
+
+Files in the shelf go to your own Cloudflare R2 bucket only when you choose
+**Upload to R2** on a file. The upload goes over HTTPS to your account's R2
+address and nowhere else, and never replaces a file already in the bucket unless
+you choose **Replace in R2**. Your R2 keys stay in the keychain and aren't
+written to files, settings, or logs. The bucket's address (account ID, bucket
+name, folder, public URL) is kept in Topdeck's settings.
 
 A change that weakens any of these points must say so in its pull request and
 update this file.
