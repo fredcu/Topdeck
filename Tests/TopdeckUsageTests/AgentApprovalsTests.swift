@@ -344,7 +344,8 @@ struct AgentApprovalTests {
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         defer { close(fd) }
         #expect(AgentSocket.withAddress(sandbox.hooks.socket.path) { bind(fd, $0, $1) } == 0)
-        let replacement = Heard().socket(sandbox)
+        let heard = Heard()
+        let replacement = heard.socket(sandbox)
         try replacement.start()
         #expect(replacement.isListening)
         replacement.stop()
