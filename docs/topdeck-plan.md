@@ -81,8 +81,8 @@ Batch 2 (merged):
 11. `r2-upload`: upload files from the Shelf to Cloudflare R2. Keys live in the Keychain through the
     existing `APIKeyVault` and are never logged.
 
-Batch 3: window switcher by windows, performance and battery health, menu bar icon hiding, command
-bar.
+Batch 3 (merged): window switcher by windows, performance and battery health, menu bar icon hiding,
+command bar.
 
 ## Pinned notes
 
@@ -123,3 +123,9 @@ the Mac.
 - R2 uploads against a real bucket.
 - DDC on a real monitor.
 - Scrolling capture.
+- Window switcher.
+- Command bar with Chinese input.
+- Menu bar hiding on a notched Mac.
+- Temperature and disk readings.
+
+The window switcher defaults to Option-Tab because Command-Tab needs an event tap.
