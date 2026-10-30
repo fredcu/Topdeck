@@ -98,9 +98,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ) {
             list.append(CommandAction(id: id, title: title, area: area, symbol: symbol, keywords: keywords, run: run))
         }
-        for tab in preferences.tabs {
-            add("tab.\(tab.rawValue)", "Open \(tab.title)", "Notch", tab.symbol, "tab notch") { [weak self] in
-                self?.coordinator?.open(tab)
+        for space in preferences.spaceSet.spaces {
+            add(
+                "space.\(space.rawValue)", "Open \(space.title)", "Notch", "rectangle.topthird.inset.filled",
+                "space notch"
+            ) {
+                [weak self] in self?.coordinator?.open(space)
+            }
+        }
+        for feature in preferences.enabledFeatures {
+            add("tab.\(feature.rawValue)", "Open \(feature.title)", "Notch", feature.symbol, "tab notch") {
+                [weak self] in self?.coordinator?.show(feature)
             }
         }
         if preferences.isEnabled(.capture) {
@@ -137,7 +145,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let pages =
             SettingsSelection.Page.app + [.windows, .windowSwitcher, .inputSources, .commandBar, .menuBar]
-            + preferences.tabOrder.map { .feature($0) }
+            + preferences.available.map { .feature($0) }
         for page in pages {
             add("settings.\(page.title)", "\(page.title) Settings", "Settings", "gearshape", "preferences") {
                 [weak self] in self?.settings.show(page)
@@ -146,7 +154,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return list
     }
 
-    private func tabView(for feature: FeatureID) -> AnyView {
+    private func featureView(for feature: FeatureID) -> AnyView {
         switch feature {
         case .media: return AnyView(media.view)
         case .sound:
@@ -204,17 +212,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func section(_ rows: some View) -> AnyView { AnyView(Section { rows }) }
 
+    /// Agents waiting for an answer, for the badge on the Agents space: each session once, whether it
+    /// holds a request or only reported waiting.
+    private var waitingAgents: Int {
+        let held = agents.requests.map { "\($0.tool.rawValue)-\($0.session)" }
+        return Set(held + agents.sessions.filter { $0.state == .waiting }.map(\.id)).count
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = .hiddenEditMenu()
         let content = NotchContent(
-            tab: { [unowned self] in self.tabView(for: $0) },
+            feature: { [unowned self] in self.featureView(for: $0) },
+            now: { [unowned self] in
+                AnyView(
+                    NowView(
+                        media: media, agents: agents, calendar: calendar, tasks: tasks, timer: timer,
+                        open: { [weak self] in self?.coordinator?.open($0) }))
+            },
+            badge: { [unowned self] in $0 == .agents ? waitingAgents : 0 },
             dropFiles: { [preferences, shelf] urls in preferences.isEnabled(.shelf) && shelf.add(urls) },
             openSettings: { [weak self] in self?.settings.show() })
         let coordinator = PanelCoordinator(preferences: preferences, content: content)
-        coordinator.onPresentationsChange = { [weak self] presentations in
+        coordinator.onNotchesChange = { [weak self] notches in
             guard let self else { return }
-            features.update(presentations: presentations, enabled: Set(preferences.tabs))
-            if !presentations.contains(where: { $0.openTab != nil }) { escapeKey.shortcut = nil }
+            features.update(notches: notches, enabled: Set(preferences.enabledFeatures))
+            if !notches.contains(where: { $0.presentation.openSpace != nil }) { escapeKey.shortcut = nil }
         }
         notchKey.onPress = { [weak self, weak coordinator] in
             guard let self, coordinator?.toggleNotch() == true else { return }
@@ -322,7 +344,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         // Stops every feature, including the media helper process and the camera.
-        features.update(presentations: [], enabled: [])
+        features.update(notches: [], enabled: [])
         pinnedNotes.stop()
         commandBar.stop()
         inputSwitch.stop()
@@ -339,7 +361,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// screen and load before the note is added and the editor takes the keyboard.
     private func startQuickNote() {
         guard let coordinator, preferences.isEnabled(.notes) else { return }
-        coordinator.open(.notes)
+        coordinator.show(.notes)
         Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(150))
             guard let self else { return }

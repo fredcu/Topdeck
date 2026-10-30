@@ -24,17 +24,16 @@ let package = Package(
     targets: [
         // State machine, feature lifecycle, diagnostics. No AppKit, so it tests anywhere.
         .target(name: "TopdeckCore", swiftSettings: strict),
-        // Panel, SwiftUI surface, and notch geometry.
+        // Panel, SwiftUI surface, notch geometry, and the deck's design tokens and shared components.
+        .target(name: "TopdeckSurface", dependencies: ["TopdeckCore"], swiftSettings: strict),
+        // Feature modules: each one a NotchFeature plus its views, built on the surface's components.
         .target(
-            name: "TopdeckSurface", dependencies: ["TopdeckCore"],
-            // The notch's own icons from Tabler Icons (tabler.io; MIT, see THIRD_PARTY_NOTICES.md).
-            resources: [.copy("Resources/Icons")], swiftSettings: strict),
-        // Feature modules: each one a NotchFeature plus its views.
-        .target(name: "TopdeckFeatures", dependencies: ["TopdeckCore", "KeyboardShortcuts"], swiftSettings: strict),
+            name: "TopdeckFeatures", dependencies: ["TopdeckCore", "TopdeckSurface", "KeyboardShortcuts"],
+            swiftSettings: strict),
         // The GitHub build's developer tabs: AI Usage, OpenUsage's providers (MIT, in OpenUsage/) with
         // Topdeck's tab, and Agents, Claude Code and Codex hooks (in Agents/).
         .target(
-            name: "TopdeckUsage", dependencies: ["TopdeckCore", "TopdeckFeatures"],
+            name: "TopdeckUsage", dependencies: ["TopdeckCore", "TopdeckSurface", "TopdeckFeatures"],
             resources: [
                 .copy("Resources/pricing_litellm_snapshot.json"),
                 .copy("Resources/pricing_models_dev_snapshot.json"),
@@ -44,7 +43,9 @@ let package = Package(
             ]),
         // The GitHub build's per-app volume, in the Media tab: Core Audio process taps, and a private
         // call that tells which app a helper process (Safari's WebKit, say) plays for.
-        .target(name: "TopdeckMixer", dependencies: ["TopdeckCore", "TopdeckFeatures"], swiftSettings: strict),
+        .target(
+            name: "TopdeckMixer", dependencies: ["TopdeckCore", "TopdeckSurface", "TopdeckFeatures"],
+            swiftSettings: strict),
         .testTarget(name: "TopdeckCoreTests", dependencies: ["TopdeckCore"], swiftSettings: strict),
         .testTarget(name: "TopdeckSurfaceTests", dependencies: ["TopdeckSurface"], swiftSettings: strict),
         .testTarget(name: "TopdeckFeaturesTests", dependencies: ["TopdeckFeatures"], swiftSettings: strict),

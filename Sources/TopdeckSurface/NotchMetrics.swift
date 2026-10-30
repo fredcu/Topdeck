@@ -14,18 +14,15 @@ struct NotchMetrics: Equatable {
     /// center (half a point left on a 14" MacBook Pro), or the display's center without a notch.
     var centerX: CGFloat
 
-    static let flare: CGFloat = 6  // the outline's flared top corners, which meet the screen edge
+    static let flare: CGFloat = 6  // the closed outline's flared top corners, which meet the screen edge
+    static let shoulder: CGFloat = 18  // the open deck's concave top corners, outside its body on each side
     static let pill = CGSize(width: 180, height: 26)  // resting shape on a notchless display
     static let pillInset: CGFloat = 3  // gap above the floating pill
     static let hoverGrowth = CGSize(width: 12, height: 4)  // hover feedback
-    static let activityWing: CGFloat = 120  // the most a live activity's row reaches past each side of the notch
-    static let ongoingTab: CGFloat = 120  // the most an ongoing activity reaches beside the notch, over the menu bar
-    static let wingInset: CGFloat = 10  // between an ongoing activity's symbol and the notch
-    static let wingOutset: CGFloat = 12  // between its text and the tab's outer end
-    static let meterDepth: CGFloat = 26  // room under the notch for a live activity's row
-    static let rowPadding: CGFloat = 16  // at either end of that row
-    static let labelSpacing: CGFloat = 6  // between a live activity's symbol and its text
-    static let artworkSide: CGFloat = 18  // a cover shown in place of the symbol, such as what's playing
+    static let dropTarget = CGSize(width: 300, height: 96)  // a file dragged near the closed notch
+    static let closedPadding: CGFloat = 12  // at the outer end of a closed wing, and again beside the camera
+    static let closedWingRange: ClosedRange<CGFloat> = 36...150  // how far a live activity reaches past either side
+    static let closedSpacing: CGFloat = 6  // between a live activity's icon and its label
     static let overshootRoom: CGFloat = 1.08  // springy and jelly animations briefly overshoot
 
     /// The notch is the gap between the two auxiliary top areas; no insets means no notch, and then
@@ -76,13 +73,18 @@ struct NotchMetrics: Equatable {
         return CGSize(width: notch.width, height: notch.height - 1)
     }
 
-    /// The open notch at the user's chosen size: never narrower than the notch plus room for the
-    /// tabs, never larger than the display allows.
+    /// The open deck at the user's chosen body size, plus a shoulder on each side: never narrower than
+    /// the camera housing plus room for the wings, never larger than the display allows.
     func expandedSize(_ chosen: CGSize) -> CGSize {
-        CGSize(
-            width: min(max(chosen.width, housing.width + 80), screen.width - 32),
+        let shoulders = notch == nil ? 0 : Self.shoulder * 2
+        return CGSize(
+            width: min(max(chosen.width, housing.width + 80), screen.width - 32 - shoulders) + shoulders,
             height: min(chosen.height, screen.height * 0.6))
     }
+
+    /// The height of the top row, in line with the camera housing and never less than a navigation
+    /// pill needs (a stand-in notch is only as tall as its menu bar).
+    var topRowHeight: CGFloat { max(housing.height, 32) }
 
     func size(
         for presentation: NotchPresentationState, expanded: CGSize = NotchPreferences.defaultExpandedSize
@@ -92,71 +94,63 @@ struct NotchMetrics: Equatable {
             compactSize
         case .hoverArmed:
             CGSize(width: housing.width + Self.hoverGrowth.width, height: housing.height + Self.hoverGrowth.height)
-        case .transient(let activity) where activity.level != nil:
-            // A level (volume, battery) keeps to the notch's width: one row under the camera housing,
-            // or inside the pill.
-            notch == nil
-                ? housing
-                : CGSize(width: housing.width + Self.hoverGrowth.width, height: housing.height + Self.meterDepth)
         case .transient(let activity):
-            // Its symbol and title side by side, in a row under the camera housing or inside the pill:
-            // as wide as the notch, wider for a long title, up to a ceiling.
+            closedSize(for: activity)
+        case .dropTarget:
             CGSize(
-                width: min(
-                    max(housing.width + (notch == nil ? 0 : Self.hoverGrowth.width), Self.rowWidth(for: activity)),
-                    housing.width + Self.activityWing * 2),
-                height: notch == nil ? housing.height : housing.height + Self.meterDepth)
+                width: max(Self.dropTarget.width, housing.width + 2 * Self.closedPadding),
+                height: Self.dropTarget.height
+            )
         case .expanded, .pinned, .focused:
             expandedSize(expanded)
         }
     }
 
     /// The notch as `state` draws it: like `size(for:)`, but a resting notch with an ongoing activity
-    /// grows a tab for it beside the camera, or shows it inside the pill, and hovered it grows a
-    /// little more.
+    /// grows its wings, and hovered it grows a little more.
     func size(for state: NotchState, expanded: CGSize = NotchPreferences.defaultExpandedSize) -> CGSize {
         guard let resting = state.restingActivity else { return size(for: state.presentation, expanded: expanded) }
         let growth = state.presentation == .hoverArmed ? Self.hoverGrowth : .zero
-        let width =
-            notch == nil
-            ? min(max(housing.width, Self.rowWidth(for: resting)), housing.width + Self.activityWing * 2)
-            : housing.width + Self.tab(for: resting)
-        return CGSize(width: width + growth.width, height: housing.height + growth.height)
+        let size = closedSize(for: resting)
+        return CGSize(width: size.width + growth.width, height: size.height + growth.height)
     }
 
-    /// How far the shape sits right of center: half an ongoing activity's tab, so the tab reaches out
-    /// on the right while the rest stays over the camera. Zero otherwise.
-    func offset(for state: NotchState) -> CGFloat {
-        guard notch != nil, let resting = state.restingActivity else { return 0 }
-        return Self.tab(for: resting) / 2
-    }
-
-    /// A live activity's symbol and title side by side, measured in the fonts they're drawn in. A
-    /// countdown makes room for its longest reading.
-    static func labelWidth(for activity: Activity, now: Date = .now) -> CGFloat {
-        var text = activity.title
-        let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
-        if let countdown = activity.countdown {
-            text = countdown.timeIntervalSince(now) >= 3600 ? "0:00:00" : "00:00"
+    /// A live activity's closed notch: at the camera's height, grown to each side by just what its
+    /// leading and trailing content need. Inside a pill, one row as wide as both together.
+    func closedSize(for activity: Activity) -> CGSize {
+        let content = ClosedContent(activity)
+        if notch == nil {
+            let row = content.leadingWidth + content.trailingWidth + Self.closedPadding * 3
+            let widest = housing.width + 2 * Self.closedWingRange.upperBound
+            return CGSize(width: min(max(housing.width, row), widest), height: housing.height)
         }
-        let symbol =
-            activity.artwork != nil
-            ? artworkSide
-            : NSImage(systemSymbolName: activity.symbol, accessibilityDescription: nil)?
-                .withSymbolConfiguration(.init(pointSize: 12, weight: .semibold))?.size.width
-        let width = (text as NSString).size(withAttributes: [.font: font]).width
-        return ((symbol ?? 16) + labelSpacing + width).rounded(.up)
+        let wings = closedWings(for: content)
+        return CGSize(width: housing.width + wings.leading + wings.trailing, height: housing.height)
     }
 
-    /// A one-shot activity's row: its label with room at either end.
-    static func rowWidth(for activity: Activity) -> CGFloat {
-        labelWidth(for: activity) + rowPadding * 2
+    /// How far a closed notch reaches past the camera housing on each side for `content`.
+    func closedWings(for content: ClosedContent) -> (leading: CGFloat, trailing: CGFloat) {
+        func wing(_ content: CGFloat) -> CGFloat {
+            min(
+                max(content + Self.closedPadding * 2 + Self.flare, Self.closedWingRange.lowerBound),
+                Self.closedWingRange.upperBound)
+        }
+        return (wing(content.leadingWidth), wing(content.trailingWidth))
     }
 
-    /// How far an ongoing activity's tab reaches beside the notch: just enough for its label, up to
-    /// a ceiling, since it stays over the menu bar.
-    static func tab(for activity: Activity, now: Date = .now) -> CGFloat {
-        min(labelWidth(for: activity, now: now) + wingInset + wingOutset, ongoingTab)
+    /// How far the shape sits right of center: half of how much farther its trailing wing reaches
+    /// than its leading one, so the camera housing stays where it is. Zero without a notch.
+    func offset(for state: NotchState) -> CGFloat {
+        guard notch != nil else { return 0 }
+        let activity: Activity?
+        if case .transient(let shown) = state.presentation {
+            activity = shown
+        } else {
+            activity = state.restingActivity
+        }
+        guard let activity else { return 0 }
+        let wings = closedWings(for: ClosedContent(activity))
+        return (wings.trailing - wings.leading) / 2
     }
 
     /// Gap between the top of the display and the shape: none on a notch, a little above a pill.
@@ -177,10 +171,10 @@ struct NotchMetrics: Equatable {
     var panelFrame: CGRect {
         let largest = [
             size(for: .hoverArmed),
-            CGSize(width: housing.width + Self.activityWing * 2, height: housing.height + Self.meterDepth),
-            // An ongoing tab reaches out on one side, so it needs that much room on both.
-            CGSize(width: housing.width + Self.ongoingTab * 2, height: housing.height),
-            size(for: .expanded(tab: .media), expanded: NotchPreferences.maximumExpandedSize),
+            size(for: .dropTarget),
+            // A live activity can reach out on one side, so the panel needs that much room on both.
+            CGSize(width: housing.width + Self.closedWingRange.upperBound * 2, height: housing.height),
+            size(for: .expanded(space: .now), expanded: NotchPreferences.maximumExpandedSize),
         ]
         let width = min(largest.map(\.width).max()! * Self.overshootRoom, screen.width)
         let height = min(largest.map(\.height).max()! * Self.overshootRoom + topInset, screen.height)

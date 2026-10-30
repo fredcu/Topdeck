@@ -233,9 +233,10 @@ SOFTWARE.
 https://tabler.io/icons (https://github.com/tabler/tabler-icons)
 Copyright (c) 2020-2026 Paweł Kuna
 
-The icons in `Sources/NotchSurface/Resources/Icons` are Tabler Icons 3.48.0's
-outline and filled SVGs, unchanged, under their own names (a filled one ends in
-`-filled`).
+The shapes in `Sources/TopdeckSurface/DeckIcon.swift` come from the design
+boards' icon set, which is drawn in Tabler Icons' style (a 24-unit grid, a 2-unit
+round stroke); some may derive from Tabler Icons 3.48.0, whose licence is kept
+here.
 
 ```text
 MIT License

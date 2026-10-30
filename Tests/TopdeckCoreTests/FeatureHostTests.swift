@@ -13,6 +13,13 @@ private final class RecordingFeature: NotchFeature {
     init(_ id: FeatureID) { self.id = id }
 }
 
+/// The state a notch reaches after `events`.
+private func notch(_ events: NotchEvent...) -> NotchState {
+    var state = NotchState()
+    for event in events { _ = state.handle(event) }
+    return state
+}
+
 @MainActor
 struct FeatureHostTests {
     private let all = Set(FeatureID.allCases)
@@ -22,25 +29,35 @@ struct FeatureHostTests {
         let notes = RecordingFeature(.notes)
         let host = FeatureHost([media, notes])
 
-        host.update(presentations: [.compact], enabled: all)
+        host.update(notches: [notch(.show)], enabled: all)
         #expect(media.phase == .background && notes.phase == .background)
-        host.update(presentations: [.expanded(tab: .media)], enabled: all)
+        host.update(notches: [notch(.show, .clicked)], enabled: all)
         #expect(media.phase == .foreground && notes.phase == .background)
-        host.update(presentations: [.pinned(tab: .notes)], enabled: all)
+        host.update(notches: [notch(.show, .showFeature(.notes), .togglePin)], enabled: all)
         #expect(media.phase == .background && notes.phase == .foreground)
-        host.update(presentations: [.suspended], enabled: all)
+        host.update(notches: [notch(.show, .suspend(.screenLocked))], enabled: all)
         #expect(media.phase == .stopped && notes.phase == .stopped)
         #expect(media.history == [.background, .foreground, .background, .stopped])
+    }
+
+    @Test func aSubTabSwitchMovesTheForeground() {
+        let shelf = RecordingFeature(.shelf)
+        let notes = RecordingFeature(.notes)
+        let host = FeatureHost([shelf, notes])
+        host.update(notches: [notch(.show, .showFeature(.shelf))], enabled: all)
+        #expect(shelf.phase == .foreground && notes.phase == .background)
+        host.update(notches: [notch(.show, .showFeature(.shelf), .selectSubTab(.notes))], enabled: all)
+        #expect(shelf.phase == .background && notes.phase == .foreground)
     }
 
     @Test func aFeatureRunsAtTheHighestPhaseAnyDisplayAsks() {
         let media = RecordingFeature(.media)
         let host = FeatureHost([media])
-        host.update(presentations: [.compact, .expanded(tab: .media)], enabled: all)
+        host.update(notches: [notch(.show), notch(.show, .clicked)], enabled: all)
         #expect(media.phase == .foreground)
-        host.update(presentations: [.suspended, .compact], enabled: all)
+        host.update(notches: [notch(.show, .suspend(.systemSleep)), notch(.show)], enabled: all)
         #expect(media.phase == .background)
-        host.update(presentations: [], enabled: all)
+        host.update(notches: [], enabled: all)
         #expect(media.phase == .stopped)
     }
 
@@ -48,14 +65,14 @@ struct FeatureHostTests {
         let shelf = RecordingFeature(.shelf)
         let host = FeatureHost([shelf])
         let activity = Activity(feature: .shelf, symbol: "tray.full", title: "1 file", duration: .seconds(1))
-        host.update(presentations: [.transient(activity)], enabled: all)
+        host.update(notches: [notch(.show, .activity(activity))], enabled: all)
         #expect(shelf.phase == .foreground)
     }
 
     @Test func disabledFeaturesStayStopped() {
         let media = RecordingFeature(.media)
         let host = FeatureHost([media])
-        host.update(presentations: [.expanded(tab: .media)], enabled: [.notes])
+        host.update(notches: [notch(.show, .clicked)], enabled: [.notes])
         #expect(media.phase == .stopped)
         #expect(media.history.isEmpty, "a phase that doesn't change must not be reassigned")
     }

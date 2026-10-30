@@ -28,19 +28,19 @@ struct FeatureLifecycleTests {
         let song = Activity(feature: .media, symbol: "music.note", title: "Song", duration: .seconds(1))
 
         // A session: shown, every tab opened in turn, a live activity, sleep, wake, then quit.
-        var session: [NotchPresentationState] = [.compact]
-        session += FeatureID.allCases.map { .expanded(tab: $0) }
-        session += [.transient(song), .suspended, .compact]
-        for presentation in session {
-            host.update(presentations: [presentation], enabled: enabled)
+        var session: [NotchState] = [Self.notch(.show)]
+        session += FeatureID.allCases.map { Self.notch(.show, .showFeature($0)) }
+        session += [Self.notch(.show, .activity(song)), Self.notch(.show, .suspend(.screenLocked)), Self.notch(.show)]
+        for state in session {
+            host.update(notches: [state], enabled: enabled)
             for feature in features {
-                #expect(feature.phase == presentation.phase(for: feature.id), "\(feature.id) at \(presentation)")
+                #expect(feature.phase == state.phase(for: feature.id), "\(feature.id) at \(state.presentation)")
             }
-            if presentation == .expanded(tab: .notes) { notes.update(notes.add(), text: "written during the session") }
+            if state.onScreen == [.notes] { notes.update(notes.add(), text: "written during the session") }
         }
 
         #expect(media.isListening, "media keeps a cheap listener in the background")
-        host.update(presentations: [], enabled: enabled)  // quit
+        host.update(notches: [], enabled: enabled)  // quit
 
         #expect(features.allSatisfy { $0.phase == .stopped })
         #expect(!media.isListening && media.nowPlaying == nil && !media.audio.isRunning)
@@ -53,12 +53,19 @@ struct FeatureLifecycleTests {
         #expect(shortcuts.shortcuts.isEmpty)
     }
 
+    private static func notch(_ events: NotchEvent...) -> NotchState {
+        var state = NotchState()
+        for event in events { _ = state.handle(event) }
+        return state
+    }
+
     @Test func disablingAFeatureStopsItWhileTheNotchIsOpen() {
         let media = MediaFeature(bundle: Bundle(for: LifecycleMarker.self), defaults: defaults)
         let host = FeatureHost([media])
-        host.update(presentations: [.expanded(tab: .media)], enabled: [.media])
+        let open = Self.notch(.show, .clicked)
+        host.update(notches: [open], enabled: [.media])
         #expect(media.isListening)
-        host.update(presentations: [.expanded(tab: .media)], enabled: [])
+        host.update(notches: [open], enabled: [])
         #expect(media.phase == .stopped && !media.isListening)
     }
 }

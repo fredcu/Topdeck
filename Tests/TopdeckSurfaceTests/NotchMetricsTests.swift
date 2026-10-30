@@ -25,12 +25,16 @@ private let externalWithNotch = NotchMetrics(
 private let song = Activity(feature: .media, symbol: "music.note", title: "Song", duration: .seconds(2))
 private let volume = Activity(
     feature: nil, symbol: "speaker.wave.2.fill", title: "50%", level: 0.5, duration: .seconds(1))
+private let meeting = Activity(
+    feature: .calendar, symbol: "video.fill", title: "Standup", duration: .zero,
+    countdown: Date(timeIntervalSince1970: 1_790_000_000))
+private let waiting = Activity(feature: .agents, symbol: "hand.raised.fill", title: "2 waiting", duration: .zero)
 
 struct NotchMetricsTests {
     static let displays = [macBookPro14, macBookPro16, external, externalWithNotch]
     static let presentations: [NotchPresentationState] = [
-        .compact, .hoverArmed, .transient(song), .transient(volume), .expanded(tab: .media), .pinned(tab: .notes),
-        .focused(tab: .notes, pinned: false),
+        .compact, .hoverArmed, .transient(song), .transient(volume), .transient(meeting), .dropTarget,
+        .expanded(space: .now), .pinned(space: .stash), .focused(space: .stash, pinned: false),
     ]
 
     @Test(arguments: displays)
@@ -41,81 +45,88 @@ struct NotchMetricsTests {
         #expect(metrics.screen.contains(panel))
     }
 
+    /// The Closed board: every live activity is one row at the camera's height, never under it.
     @Test(arguments: displays)
-    func aLevelActivityKeepsToTheNotchsWidth(metrics: NotchMetrics) {
-        let level = metrics.size(for: .transient(volume))
-        let housing = metrics.housing
-        #expect(level.width <= housing.width + NotchMetrics.hoverGrowth.width, "no wings beside the notch")
-        if metrics.notch != nil {
-            #expect(level.height == housing.height + NotchMetrics.meterDepth, "its row sits under the camera")
-        } else {
-            #expect(level == housing, "inside the pill")
+    func everyLiveActivityIsOneRowAtTheCamerasHeight(metrics: NotchMetrics) {
+        for activity in [song, volume, meeting, waiting] {
+            #expect(metrics.size(for: .transient(activity)).height == metrics.housing.height, "\(activity.title)")
         }
     }
 
-    /// Its symbol and title side by side, like a level's row: under the camera, or inside the pill.
-    @Test(arguments: displays)
-    func aLiveActivityKeepsItsSymbolAndTitleTogether(metrics: NotchMetrics) {
-        let title = String(repeating: "A very long video title ", count: 4)
-        let short = metrics.size(for: .transient(song))
-        let long = metrics.size(
-            for: .transient(Activity(feature: .media, symbol: "play.fill", title: title, duration: .zero)))
-        #expect(short == metrics.size(for: .transient(volume)), "a short title keeps to the notch, like a level")
-        #expect(short.width < long.width, "a long one widens the row")
-        #expect(long.width == metrics.housing.width + NotchMetrics.activityWing * 2, "up to a ceiling")
-        #expect(long.height == short.height && long.width <= metrics.panelFrame.width)
+    @Test func theWingsGrowOnlyAsFarAsEachSideNeeds() {
+        let metrics = macBookPro14
+        let housing = metrics.housing.width
+        let playing = metrics.closedWings(for: ClosedContent(song))
+        let level = metrics.closedWings(for: ClosedContent(volume))
+        let flare = NotchMetrics.flare
+        // A symbol and a level: the icon on the left, the 92 point meter on the right, 12 point margins.
+        #expect(level.leading == 16 + 24 + flare && level.trailing == ClosedContent.meterWidth + 24 + flare)
+        #expect(level.trailing > level.leading, "the meter's side reaches farther")
+        #expect(metrics.size(for: .transient(volume)).width == housing + level.leading + level.trailing)
+        // What isn't needed isn't drawn: a label only, with nothing on the right, keeps a short stub.
+        #expect(playing.trailing == NotchMetrics.closedWingRange.lowerBound)
+        #expect(metrics.size(for: .transient(song)).width < metrics.size(for: .transient(volume)).width)
     }
 
     @Test(arguments: displays)
-    func anOngoingActivityRestsInATabBesideTheNotch(metrics: NotchMetrics) {
-        let project = Activity(
-            feature: .agents, symbol: "hand.raised.fill", title: String(repeating: "project ", count: 10),
-            duration: .zero)
+    func aLongLabelStopsAtTheCeiling(metrics: NotchMetrics) {
+        let title = String(repeating: "A very long video title ", count: 4)
+        let long = Activity(feature: .shelf, symbol: "tray.full", title: title, duration: .zero)
+        let size = metrics.size(for: .transient(long))
+        #expect(size.width <= metrics.housing.width + 2 * NotchMetrics.closedWingRange.upperBound)
+        #expect(size.width <= metrics.panelFrame.width && size.height == metrics.housing.height)
+        #expect(metrics.size(for: .transient(song)).width < size.width, "a short one is narrower")
+    }
+
+    @Test(arguments: displays)
+    func anOngoingActivityRestsInWingsAroundTheCamera(metrics: NotchMetrics) {
         var state = NotchState()
         _ = state.handle(.show)
-        _ = state.handle(.setOngoing(project))
+        _ = state.handle(.setOngoing(waiting))
         let resting = metrics.size(for: state)
         let housing = metrics.housing
         #expect(resting.height == housing.height, "in the menu bar, never over windows")
         if metrics.notch != nil {
-            #expect(resting.width == housing.width + NotchMetrics.ongoingTab, "a long title stops at the ceiling")
-            // The shape moves right by half the tab: its left edge stays at the housing's.
+            let content = ClosedContent(waiting)
+            let wings = metrics.closedWings(for: content)
+            #expect(resting.width == housing.width + wings.leading + wings.trailing)
+            // The shape moves right by half of how much farther its right wing reaches, so the camera
+            // housing stays where it is.
             let offset = metrics.offset(for: state)
-            #expect(offset == NotchMetrics.ongoingTab / 2)
+            #expect(offset == (wings.trailing - wings.leading) / 2)
             let frame = metrics.hoverFrame(for: resting, in: metrics.panelFrame).offsetBy(dx: offset, dy: 0)
-            #expect(abs(frame.minX - (metrics.centerX - housing.width / 2)) < 0.001)
-            #expect(frame.maxX <= metrics.panelFrame.maxX, "and the panel has room for it")
+            #expect(abs(frame.minX + wings.leading - (metrics.centerX - housing.width / 2)) < 0.001)
+            #expect(frame.minX >= metrics.panelFrame.minX && frame.maxX <= metrics.panelFrame.maxX)
         } else {
             #expect(metrics.offset(for: state) == 0, "inside the pill, centered")
         }
         // Hovered, it grows a little instead of shrinking to the plain hover shape, so the pointer on
-        // the tab stays on the notch while it waits to open.
+        // the wing stays on the notch while it waits to open.
         var hovered = state
         _ = hovered.handle(.pointerEntered)
         let grown = metrics.size(for: hovered)
         #expect(grown.width == resting.width + NotchMetrics.hoverGrowth.width && grown.height > resting.height)
         #expect(metrics.offset(for: hovered) == metrics.offset(for: state))
         _ = state.handle(.clicked)
-        #expect(metrics.size(for: state) == metrics.size(for: .expanded(tab: .agents)), "open, it's an open notch")
+        #expect(metrics.size(for: state) == metrics.size(for: .expanded(space: .agents)), "open, it's the deck")
         #expect(metrics.offset(for: state) == 0, "and centered again")
     }
 
-    @Test(arguments: ["2 waiting", "Topdeck", "Awake"])
-    func anOngoingActivitysWordsFitUncut(title: String) {
-        let activity = Activity(feature: nil, symbol: "hand.raised.fill", title: title, duration: .zero)
-        let label = NotchMetrics.labelWidth(for: activity)
-        #expect(NotchMetrics.tab(for: activity) == label + NotchMetrics.wingInset + NotchMetrics.wingOutset)
+    @Test func aCountdownMakesRoomForItsLongestReading() {
+        func wing(_ seconds: TimeInterval) -> CGFloat {
+            let countdown = Activity(
+                feature: .calendar, symbol: "video.fill", title: "Standup", duration: .zero,
+                countdown: Date.now + seconds)
+            return ClosedContent(countdown).trailingWidth
+        }
+        #expect(wing(300) < wing(2 * 3600 + 60), "hours need more room than minutes")
     }
 
-    @Test func aCountdownMakesRoomForItsLongestReading() {
-        let now = Date(timeIntervalSince1970: 1_790_000_000)
-        func tab(_ seconds: TimeInterval) -> CGFloat {
-            let countdown = Activity(
-                feature: .calendar, symbol: "video.fill", title: "Standup", duration: .zero, countdown: now + seconds)
-            return NotchMetrics.tab(for: countdown, now: now)
-        }
-        #expect(tab(300) < tab(2 * 3600), "hours need more room than minutes")
-        #expect(tab(2 * 3600) < NotchMetrics.ongoingTab)
+    @Test @MainActor func aFileDraggedNearIsADropTargetUnderTheCamera() {
+        let target = macBookPro14.size(for: .dropTarget)
+        #expect(target == CGSize(width: 300, height: 96), "as on the Closed board")
+        #expect(external.size(for: .dropTarget).height == 96)
+        #expect(NotchView.shape(for: .dropTarget, on: macBookPro14).bottomRadius == 22)
     }
 
     @Test(arguments: displays)
@@ -138,15 +149,13 @@ struct NotchMetricsTests {
     func statesGrowInTheRightOrder(metrics: NotchMetrics) {
         let compact = metrics.size(for: .compact)
         let hover = metrics.size(for: .hoverArmed)
-        let live = metrics.size(for: .transient(song))
-        let open = metrics.size(for: .expanded(tab: .media))
+        let live = metrics.size(for: .transient(volume))
+        let open = metrics.size(for: .expanded(space: .now))
         let housing = metrics.housing
         #expect(compact.width <= housing.width && compact.height <= housing.height)
         #expect(hover.width > housing.width && hover.height > housing.height, "hover shows past the housing")
         if metrics.notch != nil {
-            #expect(live.width > housing.width && live.height > hover.height, "an activity's row shows under it")
-        } else {
-            #expect(live == housing, "or inside the pill")
+            #expect(live.width > housing.width && live.height >= housing.height, "an activity's wings show beside it")
         }
         #expect(open.width > live.width && open.height > live.height)
     }
@@ -176,16 +185,26 @@ struct NotchMetricsTests {
     @Test(arguments: displays)
     func everyResizeFitsInsideTheFixedPanel(metrics: NotchMetrics) {
         for chosen in [NotchPreferences.minimumExpandedSize, NotchPreferences.maximumExpandedSize] {
-            let size = metrics.size(for: .expanded(tab: .media), expanded: chosen)
+            let size = metrics.size(for: .expanded(space: .now), expanded: chosen)
             let panel = metrics.panelFrame
             #expect(size.width <= panel.width && size.height + metrics.topInset <= panel.height)
         }
     }
 
-    @Test func theChosenSizeIsUsedButLeavesRoomBesideTheNotch() {
-        #expect(macBookPro14.size(for: .pinned(tab: .notes), expanded: CGSize(width: 600, height: 380)).width == 600)
-        let tiny = macBookPro14.size(for: .expanded(tab: .media), expanded: CGSize(width: 100, height: 300))
-        #expect(tiny.width == macBookPro14.housing.width + 80)
+    @Test func theChosenSizeIsTheDecksBodyAndTheShouldersComeOnTopOfIt() {
+        let shoulders = 2 * NotchMetrics.shoulder
+        #expect(
+            macBookPro14.size(for: .pinned(space: .stash), expanded: CGSize(width: 700, height: 430)).width == 700
+                + shoulders)
+        #expect(macBookPro14.size(for: .expanded(space: .now)).height == 430, "700 by 430 to begin with")
+        #expect(external.size(for: .expanded(space: .now)).width == 700, "a floating pill has no shoulders")
+        let tiny = macBookPro14.size(for: .expanded(space: .now), expanded: CGSize(width: 100, height: 300))
+        #expect(tiny.width == macBookPro14.housing.width + 80 + shoulders)
+    }
+
+    @Test func theTopRowIsAsTallAsTheCameraButNeverTooShortForAPill() {
+        #expect(macBookPro14.topRowHeight == 32 && macBookPro16.topRowHeight == 38)
+        #expect(externalWithNotch.topRowHeight == 32, "a 24 point menu bar still fits a 27 point pill")
     }
 
     @Test func theNotchIsTheGapBetweenTheAuxiliaryAreas() {
@@ -223,6 +242,15 @@ struct NotchMetricsTests {
 struct NotchShapeTests {
     private let rect = CGRect(x: 0, y: 0, width: 200, height: 40)
 
+    @Test func theDecksShouldersAreConcaveAndItsBottomCornersAre30() {
+        let rect = CGRect(x: 0, y: 0, width: 736, height: 430)
+        let path = NotchShape(topRadius: NotchMetrics.shoulder, bottomRadius: Deck.Radius.deck).path(in: rect)
+        #expect(path.contains(CGPoint(x: 10, y: 0.5)), "the shoulder flares out along the top edge")
+        #expect(!path.contains(CGPoint(x: 5, y: 12)), "and the body's side is inset by the shoulder")
+        #expect(path.contains(CGPoint(x: 18.5, y: 215)))
+        #expect(!path.contains(CGPoint(x: 18.5 + 2, y: 429)), "the bottom corner is rounded")
+    }
+
     @Test func theNotchOutlineIsFlushWithTheTopAndRoundedBelow() {
         let path = NotchShape(topRadius: 6, bottomRadius: 10).path(in: rect)
         let bounds = path.boundingRect
@@ -238,57 +266,5 @@ struct NotchShapeTests {
         let path = NotchShape(topRadius: 0, bottomRadius: 100, flushTop: false).path(in: rect)
         #expect(path.contains(CGPoint(x: 100, y: 20)))
         #expect(!path.contains(CGPoint(x: 1, y: 1)), "no square corners")
-    }
-}
-
-/// The header's and the drawer's icons, beside the tabs'.
-private let buttonIcons = ["layout-grid", "layout-grid-filled", "pin", "pin-filled", "settings", "pencil"]
-
-/// The notch's Tabler icons: every one ships in the bundle, and side by side in the tab row they
-/// look one size. Measured from the ink each draws at the row's size, since every file's frame is
-/// the same 24-unit square whatever the glyph.
-@MainActor
-struct TablerIconTests {
-    @Test(arguments: FeatureID.allCases.map(\.icon) + buttonIcons)
-    func everyIconShips(name: String) {
-        #expect(TablerIcon.image(name) != nil, "\(name).svg is in TopdeckSurface's Icons")
-    }
-
-    @Test(arguments: FeatureID.allCases)
-    func everyTabLooksTheSameSizeAndSitsCentered(feature: FeatureID) throws {
-        let image = try #require(TablerIcon.image(feature.icon))
-        let ink = try #require(Self.ink(of: image, size: NotchView.iconSize))
-        // At 16 pt Tabler's squares and pages draw about 12 across, its circles 13.5, which look alike.
-        // Its triangle play button (11 × 12) looks smaller, and the stopwatch's crown lifts it half a
-        // point.
-        let size = (ink.width * ink.height).squareRoot()
-        #expect((11.75...13.75).contains(size), "\(feature.icon) looks \(size) pt")
-        #expect(abs(ink.drop) <= 0.3, "\(feature.icon) sits \(ink.drop) pt off center")
-    }
-
-    /// An image's ink drawn at 4×, in points: its size, and how far below the image's center it sits.
-    private static func ink(of image: NSImage, size: CGFloat) -> (width: Double, height: Double, drop: Double)? {
-        let side = Int(size * 4)
-        var pixels = [UInt8](repeating: 0, count: side * side * 4)
-        guard
-            let context = CGContext(
-                data: &pixels, width: side, height: side, bitsPerComponent: 8, bytesPerRow: side * 4,
-                space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
-        else { return nil }
-        let previous = NSGraphicsContext.current
-        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
-        image.draw(in: NSRect(x: 0, y: 0, width: side, height: side))
-        NSGraphicsContext.current = previous
-        var (minX, maxX, minY, maxY) = (side, 0, side, 0)
-        for y in 0..<side {
-            for x in 0..<side where pixels[(y * side + x) * 4 + 3] > 20 {
-                (minX, maxX, minY, maxY) = (min(minX, x), max(maxX, x), min(minY, y), max(maxY, y))
-            }
-        }
-        guard minX <= maxX else { return nil }
-        // Rows run top to bottom in memory, so a center past the middle row sits lower.
-        return (
-            Double(maxX - minX + 1) / 4, Double(maxY - minY + 1) / 4, (Double(minY + maxY) / 2 - Double(side) / 2) / 4
-        )
     }
 }

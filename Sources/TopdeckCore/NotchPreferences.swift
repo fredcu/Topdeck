@@ -35,23 +35,6 @@ public enum NotchAnimationStyle: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-/// How the open notch is drawn. Closed, it's always black, so it hides in the camera housing.
-public enum NotchTheme: String, CaseIterable, Identifiable, Sendable {
-    /// Solid black, like the camera housing it opens from.
-    case black
-    /// Liquid Glass over the desktop, on macOS 26 and later.
-    case glass
-
-    public var id: Self { self }
-
-    public var title: String {
-        switch self {
-        case .black: "Black"
-        case .glass: "Glass"
-        }
-    }
-}
-
 /// What a display without a notch shows: a stand-in notch as tall as its menu bar, or a floating pill.
 public enum NotchlessStyle: String, CaseIterable, Identifiable, Sendable {
     case notch, pill
@@ -104,14 +87,15 @@ public final class NotchPreferences {
         didSet { defaults.set(disabledFeatures.map(\.rawValue).sorted(), forKey: Key.disabledFeatures) }
     }
 
-    /// Every feature this build offers, in the order the user arranged the tabs, hidden ones too.
-    public private(set) var tabOrder: [FeatureID] {
-        didSet { defaults.set(tabOrder.map(\.rawValue), forKey: Key.tabOrder) }
+    /// Every space, in the order the user arranged them, hidden ones too. The deck's wings show the
+    /// shown ones in this order.
+    public private(set) var spaceOrder: [SpaceID] {
+        didSet { defaults.set(spaceOrder.map(\.rawValue), forKey: Key.spaceOrder) }
     }
 
-    /// Features kept in the app drawer only: on, a click away in its grid, but out of the tab row.
-    public private(set) var drawerOnly: Set<FeatureID> {
-        didSet { defaults.set(drawerOnly.map(\.rawValue).sorted(), forKey: Key.drawerOnly) }
+    /// Spaces the user hid. Stored this way round so a space added later starts out shown.
+    public private(set) var hiddenSpaces: Set<SpaceID> {
+        didSet { defaults.set(hiddenSpaces.map(\.rawValue).sorted(), forKey: Key.hiddenSpaces) }
     }
 
     /// Show a notch on every display, not just the built-in (or main) one.
@@ -135,11 +119,6 @@ public final class NotchPreferences {
     /// How the notch opens and closes.
     public var animationStyle: NotchAnimationStyle {
         didSet { defaults.set(animationStyle.rawValue, forKey: Key.animationStyle) }
-    }
-
-    /// How the open notch is drawn: black, or glass on macOS 26.
-    public var theme: NotchTheme {
-        didSet { defaults.set(theme.rawValue, forKey: Key.theme) }
     }
 
     /// A live activity when the volume changes or mutes.
@@ -188,23 +167,22 @@ public final class NotchPreferences {
     public nonisolated static let defaultClipboardShortcut = KeyShortcut(
         keyCode: 9, modifiers: KeyShortcut.control | KeyShortcut.option, key: "V")
 
-    /// The open notch's size, set by dragging its bottom-right corner. Always within the minimum and
+    /// The open deck's size, set by dragging its bottom-right corner. Always within the minimum and
     /// maximum.
     public private(set) var expandedSize: CGSize {
         didSet { defaults.set([expandedSize.width, expandedSize.height], forKey: Key.expandedSize) }
     }
 
-    public nonisolated static let defaultExpandedSize = CGSize(width: 460, height: 290)
-    /// Narrowest that still fits every tab and the controls beside them, and the shortest that still
-    /// fits each tab's content.
-    public nonisolated static let minimumExpandedSize = CGSize(width: 414, height: 200)
-    public nonisolated static let maximumExpandedSize = CGSize(width: 720, height: 480)
-    /// What VoiceOver's adjust steps through on the resize corner, smallest first: two sizes as
-    /// narrow as the next step but shorter, then the default size scaled down and up, so the height
-    /// follows the width.
+    public nonisolated static let defaultExpandedSize = CGSize(width: 700, height: 430)
+    /// Narrowest that still fits both wings and the camera between them, and the shortest that still
+    /// fits each space's content.
+    public nonisolated static let minimumExpandedSize = CGSize(width: 620, height: 340)
+    public nonisolated static let maximumExpandedSize = CGSize(width: 900, height: 560)
+    /// What VoiceOver's adjust steps through on the resize corner, smallest first: the minimum, then
+    /// the default size scaled up, so the height follows the width.
     public nonisolated static let expandedSizeSteps =
-        [minimumExpandedSize, CGSize(width: 414, height: 230)]
-        + ([0.9, 1, 1.12, 1.25, 1.4, 1.56] as [CGFloat]).map { scale in
+        [minimumExpandedSize]
+        + ([1, 1.1, 1.2, 1.28] as [CGFloat]).map { scale in
             let size = defaultExpandedSize
             return CGSize(width: (size.width * scale).rounded(), height: (size.height * scale).rounded())
         }
@@ -230,16 +208,15 @@ public final class NotchPreferences {
         disabledFeatures = disabled
         defaults.set(disabled.map(\.rawValue).sorted(), forKey: Key.disabledFeatures)
         defaults.set(FeatureID.allCases.map(\.rawValue), forKey: Key.seenFeatures)
-        // The stored order, then whatever it doesn't know yet (a feature added by an update) at the end.
-        var placed: Set<FeatureID> = []
-        let stored = (defaults.stringArray(forKey: Key.tabOrder) ?? []).compactMap(FeatureID.init(rawValue:))
-            .filter { available.contains($0) && placed.insert($0).inserted }
-        tabOrder = stored + available.filter { !placed.contains($0) }
-        drawerOnly = features(Key.drawerOnly)
+        // The stored order, then whatever it doesn't know yet (a space added by an update) at the end.
+        var placed: Set<SpaceID> = []
+        let storedSpaces = (defaults.stringArray(forKey: Key.spaceOrder) ?? []).compactMap(SpaceID.init(rawValue:))
+            .filter { placed.insert($0).inserted }
+        spaceOrder = storedSpaces + SpaceID.allCases.filter { !placed.contains($0) }
+        hiddenSpaces = Set((defaults.stringArray(forKey: Key.hiddenSpaces) ?? []).compactMap(SpaceID.init(rawValue:)))
         showOnAllDisplays = defaults.bool(forKey: Key.showOnAllDisplays)
         pillDisplays = Set(defaults.stringArray(forKey: Key.pillDisplays) ?? [])
         animationStyle = defaults.string(forKey: Key.animationStyle).flatMap(NotchAnimationStyle.init) ?? .spring
-        theme = defaults.string(forKey: Key.theme).flatMap(NotchTheme.init) ?? .black
         showsVolume = defaults.object(forKey: Key.showsVolume) as? Bool ?? true
         showsBattery = defaults.object(forKey: Key.showsBattery) as? Bool ?? true
         replacesVolumeDisplay = defaults.bool(forKey: Key.replacesVolumeDisplay)
@@ -278,16 +255,8 @@ public final class NotchPreferences {
             height: min(max(size.height, minimumExpandedSize.height), maximumExpandedSize.height))
     }
 
-    /// Enabled features in tab order: everything the notch can open, from the row or the drawer.
-    public var tabs: [FeatureID] { tabOrder.filter { !disabledFeatures.contains($0) } }
-
-    /// The tab row: enabled features not kept in the drawer only.
-    public var rowTabs: [FeatureID] { tabs.filter { !drawerOnly.contains($0) } }
-
-    /// Takes a feature off the tab row and keeps it, still on, in the drawer.
-    public func moveToDrawer(_ feature: FeatureID) {
-        drawerOnly.insert(feature)
-    }
+    /// Features that are on.
+    public var enabledFeatures: [FeatureID] { available.filter { !disabledFeatures.contains($0) } }
 
     public func isEnabled(_ feature: FeatureID) -> Bool { !disabledFeatures.contains(feature) }
 
@@ -295,34 +264,35 @@ public final class NotchPreferences {
         if enabled { disabledFeatures.remove(feature) } else { disabledFeatures.insert(feature) }
     }
 
-    /// Puts `feature` at `index` in the tab row, turning it on and out of the drawer if need be.
-    /// Features off the row keep their places around it, so one brought back returns where it was.
-    public func place(_ feature: FeatureID, at index: Int) {
-        guard tabOrder.contains(feature) else { return }
-        let others = rowTabs.filter { $0 != feature }
-        var order = tabOrder.filter { $0 != feature }
-        let index = min(max(index, 0), others.count)
-        if index < others.count, let next = order.firstIndex(of: others[index]) {
-            order.insert(feature, at: next)
-        } else if let last = others.last, let previous = order.firstIndex(of: last) {
-            order.insert(feature, at: previous + 1)
-        } else {
-            order.insert(feature, at: 0)
+    /// What the deck offers: the spaces to show, in order, and the features that are on.
+    public var spaceSet: SpaceSet {
+        SpaceSet(order: spaceOrder, hidden: hiddenSpaces, enabled: Set(enabledFeatures))
+    }
+
+    /// Hides or shows a space. The last one on show stays: the deck always has somewhere to open.
+    public func setSpace(_ space: SpaceID, hidden: Bool) {
+        if !hidden {
+            hiddenSpaces.remove(space)
+        } else if spaceSet.spaces != [space] {
+            hiddenSpaces.insert(space)
         }
-        tabOrder = order
-        disabledFeatures.remove(feature)
-        drawerOnly.remove(feature)
+    }
+
+    /// Moves `space` to `index` among all the spaces, hidden ones too.
+    public func moveSpace(_ space: SpaceID, to index: Int) {
+        var order = spaceOrder.filter { $0 != space }
+        order.insert(space, at: min(max(index, 0), order.count))
+        spaceOrder = order
     }
 
     /// Restores every preference to its default.
     public func reset() {
         disabledFeatures = Self.offByDefault
-        tabOrder = available
-        drawerOnly = []
+        spaceOrder = SpaceID.defaultOrder
+        hiddenSpaces = []
         showOnAllDisplays = false
         pillDisplays = []
         animationStyle = .spring
-        theme = .black
         expandedSize = Self.defaultExpandedSize
         showsVolume = true
         showsBattery = true
@@ -334,14 +304,14 @@ public final class NotchPreferences {
 
     private enum Key {
         static let disabledFeatures = "disabledFeatures"
-        static let tabOrder = "tabOrder"
-        static let drawerOnly = "drawerOnly"
+        static let spaceOrder = "spaceOrder"
+        static let hiddenSpaces = "hiddenSpaces"
         static let seenFeatures = "seenFeatures"
         static let showOnAllDisplays = "showOnAllDisplays"
         static let pillDisplays = "pillDisplays"
         static let animationStyle = "animationStyle"
-        static let theme = "theme"
-        static let expandedSize = "expandedSize"
+        // Not the old tab row's "expandedSize": a size picked for that notch would be too small here.
+        static let expandedSize = "deckSize"
         static let showsVolume = "showsVolume"
         static let showsBattery = "showsBattery"
         static let replacesVolumeDisplay = "replacesVolumeDisplay"

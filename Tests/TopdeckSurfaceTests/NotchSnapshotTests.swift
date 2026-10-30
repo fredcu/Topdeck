@@ -31,6 +31,22 @@ private let downloading = Activity(
     feature: .network, symbol: "arrow.down.circle.fill", title: "24 MB/s", duration: .zero)
 private let downloaded = Activity(
     feature: .network, symbol: "checkmark.circle.fill", title: "Downloaded 1.2 GB", duration: .seconds(3))
+/// A small red square, as an encoded cover.
+private let coverArt: Data = {
+    let image = NSImage(size: NSSize(width: 8, height: 8), flipped: false) { rect in
+        NSColor(red: 0.7, green: 0.23, blue: 0.28, alpha: 1).setFill()
+        rect.fill()
+        return true
+    }
+    return NSBitmapImageRep(data: image.tiffRepresentation!)!.representation(using: .png, properties: [:])!
+}()
+private let playing = Activity(
+    feature: .media, symbol: "music.note", title: "Midnight City", duration: .seconds(3), artwork: coverArt)
+private let timer = Activity(
+    feature: .timer, symbol: "timer", title: "Focus", duration: .zero, countdown: Date(timeIntervalSinceNow: 1498))
+private let finished = Activity(
+    feature: .agents, symbol: "checkmark.circle.fill", title: "Build", duration: .seconds(3))
+private let oneWaiting = Activity(feature: .agents, symbol: "hand.raised.fill", title: "Topdeck", duration: .zero)
 
 private let snapshotCases: [(name: String, metrics: NotchMetrics, events: [NotchEvent])] = [
     ("compact", notched, [.show]),
@@ -47,12 +63,21 @@ private let snapshotCases: [(name: String, metrics: NotchMetrics, events: [Notch
     ("pill-activity", notchless, [.show, .activity(copied)]),
     ("pill-ongoing", notchless, [.show, .setOngoing(meeting)]),
     ("expanded-media", notched, [.show, .clicked]),
-    ("pinned-notes", notched, [.show, .selectTab(.notes), .togglePin]),
+    ("pinned-notes", notched, [.show, .showFeature(.notes), .togglePin]),
+    ("expanded-mac", notched, [.show, .showFeature(.sound)]),
+    ("expanded-plan", notched, [.show, .selectSpace(.plan)]),
+    ("expanded-tools", notched, [.show, .selectSpace(.tools)]),
     ("pill-compact", notchless, [.show]),
-    ("pill-expanded", notchless, [.show, .selectTab(.shelf)]),
+    ("pill-expanded", notchless, [.show, .showFeature(.shelf)]),
     ("standin-compact", standIn, [.show]),
     ("standin-activity", standIn, [.show, .activity(song)]),
-    ("standin-expanded", standIn, [.show, .selectTab(.shelf)]),
+    ("standin-expanded", standIn, [.show, .showFeature(.shelf)]),
+    ("closed-playing", notched, [.show, .setOngoing(playing)]),
+    ("closed-timer", notched, [.show, .setOngoing(timer)]),
+    ("closed-waiting-one", notched, [.show, .setOngoing(oneWaiting)]),
+    ("closed-finished", notched, [.show, .activity(finished)]),
+    ("closed-drop", notched, [.show, .dragEntered]),
+    ("pill-drop", notchless, [.show, .dragEntered]),
 ]
 
 @MainActor
@@ -63,64 +88,40 @@ struct NotchSnapshotTests {
         try draw(name, metrics: metrics, events: events, preferences: Self.preferences())
     }
 
-    @Test func draggingTheCornerGrowsTheNotchFromItsCenter() {
-        let start = CGSize(width: 460, height: 290)
-        #expect(NotchView.resized(start, by: CGSize(width: 10, height: 5)) == CGSize(width: 480, height: 295))
-        #expect(NotchView.resized(start, by: CGSize(width: -3.3, height: 0.4)) == CGSize(width: 453, height: 290))
-        let preferences = Self.preferences()
-        preferences.resizeExpanded(to: NotchView.resized(start, by: CGSize(width: 900, height: -900)))
-        #expect(preferences.expandedSize == CGSize(width: 720, height: 200), "held between the largest and smallest")
+    @Test func theTestCoverIsARealImage() {
+        let bitmap = NSBitmapImageRep(data: coverArt)
+        #expect(bitmap?.colorAt(x: 4, y: 4)?.alphaComponent == 1, "opaque red, not transparent")
     }
 
-    /// The Glass theme open, closed, and with an activity, on each kind of display. An offscreen
-    /// render can't show glass, which the window server draws, so this checks that each state draws.
-    @Test(arguments: [("glass-expanded", notched), ("glass-pill", notchless), ("glass-standin", standIn)])
-    func theGlassThemeRenders(name: String, metrics: NotchMetrics) throws {
+    @Test func draggingTheCornerGrowsTheDeckFromItsCenter() {
+        let start = NotchPreferences.defaultExpandedSize
+        #expect(DeckView.resized(start, by: CGSize(width: 10, height: 5)) == CGSize(width: 720, height: 435))
+        #expect(DeckView.resized(start, by: CGSize(width: -3.3, height: 0.4)) == CGSize(width: 693, height: 430))
         let preferences = Self.preferences()
-        preferences.theme = .glass
-        try draw(name, metrics: metrics, events: [.show, .selectTab(.shelf)], preferences: preferences)
-        try draw(name + "-closed", metrics: metrics, events: [.show], preferences: preferences)
-        try draw(name + "-activity", metrics: metrics, events: [.show, .activity(song)], preferences: preferences)
+        preferences.resizeExpanded(to: DeckView.resized(start, by: CGSize(width: 900, height: -900)))
+        #expect(preferences.expandedSize == CGSize(width: 900, height: 340), "held between the largest and smallest")
     }
 
-    /// The densest layout: every tab, Edit Tabs, the pin, and Settings in the header, and the resize
-    /// corner, at the smallest open size.
-    @Test func everyTabFitsTheSmallestSize() throws {
+    /// The densest layout: every space, its sub-tabs, the pin and Settings, and the resize corner, at
+    /// the smallest open size, with the Agents badge.
+    @Test(arguments: [notched, notchless, standIn])
+    func everySpaceFitsTheSmallestSize(metrics: NotchMetrics) throws {
         let preferences = Self.preferences()
         for feature in FeatureID.allCases { preferences.setEnabled(feature, true) }
         preferences.resizeExpanded(to: NotchPreferences.minimumExpandedSize)
-        try draw("expanded-smallest", metrics: notched, events: [.show, .clicked], preferences: preferences)
+        for space in SpaceID.allCases {
+            try draw(
+                "smallest-\(space.rawValue)-\(metrics.notch == nil ? "pill" : metrics.notch?.height == 24 ? "standin" : "notch")",
+                metrics: metrics, events: [.show, .selectSpace(space)], preferences: preferences, badge: 12)
+        }
     }
 
-    /// Editing the tabs, with a few in the tray, at the default size and the smallest, and with every
-    /// tab in the row.
-    @Test func theTabEditorRenders() throws {
+    /// With spaces hidden or empty, the wings split what's left.
+    @Test func hiddenSpacesLeaveTheWingsBalanced() throws {
         let preferences = Self.preferences()
-        preferences.setEnabled(.usage, false)
-        preferences.setEnabled(.agents, false)
-        preferences.place(.timer, at: 1)
-        let events: [NotchEvent] = [.show, .clicked]
-        try draw("editing", metrics: notched, events: events, preferences: preferences, editing: true)
-        try draw("editing-pill", metrics: notchless, events: events, preferences: preferences, editing: true)
-        preferences.resizeExpanded(to: NotchPreferences.minimumExpandedSize)
-        try draw("editing-smallest", metrics: notched, events: events, preferences: preferences, editing: true)
-        for feature in FeatureID.allCases { preferences.setEnabled(feature, true) }
-        try draw("editing-all", metrics: notched, events: events, preferences: preferences, editing: true)
-    }
-
-    /// The app drawer: every app, the open one lit, one off dimmed, and the Edit tile; at the default
-    /// size, the smallest, and on a display without a notch. Then an app kept in the drawer, open, at
-    /// the end of the row.
-    @Test func theAppDrawerRenders() throws {
-        let preferences = Self.preferences()
-        preferences.setEnabled(.agents, false)
-        preferences.moveToDrawer(.usage)
-        let events: [NotchEvent] = [.show, .clicked]
-        try draw("drawer", metrics: notched, events: events, preferences: preferences, drawer: true)
-        try draw("drawer-pill", metrics: notchless, events: events, preferences: preferences, drawer: true)
-        preferences.resizeExpanded(to: NotchPreferences.minimumExpandedSize)
-        try draw("drawer-smallest", metrics: notched, events: events, preferences: preferences, drawer: true)
-        try draw("drawer-app-open", metrics: notched, events: events + [.selectTab(.usage)], preferences: preferences)
+        preferences.setSpace(.tools, hidden: true)
+        preferences.setSpace(.plan, hidden: true)
+        try draw("wings-four", metrics: notched, events: [.show, .clicked], preferences: preferences, badge: 1)
     }
 
     private static func preferences() -> NotchPreferences {
@@ -128,49 +129,28 @@ struct NotchSnapshotTests {
     }
 
     private func draw(
-        _ name: String, metrics: NotchMetrics, events: [NotchEvent], preferences: NotchPreferences,
-        editing: Bool = false, drawer: Bool = false
+        _ name: String, metrics: NotchMetrics, events: [NotchEvent], preferences: NotchPreferences, badge: Int = 2
     ) throws {
         let engine = NotchEngine()
+        engine.send(.setSpaces(preferences.spaceSet))
         events.forEach(engine.send)
         let content = NotchContent(
-            tab: { feature in
+            feature: { feature in
                 AnyView(Text("\(feature.title) content").frame(maxWidth: .infinity, maxHeight: .infinity))
+            },
+            now: { AnyView(Text("Now content").frame(maxWidth: .infinity, maxHeight: .infinity)) },
+            badge: { $0 == .agents ? badge : 0 },
+            actions: { space, _ in
+                space == .stash ? AnyView(DeckIconButton(.plus, label: "New") {}) : AnyView(EmptyView())
             },
             dropFiles: { _ in false },
             openSettings: {})
         let panel = metrics.panelFrame.size
-        let view = NotchView(
-            engine: engine, metrics: metrics, preferences: preferences, content: content, editing: editing,
-            drawer: drawer
-        )
-        .frame(width: panel.width, height: panel.height)
-        .background(Color(white: 0.82))  // stands in for the desktop behind the transparent panel
-        // The drawer's tiles pop in on appearing; without animation, a moment later they're in place.
-        .transaction { if drawer { $0.animation = nil } }
-        let image = try #require(Self.render(view, size: panel, name: name, settle: drawer))
+        let view = NotchView(engine: engine, metrics: metrics, preferences: preferences, content: content)
+            .frame(width: panel.width, height: panel.height)
+            .background(Color(white: 0.82))  // stands in for the desktop behind the transparent panel
+        let image = try #require(Self.render(view, size: panel, name: name))
         #expect(image.pixelsWide > 0 && image.pixelsHigh > 0)
-    }
-
-    @Test func aDraggedTabShowsWhereItWouldLand() {
-        let tabs: [FeatureID] = [.media, .shelf, .notes]
-        typealias Place = TabEditor.Place
-        let moving = TabDrag(feature: .notes, fromRow: true, slot: 0)
-        #expect(TabEditor.places(tabs, during: moving) == [Place.tab(.notes), .tab(.media), .tab(.shelf)])
-        let joining = TabDrag(feature: .timer, fromRow: false, slot: 1)
-        #expect(TabEditor.places(tabs, during: joining) == [Place.tab(.media), .gap, .tab(.shelf), .tab(.notes)])
-        let leaving = TabDrag(feature: .shelf, fromRow: true, slot: nil)
-        #expect(TabEditor.places(tabs, during: leaving) == [Place.tab(.media), .tab(.notes)], "headed for the tray")
-        #expect(TabEditor.places(tabs, during: nil) == tabs.map(Place.tab))
-    }
-
-    @Test func thePointerPicksThePlaceUnderIt() {
-        // Four places, 30 pt wide with 2 pt between, starting at x = 100.
-        #expect(TabEditor.slot(at: 90, from: 100, width: 30, count: 4) == 0, "before the row: first")
-        #expect(TabEditor.slot(at: 115, from: 100, width: 30, count: 4) == 0)
-        #expect(TabEditor.slot(at: 133, from: 100, width: 30, count: 4) == 1)
-        #expect(TabEditor.slot(at: 500, from: 100, width: 30, count: 4) == 3, "past the row: last")
-        #expect(TabEditor.slot(at: 115, from: 100, width: 30, count: 0) == 0)
     }
 
     /// Draws the view through the same AppKit hosting path the app uses (ImageRenderer can't draw
