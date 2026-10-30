@@ -63,8 +63,8 @@ public enum FeatureID: String, CaseIterable, Hashable, Sendable {
 /// A live activity shown on the compact notch: one-shot, such as a track change, a file drop, or
 /// the volume changing, or ongoing, such as a meeting about to start, until its feature clears it.
 public struct Activity: Hashable, Sendable {
-    /// The tab that raised it, which opens when it's hovered or clicked. Nil for a system activity,
-    /// such as volume or battery, that belongs to no tab and shows whatever tabs are enabled.
+    /// The feature that raised it, whose space opens when it's hovered or clicked. Nil for a system
+    /// activity, such as volume or battery, that belongs to no feature and always shows.
     public var feature: FeatureID?
     /// SF Symbol shown just before the title.
     public var symbol: String
@@ -113,20 +113,22 @@ public enum NotchPresentationState: Hashable, Sendable {
     /// The pointer is on the notch; it expands once `NotchTiming.hoverDwell` passes.
     case hoverArmed
     /// Open while in use; collapses `NotchTiming.collapseGrace` after the pointer leaves.
-    case expanded(tab: FeatureID)
+    case expanded(space: SpaceID)
     /// Open until dismissed; ignores the pointer leaving and click-away.
-    case pinned(tab: FeatureID)
+    case pinned(space: SpaceID)
     /// Taking text input. Stays open and remembers whether it was pinned.
-    case focused(tab: FeatureID, pinned: Bool)
+    case focused(space: SpaceID, pinned: Bool)
     /// Showing a live activity on the compact notch.
     case transient(Activity)
+    /// Files are being dragged near the closed notch: it grows into a drop target for the shelf.
+    case dropTarget
     /// Out of the way: sleep, display sleep, screen lock, or a full-screen app.
     case suspended
 
-    /// The tab on screen when the notch is open.
-    public var openTab: FeatureID? {
+    /// The space on screen when the notch is open.
+    public var openSpace: SpaceID? {
         switch self {
-        case .expanded(let tab), .pinned(let tab), .focused(let tab, _): tab
+        case .expanded(let space), .pinned(let space), .focused(let space, _): space
         default: nil
         }
     }
@@ -162,7 +164,12 @@ public enum NotchEvent: Hashable, Sendable {
     case clickedOutside
     /// Escape or a close control.
     case dismiss
-    case selectTab(FeatureID)
+    case selectSpace(SpaceID)
+    /// Chooses a sub-tab of the open space (and remembers it for next time). Only a feature that is
+    /// on, and a tab of some space, counts.
+    case selectSubTab(FeatureID)
+    /// Opens the space that shows `feature`, on its sub-tab if it is one: a shortcut, a command.
+    case showFeature(FeatureID)
     case togglePin
     case beginTextInput
     case endTextInput
@@ -174,8 +181,8 @@ public enum NotchEvent: Hashable, Sendable {
     case activity(Activity)
     /// The activity the resting notch shows until it's replaced or cleared (nil).
     case setOngoing(Activity?)
-    /// The enabled features changed, in tab order.
-    case setTabs([FeatureID])
+    /// The spaces on show, or the features that are on, changed.
+    case setSpaces(SpaceSet)
     case suspend(SuspendReason)
     case resume(SuspendReason)
     /// A deadline requested by an earlier `NotchEffect.schedule` fired.
@@ -207,10 +214,13 @@ public enum NotchTiming {
 /// The reducer's whole world: the presentation plus the facts it must carry across states.
 public struct NotchState: Hashable, Sendable {
     public private(set) var presentation: NotchPresentationState = .hidden
-    /// The tab to show the next time the notch expands. Always one of `tabs` when any exist.
-    public private(set) var lastTab: FeatureID = .media
-    /// Enabled features in tab order. The notch never opens a tab missing from this list.
-    public private(set) var tabs: [FeatureID] = FeatureID.allCases
+    /// The space to show the next time the notch expands. Always one on show. Now to begin with.
+    public private(set) var lastSpace: SpaceID = .now
+    /// What the deck offers: the spaces on show, in order, and the features that are on. The notch
+    /// never opens a space missing from it.
+    public private(set) var spaceSet = SpaceSet.all
+    /// Each space's last sub-tab.
+    public private(set) var subTabs: [SpaceID: FeatureID] = [:]
     /// Every reason the notch is currently suspended.
     public private(set) var suspensions: Set<SuspendReason> = []
     /// Kept in every state so a late collapse deadline can't close a notch the pointer is on.
@@ -227,6 +237,30 @@ public struct NotchState: Hashable, Sendable {
     public var restingActivity: Activity? {
         guard presentation == .compact || presentation == .hoverArmed, let ongoing, shows(ongoing) else { return nil }
         return ongoing
+    }
+
+    /// The sub-tab on screen in `space`: the remembered one while its feature is on, else the first
+    /// that is. Nil for a space without sub-tabs, or with none of them on.
+    public func subTab(in space: SpaceID) -> FeatureID? {
+        let offered = spaceSet.subTabs(of: space)
+        if let remembered = subTabs[space], offered.contains(remembered) { return remembered }
+        return offered.first
+    }
+
+    /// The features the open space is showing right now.
+    public var onScreen: Set<FeatureID> {
+        guard let space = presentation.openSpace else { return [] }
+        return spaceSet.visibleFeatures(in: space, subTab: subTab(in: space))
+    }
+
+    /// Activation policy: what is on screen runs fully, the others keep only cheap observers, and
+    /// nothing runs while the notch is hidden or suspended. A live activity's feature runs fully too.
+    public func phase(for feature: FeatureID) -> FeaturePhase {
+        switch presentation {
+        case .hidden, .suspended: .stopped
+        case .transient(let activity): activity.feature == feature ? .foreground : .background
+        default: onScreen.contains(feature) ? .foreground : .background
+        }
     }
 
     /// Applies one event and returns the effects to run. Pure: no clocks, no I/O.
@@ -249,20 +283,22 @@ public struct NotchState: Hashable, Sendable {
     private mutating func transition(on event: NotchEvent) -> [NotchEffect] {
         switch (presentation, event) {
         // Settings apply in every state.
-        case (_, .setTabs(let enabled)):
-            tabs = enabled
-            if !tabs.contains(lastTab), let first = tabs.first { lastTab = first }
+        case (_, .setSpaces(let set)):
+            spaceSet = set
+            if !set.spaces.contains(lastSpace), let first = set.spaces.first { lastSpace = first }
             switch presentation {
-            case .expanded(let tab), .pinned(let tab), .focused(let tab, _):
-                guard !tabs.contains(tab) else { break }
-                if let first = tabs.first {
+            case .expanded(let space), .pinned(let space), .focused(let space, _):
+                guard !set.spaces.contains(space) else { break }
+                if let first = set.spaces.first {
                     open(first, pinned: presentation.isPinned)
                 } else {
                     presentation = .compact
                 }
             case .transient(let activity) where !shows(activity):
                 presentation = .compact
-            case .hoverArmed where tabs.isEmpty:
+            case .hoverArmed where set.spaces.isEmpty:
+                presentation = .compact
+            case .dropTarget where !set.enabled.contains(.shelf):
                 presentation = .compact
             default:
                 break
@@ -290,34 +326,43 @@ public struct NotchState: Hashable, Sendable {
         case (.suspended, _):
             break
 
-        // Opening; with no tabs enabled there is nothing to open, so hovering doesn't arm. Like a
-        // live activity, an ongoing one opens the feature that shows it.
-        case (.compact, .pointerEntered) where !tabs.isEmpty:
-            lastTab = restingActivity?.feature ?? lastTab
+        // Opening. Like a live activity, an ongoing one opens the space that shows its feature.
+        case (.compact, .pointerEntered):
+            aim(at: restingActivity?.feature)
             presentation = .hoverArmed
             return [.schedule(.hoverDwell, after: NotchTiming.hoverDwell)]
         case (.compact, .clicked):
-            open(restingActivity?.feature ?? lastTab)
-        case (.transient(let activity), .pointerEntered) where !tabs.isEmpty:
-            // Hovering a live activity opens the feature that raised it, or the last tab for a
-            // system activity.
-            lastTab = activity.feature ?? lastTab
+            aim(at: restingActivity?.feature)
+            open(lastSpace)
+        case (.transient(let activity), .pointerEntered):
+            // Hovering a live activity opens the space of the feature that raised it, or the last
+            // space for a system activity.
+            aim(at: activity.feature)
             presentation = .hoverArmed
             return [.schedule(.hoverDwell, after: NotchTiming.hoverDwell)]
         case (.hoverArmed, .clicked), (.hoverArmed, .deadline(.hoverDwell)):
-            open(lastTab)
+            open(lastSpace)
         case (.transient(let activity), .clicked):
-            open(activity.feature ?? lastTab)
+            aim(at: activity.feature)
+            open(lastSpace)
         case (.hoverArmed, .pointerExited), (.hoverArmed, .dragExited), (.hoverArmed, .dismiss):
             presentation = .compact
 
-        // Dragging files over the notch opens the shelf to catch them.
-        case (.focused(_, let pinned), .dragEntered) where tabs.contains(.shelf):
-            presentation = .focused(tab: .shelf, pinned: pinned)
-            lastTab = .shelf
-        case (_, .dragEntered) where tabs.contains(.shelf):
+        // Dragging files near the closed notch makes it a drop target; over an open one it shows the shelf.
+        case (.dropTarget, .dragEntered):
+            break
+        case (.compact, .dragEntered), (.hoverArmed, .dragEntered), (.transient, .dragEntered):
+            guard spaceSet.enabled.contains(.shelf) else { break }
+            presentation = .dropTarget
+        case (.dropTarget, .dragExited), (.dropTarget, .dropped), (.dropTarget, .dismiss):
+            presentation = .compact
+        case (.focused(_, let pinned), .dragEntered) where spaceSet.enabled.contains(.shelf):
+            aim(at: .shelf)
+            presentation = .focused(space: lastSpace, pinned: pinned)
+        case (_, .dragEntered) where spaceSet.enabled.contains(.shelf):
             let hadGrace = presentation.deadline == .collapseGrace
-            open(.shelf, pinned: presentation.isPinned)
+            aim(at: .shelf)
+            open(lastSpace, pinned: presentation.isPinned)
             return hadGrace ? [.cancel(.collapseGrace)] : []
         case (.expanded, .dragExited):
             return [.schedule(.collapseGrace, after: NotchTiming.collapseGrace)]
@@ -341,36 +386,46 @@ public struct NotchState: Hashable, Sendable {
             presentation = .compact
         case (.expanded, .clickedOutside), (.expanded, .dismiss):
             presentation = .compact
-        case (.expanded(let tab), .togglePin):
-            open(tab, pinned: true)
-        case (.expanded(let tab), .beginTextInput):
-            presentation = .focused(tab: tab, pinned: false)
+        case (.expanded(let space), .togglePin):
+            open(space, pinned: true)
+        case (.expanded(let space), .beginTextInput):
+            presentation = .focused(space: space, pinned: false)
 
         // Pinned
-        case (.pinned(let tab), .togglePin):
-            open(tab)
-        case (.pinned(let tab), .beginTextInput):
-            presentation = .focused(tab: tab, pinned: true)
+        case (.pinned(let space), .togglePin):
+            open(space)
+        case (.pinned(let space), .beginTextInput):
+            presentation = .focused(space: space, pinned: true)
         case (.pinned, .dismiss):
             presentation = .compact
 
         // Focused
-        case (.focused(let tab, let pinned), .endTextInput):
-            open(tab, pinned: pinned)
-        case (.focused(let tab, let pinned), .togglePin):
-            presentation = .focused(tab: tab, pinned: !pinned)
-        case (.focused(let tab, true), .clickedOutside):
-            open(tab, pinned: true)
+        case (.focused(let space, let pinned), .endTextInput):
+            open(space, pinned: pinned)
+        case (.focused(let space, let pinned), .togglePin):
+            presentation = .focused(space: space, pinned: !pinned)
+        case (.focused(let space, true), .clickedOutside):
+            open(space, pinned: true)
         case (.focused, .clickedOutside), (.focused, .dismiss):
             presentation = .compact
 
-        // Choosing a tab opens it and keeps a pin. While the notch has the keyboard, switching tabs
-        // keeps focus too: text entry ends only when the panel loses the keyboard or is dismissed.
-        case (.focused(_, let pinned), .selectTab(let tab)) where tabs.contains(tab):
-            lastTab = tab
-            presentation = .focused(tab: tab, pinned: pinned)
-        case (_, .selectTab(let tab)):
-            open(tab, pinned: presentation.isPinned)
+        // Choosing a space or a feature opens it and keeps a pin. While the notch has the keyboard,
+        // switching keeps focus too: text entry ends only when the panel loses the keyboard or is dismissed.
+        case (.focused(_, let pinned), .selectSpace(let space)) where spaceSet.spaces.contains(space):
+            lastSpace = space
+            presentation = .focused(space: space, pinned: pinned)
+        case (.focused(_, let pinned), .showFeature(let feature)) where spaceSet.target(for: feature) != nil:
+            aim(at: feature)
+            presentation = .focused(space: lastSpace, pinned: pinned)
+        case (_, .selectSpace(let space)):
+            open(space, pinned: presentation.isPinned)
+        case (_, .showFeature(let feature)):
+            aim(at: feature)
+            open(lastSpace, pinned: presentation.isPinned)
+        case (_, .selectSubTab(let feature)):
+            if let space = feature.subTabSpace, spaceSet.subTabs(of: space).contains(feature) {
+                subTabs[space] = feature
+            }
 
         default:
             break
@@ -378,15 +433,23 @@ public struct NotchState: Hashable, Sendable {
         return []
     }
 
-    /// A feature's activity shows while its tab is enabled; a system activity always does.
+    /// A feature's activity shows while the feature is on; a system activity always does.
     private func shows(_ activity: Activity) -> Bool {
-        activity.feature.map(tabs.contains) ?? true
+        activity.feature.map(spaceSet.enabled.contains) ?? true
     }
 
-    /// Opens `tab`, or the first enabled tab if `tab` is disabled. With no tabs enabled, nothing opens.
-    private mutating func open(_ tab: FeatureID, pinned: Bool = false) {
-        guard let tab = tabs.contains(tab) ? tab : tabs.first else { return }
-        lastTab = tab
-        presentation = pinned ? .pinned(tab: tab) : .expanded(tab: tab)
+    /// Makes `feature`'s space the one to open next, and its sub-tab the one that space shows. A
+    /// feature on no space on show, or none, leaves the last space as it was.
+    private mutating func aim(at feature: FeatureID?) {
+        guard let feature, spaceSet.enabled.contains(feature), let space = spaceSet.target(for: feature) else { return }
+        lastSpace = space
+        if space.hasSubTabs, spaceSet.subTabs(of: space).contains(feature) { subTabs[space] = feature }
+    }
+
+    /// Opens `space`, or the first space on show if it isn't one.
+    private mutating func open(_ space: SpaceID, pinned: Bool = false) {
+        guard let space = spaceSet.spaces.contains(space) ? space : spaceSet.spaces.first else { return }
+        lastSpace = space
+        presentation = pinned ? .pinned(space: space) : .expanded(space: space)
     }
 }

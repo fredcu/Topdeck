@@ -14,7 +14,7 @@ struct NotchPreferencesTests {
 
     @Test func everythingIsEnabledOnOneDisplayByDefault() {
         let preferences = NotchPreferences(defaults: defaults)
-        #expect(preferences.tabs == defaultTabs)
+        #expect(preferences.enabledFeatures == defaultTabs)
         #expect(!preferences.showOnAllDisplays)
         #expect(preferences.showsVolume && preferences.showsBattery)
         #expect(!preferences.replacesVolumeDisplay && !preferences.showsAccessoryBattery)
@@ -28,7 +28,7 @@ struct NotchPreferencesTests {
 
         let second = NotchPreferences(defaults: defaults)
         #expect(!second.isEnabled(.media))
-        #expect(second.tabs == defaultTabs.filter { $0 != .media })
+        #expect(second.enabledFeatures == defaultTabs.filter { $0 != .media })
         #expect(second.showOnAllDisplays)
         #expect(!second.showsBattery)
     }
@@ -39,74 +39,81 @@ struct NotchPreferencesTests {
         #expect(disabled == Set([.notes]).union(NotchPreferences.offByDefault))
     }
 
-    @Test func tabsMoveAndKeepTheirPlaceWhileHidden() {
+    @Test func spacesStartInTheirDefaultOrderAllShown() {
         let preferences = NotchPreferences(defaults: defaults)
-        preferences.place(.timer, at: 0)
-        #expect(preferences.tabs.first == .timer)
-        preferences.setEnabled(.shelf, false)
-        preferences.place(.notes, at: 1)
-        #expect(preferences.tabs.prefix(3) == [.timer, .notes, .media])
-        #expect(preferences.tabOrder.prefix(5) == [.timer, .notes, .media, .sound, .shelf], "the hidden shelf stayed")
-        preferences.place(.shelf, at: preferences.tabs.count)
-        #expect(preferences.tabs.last == .shelf && preferences.isEnabled(.shelf), "placing a hidden tab shows it")
-        #expect(NotchPreferences(defaults: defaults).tabs == preferences.tabs, "and the order persists")
+        #expect(preferences.spaceOrder == [.now, .stash, .plan, .agents, .mac, .tools])
+        #expect(preferences.spaceSet.spaces == SpaceID.defaultOrder)
     }
 
-    @Test func anAppKeptInTheDrawerStaysOnButLeavesTheRow() {
+    @Test func spacesMoveAndKeepTheirPlaceWhileHidden() {
         let preferences = NotchPreferences(defaults: defaults)
-        preferences.moveToDrawer(.notes)
-        #expect(preferences.isEnabled(.notes), "still on, so the notch can open it")
-        #expect(preferences.tabs.contains(.notes) && !preferences.rowTabs.contains(.notes))
-        #expect(!NotchPreferences(defaults: defaults).rowTabs.contains(.notes), "and it stays in the drawer")
-        preferences.place(.notes, at: 0)
-        #expect(preferences.rowTabs.first == .notes, "placing it puts it back on the row")
-        preferences.moveToDrawer(.shelf)
-        preferences.reset()
-        #expect(preferences.rowTabs == defaultTabs)
+        preferences.moveSpace(.tools, to: 1)
+        #expect(preferences.spaceSet.spaces == [.now, .tools, .stash, .plan, .agents, .mac])
+        preferences.setSpace(.stash, hidden: true)
+        #expect(preferences.spaceSet.spaces == [.now, .tools, .plan, .agents, .mac])
+        preferences.moveSpace(.mac, to: 99)
+        preferences.moveSpace(.agents, to: -4)
+        #expect(preferences.spaceOrder == [.agents, .now, .tools, .stash, .plan, .mac], "the hidden stash stayed")
+        preferences.setSpace(.stash, hidden: false)
+        let reopened = NotchPreferences(defaults: defaults)
+        #expect(
+            reopened.spaceSet.spaces == [.agents, .now, .tools, .stash, .plan, .mac], "order and visibility persist")
     }
 
-    @Test func aFeatureAddedByAnUpdateJoinsTheEndOfACustomOrder() {
-        defaults.set(["timer", "media", "a-feature-from-the-future", "timer"], forKey: "tabOrder")
-        let order = NotchPreferences(defaults: defaults).tabOrder
-        #expect(order.prefix(2) == [.timer, .media])
-        #expect(Array(order.dropFirst(2)) == FeatureID.allCases.filter { $0 != .timer && $0 != .media })
-        #expect(!NotchPreferences(defaults: defaults, unavailable: [.usage]).tabOrder.contains(.usage))
+    @Test func theLastSpaceOnShowCannotBeHidden() {
+        let preferences = NotchPreferences(defaults: defaults)
+        for space in SpaceID.allCases { preferences.setSpace(space, hidden: true) }
+        #expect(preferences.spaceSet.spaces == [.tools], "the last one asked to hide stays")
+        #expect(preferences.hiddenSpaces == Set(SpaceID.allCases).subtracting([.tools]))
+    }
+
+    @Test func aSpaceWithNothingOnIsHidden() {
+        let preferences = NotchPreferences(defaults: defaults)
+        for feature in SpaceID.plan.features { preferences.setEnabled(feature, false) }
+        #expect(preferences.spaceSet.spaces == [.now, .stash, .agents, .mac, .tools], "calendar and tasks are off")
+        preferences.setEnabled(.calendar, true)
+        #expect(preferences.spaceSet.spaces.contains(.plan))
+    }
+
+    @Test func aSpaceAddedByAnUpdateJoinsTheEndOfACustomOrder() {
+        defaults.set(["tools", "now", "a-space-from-the-future", "tools"], forKey: "spaceOrder")
+        let order = NotchPreferences(defaults: defaults).spaceOrder
+        #expect(order.prefix(2) == [.tools, .now])
+        #expect(Array(order.dropFirst(2)) == SpaceID.allCases.filter { $0 != .tools && $0 != .now })
+        #expect(!NotchPreferences(defaults: defaults, unavailable: [.usage]).enabledFeatures.contains(.usage))
     }
 
     @Test func resetRestoresTheDefaults() {
         let preferences = NotchPreferences(defaults: defaults)
-        preferences.place(.timer, at: 0)
+        preferences.moveSpace(.tools, to: 0)
+        preferences.setSpace(.plan, hidden: true)
         preferences.setEnabled(.shelf, false)
         preferences.showOnAllDisplays = true
-        preferences.resizeExpanded(to: CGSize(width: 600, height: 400))
+        preferences.resizeExpanded(to: CGSize(width: 800, height: 400))
         preferences.setEnabled(.notes, false)
         preferences.replacesVolumeDisplay = true
-        preferences.theme = .glass
         preferences.reset()
-        #expect(preferences.tabs == defaultTabs)
-        #expect(preferences.tabOrder == FeatureID.allCases)
+        #expect(preferences.enabledFeatures == defaultTabs)
+        #expect(preferences.spaceOrder == SpaceID.defaultOrder && preferences.hiddenSpaces.isEmpty)
         #expect(preferences.expandedSize == NotchPreferences.defaultExpandedSize)
         #expect(!preferences.replacesVolumeDisplay)
-        #expect(preferences.theme == .black)
         #expect(!NotchPreferences(defaults: defaults).showOnAllDisplays)
-    }
-
-    @Test func theThemeIsBlackUntilChosenAndKept() {
-        #expect(NotchPreferences(defaults: defaults).theme == .black)
-        NotchPreferences(defaults: defaults).theme = .glass
-        #expect(NotchPreferences(defaults: defaults).theme == .glass)
-        defaults.set("chrome-from-the-future", forKey: "theme")
-        #expect(NotchPreferences(defaults: defaults).theme == .black)
     }
 
     @Test func theNotchSizePersistsWithinItsLimits() {
         let preferences = NotchPreferences(defaults: defaults)
-        preferences.resizeExpanded(to: CGSize(width: 600, height: 380))
-        #expect(NotchPreferences(defaults: defaults).expandedSize == CGSize(width: 600, height: 380))
+        #expect(preferences.expandedSize == CGSize(width: 700, height: 430), "the deck's default size")
+        preferences.resizeExpanded(to: CGSize(width: 800, height: 380))
+        #expect(NotchPreferences(defaults: defaults).expandedSize == CGSize(width: 800, height: 380))
         preferences.resizeExpanded(to: CGSize(width: 5000, height: 10))
-        #expect(preferences.expandedSize == CGSize(width: 720, height: 200))
-        defaults.set([10.0, 9999.0], forKey: "expandedSize")  // a hand-edited value is clamped too
-        #expect(NotchPreferences(defaults: defaults).expandedSize == CGSize(width: 414, height: 480))
+        #expect(preferences.expandedSize == CGSize(width: 900, height: 340))
+        defaults.set([10.0, 9999.0], forKey: "deckSize")  // a hand-edited value is clamped too
+        #expect(NotchPreferences(defaults: defaults).expandedSize == CGSize(width: 620, height: 560))
+    }
+
+    @Test func aSizeFromTheOldNotchIsLeftBehind() {
+        defaults.set([460.0, 290.0], forKey: "expandedSize")
+        #expect(NotchPreferences(defaults: defaults).expandedSize == NotchPreferences.defaultExpandedSize)
     }
 
     @Test func theAnimationStylePersistsAndFallsBackToSpring() {
@@ -148,19 +155,18 @@ struct NotchPreferencesTests {
             preferences.resizeExpanded(to: next)
             larger.append(preferences.expandedSize)
         }
-        #expect(larger.map(\.width) == [515, 575, 644, 718], "+ stops at the largest size")
+        #expect(larger.map(\.width) == [770, 840, 896], "+ stops at the largest size")
         var smaller: [CGSize] = []
         while let next = preferences.expandedSizeStep(larger: false) {
             preferences.resizeExpanded(to: next)
             smaller.append(preferences.expandedSize)
         }
-        #expect(smaller.map(\.width) == [644, 575, 515, 460, 414, 414, 414], "− steps back down")
-        #expect(smaller.suffix(3).map(\.height) == [261, 230, 200], "and ends on shorter sizes at the same width")
+        #expect(smaller.map(\.width) == [840, 770, 700, 620], "− steps back down")
         #expect(smaller.last == NotchPreferences.minimumExpandedSize)
 
         let steps = NotchPreferences.expandedSizeSteps
         let aspect = NotchPreferences.defaultExpandedSize.width / NotchPreferences.defaultExpandedSize.height
-        for step in steps.dropFirst(2) {
+        for step in steps.dropFirst() {
             #expect(abs(step.width / step.height - aspect) < 0.01, "the height follows the width")
         }
         #expect(steps.allSatisfy { NotchPreferences.clamped($0) == $0 }, "every step is within the limits")
@@ -169,7 +175,7 @@ struct NotchPreferencesTests {
     @Test func observersRerunAfterEveryChange() async throws {
         let preferences = NotchPreferences(defaults: defaults)
         var seen: [[FeatureID]] = []
-        observeContinuously { seen.append(preferences.tabs) }
+        observeContinuously { seen.append(preferences.enabledFeatures) }
         preferences.setEnabled(.tasks, false)
         #expect(await eventually { seen.count == 2 })
         preferences.setEnabled(.tasks, true)

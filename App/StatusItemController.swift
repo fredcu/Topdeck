@@ -28,8 +28,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     /// Named, so the menu bar hider can keep it to the right of its divider.
     private func install() {
         statusItem.autosaveName = MenuBarHider.statusItemName
-        statusItem.button?.image = NSImage(
-            systemSymbolName: "rectangle.topthird.inset.filled", accessibilityDescription: "Topdeck")
+        // The card stack with its notch, as a template glyph: the menu bar tints it for light and dark.
+        let glyph = NSImage(named: "MenuBarGlyph")
+        glyph?.isTemplate = true
+        glyph?.accessibilityDescription = "Topdeck"
+        statusItem.button?.image = glyph
         let menu = NSMenu()
         menu.delegate = self
         statusItem.menu = menu

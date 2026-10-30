@@ -23,8 +23,8 @@ final class NotchEnginePerformanceTests: XCTestCase {
         measure(metrics: [XCTClockMetric(), XCTCPUMetric(), XCTMemoryMetric()]) {
             let host = FeatureHost(FeatureID.allCases.map(IdleFeature.init))
             let engine = NotchEngine()
-            engine.onPresentationChange = { _, new in
-                host.update(presentations: [new], enabled: Set(FeatureID.allCases))
+            engine.onPresentationChange = { [unowned engine] _, _ in
+                host.update(notches: [engine.state], enabled: Set(FeatureID.allCases))
             }
             engine.send(.show)
             for _ in 0..<1_000 {

@@ -76,8 +76,8 @@ final class NotchController {
         case .hidden, .suspended: panel.orderOut(nil)
         default: if !panel.isVisible { panel.orderFrontRegardless() }
         }
-        let open = new.openTab != nil
-        if open != (old.openTab != nil) {
+        let open = new.openSpace != nil
+        if open != (old.openSpace != nil) {
             open ? startClickAway() : stopClickAway()
         }
         if !open, panel.isKeyWindow { handBackKeyboard() }
@@ -91,7 +91,9 @@ final class NotchController {
     private func handBackKeyboard() {
         Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(400))
-            guard let self, panel.isKeyWindow, panel.isVisible, engine.state.presentation.openTab == nil else { return }
+            guard let self, panel.isKeyWindow, panel.isVisible, engine.state.presentation.openSpace == nil else {
+                return
+            }
             panel.orderOut(nil)
             panel.orderFrontRegardless()
         }

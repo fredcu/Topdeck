@@ -6,8 +6,8 @@ import TopdeckCore
 /// change, and relays sleep, display sleep, and screen lock to all of them.
 @MainActor
 public final class PanelCoordinator {
-    /// Called whenever any notch's presentation, or the set of notches, changes.
-    public var onPresentationsChange: (([NotchPresentationState]) -> Void)?
+    /// Called whenever any notch's presentation or sub-tab, or the set of notches, changes.
+    public var onNotchesChange: (([NotchState]) -> Void)?
 
     private let preferences: NotchPreferences
     private let content: NotchContent
@@ -25,8 +25,10 @@ public final class PanelCoordinator {
         self.content = content
     }
 
-    /// Every notch's current presentation.
-    public var presentations: [NotchPresentationState] { controllers.map(\.engine.state.presentation) }
+    /// Every notch's current state.
+    public var notches: [NotchState] { controllers.map(\.engine.state) }
+
+    private var presentations: [NotchPresentationState] { notches.map(\.presentation) }
 
     public func start() {
         showingAllDisplays = preferences.showOnAllDisplays
@@ -34,14 +36,14 @@ public final class PanelCoordinator {
         watchSystem()
         observeContinuously { [weak self] in
             guard let self else { return }
-            let tabs = preferences.tabs
+            let spaces = preferences.spaceSet
             if preferences.showOnAllDisplays != showingAllDisplays || preferences.pillDisplays != builtPills {
                 showingAllDisplays = preferences.showOnAllDisplays
                 rebuild()
             }
-            broadcast(.setTabs(tabs))
+            broadcast(.setSpaces(spaces))
             broadcast(.setOngoing(shownOngoing))
-            onPresentationsChange?(presentations)
+            onNotchesChange?(notches)
         }
     }
 
@@ -50,41 +52,46 @@ public final class PanelCoordinator {
         for controller in controllers { controller.engine.send(event) }
     }
 
-    /// Opens `tab` on every notch, as if the user had chosen it.
-    public func open(_ tab: FeatureID) {
-        broadcast(.selectTab(tab))
+    /// Opens `space` on every notch, as if the user had chosen it.
+    public func open(_ space: SpaceID) {
+        broadcast(.selectSpace(space))
+    }
+
+    /// Opens the space that shows `feature` on every notch, on its sub-tab if it has one.
+    public func show(_ feature: FeatureID) {
+        broadcast(.showFeature(feature))
     }
 
     /// Gives the keyboard to the first open notch, for typing started from a keyboard shortcut.
     public func focusKeyboard() {
-        controllers.first { $0.engine.state.presentation.openTab != nil }?.focusKeyboard()
+        controllers.first { $0.engine.state.presentation.openSpace != nil }?.focusKeyboard()
     }
 
     /// The keyboard shortcut: closes any open notch, or else opens the one on the display under the
     /// pointer (or the only one). Returns whether a notch opened.
     @discardableResult
     public func toggleNotch() -> Bool {
-        if presentations.contains(where: { $0.openTab != nil }) {
+        if presentations.contains(where: { $0.openSpace != nil }) {
             dismissAll()
             return false
         }
         guard let controller = controllerUnderPointer else { return false }
         controller.engine.send(.clicked)
-        return controller.engine.state.presentation.openTab != nil
+        return controller.engine.state.presentation.openSpace != nil
     }
 
-    /// A tab's own shortcut: opens `tab` on the display under the pointer and gives it the keyboard,
-    /// or closes it when it's already open there. Returns whether it opened.
+    /// A feature's own shortcut: opens its space on the display under the pointer, on its sub-tab, and
+    /// gives it the keyboard, or closes it when it's already on screen there. Returns whether it opened.
     @discardableResult
-    public func toggle(_ tab: FeatureID) -> Bool {
-        // A disabled tab would open the first enabled one instead.
-        guard preferences.isEnabled(tab), let controller = controllerUnderPointer else { return false }
-        if controller.engine.state.presentation.openTab == tab {
+    public func toggle(_ feature: FeatureID) -> Bool {
+        // A disabled feature would open another space instead.
+        guard preferences.isEnabled(feature), let controller = controllerUnderPointer else { return false }
+        if controller.engine.state.onScreen.contains(feature) {
             dismissAll()
             return false
         }
-        controller.engine.send(.selectTab(tab))
-        guard controller.engine.state.presentation.openTab == tab else { return false }
+        controller.engine.send(.showFeature(feature))
+        guard controller.engine.state.onScreen.contains(feature) else { return false }
         controller.focusKeyboard()
         return true
     }
@@ -96,7 +103,7 @@ public final class PanelCoordinator {
 
     /// Closes every open notch, pinned ones too.
     public func dismissAll() {
-        for controller in controllers where controller.engine.state.presentation.openTab != nil {
+        for controller in controllers where controller.engine.state.presentation.openSpace != nil {
             controller.engine.send(.dismiss)
         }
     }
@@ -126,7 +133,7 @@ public final class PanelCoordinator {
     /// Opens every closed notch and closes it again, to preview the open and close animation. Only
     /// notches the preview opened are closed, and only if nothing (like a pin) changed them since.
     public func previewAnimation() {
-        let engines = controllers.map(\.engine).filter { $0.state.presentation.openTab == nil }
+        let engines = controllers.map(\.engine).filter { $0.state.presentation.openSpace == nil }
         for engine in engines { engine.send(.clicked) }
         let opened = engines.map { ($0, $0.state.presentation) }
         Task {
@@ -150,9 +157,9 @@ public final class PanelCoordinator {
                 screen: screen, content: content, preferences: preferences, standIn: standIn)
             controller.onPresentationChange = { [weak self] in
                 guard let self else { return }
-                onPresentationsChange?(presentations)
+                onNotchesChange?(notches)
             }
-            controller.engine.send(.setTabs(preferences.tabs))
+            controller.engine.send(.setSpaces(preferences.spaceSet))
             controller.engine.send(.setOngoing(shownOngoing))
             for reason in suspensions { controller.engine.send(.suspend(reason)) }
             controller.engine.send(.show)
@@ -160,7 +167,7 @@ public final class PanelCoordinator {
         }
         Log.surface.info("Showing \(self.controllers.count) notch(es)")
         hideUnderFullScreen()
-        onPresentationsChange?(presentations)
+        onNotchesChange?(notches)
     }
 
     private func suspend(_ reason: SuspendReason, _ suspended: Bool) {

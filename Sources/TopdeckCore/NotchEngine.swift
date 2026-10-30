@@ -21,7 +21,8 @@ public struct PointerCheck: Sendable {
 public final class NotchEngine {
     public private(set) var state = NotchState()
 
-    /// Called after every presentation change, for example to update the panel and the features.
+    /// Called after every presentation change, and after a sub-tab change, for example to update the
+    /// panel and the features.
     @ObservationIgnored
     public var onPresentationChange: ((_ old: NotchPresentationState, _ new: NotchPresentationState) -> Void)?
 
@@ -46,7 +47,8 @@ public final class NotchEngine {
         var new = old
         let effects = new.handle(event)
         if new != old { state = new }
-        if new.presentation != old.presentation {
+        // A sub-tab switch changes what's on screen, and so each feature's phase, without a new presentation.
+        if new.presentation != old.presentation || new.onScreen != old.onScreen {
             Log.state.debug(
                 "\(String(describing: event), privacy: .public): \(String(describing: old.presentation), privacy: .public) → \(String(describing: new.presentation), privacy: .public)"
             )

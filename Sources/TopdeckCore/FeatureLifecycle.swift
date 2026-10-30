@@ -11,29 +11,12 @@ public enum FeaturePhase: Comparable, Hashable, Sendable {
     case foreground
 }
 
-/// A notch feature module. `FeatureHost` sets `phase` whenever any notch's presentation changes,
+/// A notch feature module. `FeatureHost` sets `phase` whenever any notch's presentation or sub-tab changes,
 /// and only when the value actually changes; a module starts and stops its work in `didSet`.
 @MainActor
 public protocol NotchFeature: AnyObject {
     var id: FeatureID { get }
     var phase: FeaturePhase { get set }
-}
-
-extension NotchPresentationState {
-    /// The feature on screen: the open tab, or the owner of the live activity.
-    public var visibleFeature: FeatureID? {
-        if case .transient(let activity) = self { return activity.feature }
-        return openTab
-    }
-
-    /// Activation policy: the visible feature runs fully, the others keep only cheap observers,
-    /// and nothing runs while the notch is hidden or suspended.
-    public func phase(for feature: FeatureID) -> FeaturePhase {
-        switch self {
-        case .hidden, .suspended: .stopped
-        default: visibleFeature == feature ? .foreground : .background
-        }
-    }
 }
 
 /// Owns the feature modules and moves each one through its lifecycle, looking at the notch on
@@ -47,9 +30,9 @@ public final class FeatureHost {
     }
 
     /// Disabled features stay stopped whatever the notches show.
-    public func update(presentations: [NotchPresentationState], enabled: Set<FeatureID>) {
+    public func update(notches: [NotchState], enabled: Set<FeatureID>) {
         for feature in features {
-            let wanted = presentations.map { $0.phase(for: feature.id) }.max() ?? .stopped
+            let wanted = notches.map { $0.phase(for: feature.id) }.max() ?? .stopped
             let phase = enabled.contains(feature.id) ? wanted : .stopped
             guard feature.phase != phase else { continue }
             Log.features.debug(

@@ -77,12 +77,12 @@ final class SettingsWindowController {
 @Observable
 final class SettingsSelection {
     enum Page: Hashable {
-        case about, general, appearance, displays, activities, windows, windowSwitcher, inputSources, commandBar,
-            menuBar
+        case about, general, appearance, spaces, displays, activities, windows, windowSwitcher, inputSources,
+            commandBar, menuBar
         case feature(FeatureID)
 
-        /// Topdeck's own pages, above the tabs.
-        static let app: [Self] = [.general, .appearance, .displays, .activities]
+        /// Topdeck's own pages, above the features.
+        static let app: [Self] = [.general, .appearance, .spaces, .displays, .activities]
     }
     var page = Page.general
 }
@@ -122,8 +122,8 @@ struct SettingsView: View {
                     SidebarRow(page: .commandBar, off: !commandBar.isEnabled).tag(SettingsSelection.Page.commandBar)
                     SidebarRow(page: .menuBar, off: !menuBar.isEnabled).tag(SettingsSelection.Page.menuBar)
                 }
-                Section("Tabs") {
-                    ForEach(preferences.tabOrder, id: \.self) { feature in
+                Section("Features") {
+                    ForEach(preferences.available, id: \.self) { feature in
                         SidebarRow(page: .feature(feature), off: !preferences.isEnabled(feature))
                             .tag(SettingsSelection.Page.feature(feature))
                     }
@@ -145,6 +145,7 @@ struct SettingsView: View {
         case .about: AboutSettings(updater: updater)
         case .general: GeneralPage(preferences: preferences, notchKey: notchKey, clipboardKey: clipboardKey)
         case .appearance: AppearancePage(preferences: preferences, previewAnimation: previewAnimation)
+        case .spaces: SpacesPage(preferences: preferences)
         case .displays: DisplaysPage(preferences: preferences)
         case .activities: ActivitiesPage(preferences: preferences)
         case .inputSources: InputSourcesPage(inputSwitch: inputSwitch)
@@ -164,6 +165,7 @@ extension SettingsSelection.Page {
         case .about: "About"
         case .general: "General"
         case .appearance: "Appearance"
+        case .spaces: "Spaces"
         case .displays: "Displays"
         case .activities: "Live Activities"
         case .inputSources: "Input Sources"
@@ -181,6 +183,7 @@ extension SettingsSelection.Page {
         case .about: ("info.circle", .gray)
         case .general: ("gearshape", .gray)
         case .appearance: ("paintbrush", .indigo)
+        case .spaces: ("square.grid.2x2", .teal)
         case .displays: ("display", .blue)
         case .activities: ("bell.badge", .red)
         case .inputSources: ("keyboard", .gray)
@@ -216,7 +219,8 @@ extension SettingsSelection.Page {
         switch self {
         case .about: "The app, its version, and where to find help."
         case .general: "Launch at login, keyboard shortcuts, and starting over."
-        case .appearance: "How the open notch looks, and how it opens and closes."
+        case .appearance: "How the notch opens and closes, and its size."
+        case .spaces: "Which spaces the open notch shows, and in what order."
         case .displays: "Which displays get a notch, and what the ones without one show."
         case .activities: "What the closed notch shows for a moment when something changes."
         case .inputSources: "Each app gets its own keyboard input source when you switch to it."
@@ -442,12 +446,14 @@ private struct GeneralPage: View {
                     Button("Reset\u{2026}", role: .destructive) { confirmsReset = true }
                 } label: {
                     Text("Reset to defaults")
-                    Text("Tabs, their order, shortcuts, appearance, and displays. Your notes, shelf, and history stay.")
+                    Text(
+                        "Spaces, their order, shortcuts, appearance, and displays. Your notes, shelf, and history stay."
+                    )
                 }
                 .confirmationDialog("Reset Topdeck's settings?", isPresented: $confirmsReset) {
                     Button("Reset to Defaults", role: .destructive) { preferences.reset() }
                 } message: {
-                    Text("Every tab comes back in its first place, with the original shortcuts and look.")
+                    Text("Every space comes back in its first place, with the original shortcuts and look.")
                 }
             }
         }
@@ -482,15 +488,6 @@ private struct AppearancePage: View {
     var body: some View {
         SettingsPage(page: .appearance) {
             Section {
-                LabeledContent("Theme") {
-                    ThemePicker(theme: $preferences.theme, glassAvailable: Self.glassAvailable)
-                }
-                // Shows the new look right away, the way Preview shows an animation.
-                .onChange(of: preferences.theme) { previewAnimation() }
-            } footer: {
-                Text(themeNote).foregroundStyle(.secondary)
-            }
-            Section {
                 LabeledContent {
                     HStack {
                         Picker("Open and close", selection: $preferences.animationStyle) {
@@ -519,71 +516,49 @@ private struct AppearancePage: View {
             }
         }
     }
-
-    /// Liquid Glass came with macOS 26.
-    private static var glassAvailable: Bool {
-        if #available(macOS 26, *) { true } else { false }
-    }
-
-    private var themeNote: String {
-        guard Self.glassAvailable else { return "Glass needs macOS 26 or later." }
-        let note =
-            "Glass shows your desktop through the open notch, the way macOS draws Control Center. Closed, the notch "
-            + "stays black to hide in the camera housing."
-        let accessibility = NSWorkspace.shared
-        let solid =
-            accessibility.accessibilityDisplayShouldReduceTransparency
-            || accessibility.accessibilityDisplayShouldIncreaseContrast
-        return solid ? note + " Reduce Transparency and Increase Contrast keep it black." : note
-    }
 }
 
-/// Each theme as a small open notch over a wallpaper, picked the way System Settings picks Light or
-/// Dark.
-private struct ThemePicker: View {
-    @Binding var theme: NotchTheme
-    let glassAvailable: Bool
+/// The spaces in the open notch: shown or hidden, and their order, left wing first. A space whose
+/// features are all off stays out of the notch whatever is set here.
+private struct SpacesPage: View {
+    @Bindable var preferences: NotchPreferences
 
     var body: some View {
-        HStack(spacing: 14) {
-            ForEach(NotchTheme.allCases) { option in
-                let selected = option == theme
-                Button {
-                    theme = option
-                } label: {
-                    VStack(spacing: 5) {
-                        preview(option)
-                            .padding(3)
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                    .strokeBorder(selected ? Color.accentColor : .clear, lineWidth: 2.5)
-                            }
-                        Text(option.title).font(.caption).foregroundStyle(selected ? .primary : .secondary)
+        SettingsPage(page: .spaces) {
+            Section {
+                ForEach(Array(preferences.spaceOrder.enumerated()), id: \.element) { index, space in
+                    HStack(spacing: 4) {
+                        Toggle(
+                            space.title,
+                            isOn: Binding(
+                                get: { !preferences.hiddenSpaces.contains(space) },
+                                set: { preferences.setSpace(space, hidden: !$0) })
+                        )
+                        .disabled(preferences.spaceSet.spaces == [space])  // the last one on show stays
+                        if !space.features.contains(where: preferences.isEnabled) {
+                            Text("Its features are off").foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 8)
+                        Button {
+                            preferences.moveSpace(space, to: index - 1)
+                        } label: {
+                            Image(systemName: "chevron.up")
+                        }
+                        .disabled(index == 0)
+                        .help("Move \(space.title) earlier")
+                        Button {
+                            preferences.moveSpace(space, to: index + 1)
+                        } label: {
+                            Image(systemName: "chevron.down")
+                        }
+                        .disabled(index == preferences.spaceOrder.count - 1)
+                        .help("Move \(space.title) later")
                     }
+                    .buttonStyle(.borderless)
+                    .accessibilityElement(children: .contain)
                 }
-                .buttonStyle(.plain)
-                .disabled(option == .glass && !glassAvailable)
-                .accessibilityLabel(option.title)
-                .accessibilityAddTraits(selected ? .isSelected : [])
             }
         }
-    }
-
-    private func preview(_ option: NotchTheme) -> some View {
-        let notch = UnevenRoundedRectangle(bottomLeadingRadius: 9, bottomTrailingRadius: 9, style: .continuous)
-        return ZStack(alignment: .top) {
-            LinearGradient(
-                colors: [AboutSettings.peach, AboutSettings.coral, .indigo], startPoint: .topLeading,
-                endPoint: .bottomTrailing)
-            if option == .glass {
-                notch.fill(.white.opacity(0.28)).overlay(notch.stroke(.white.opacity(0.7), lineWidth: 0.75))
-                    .frame(width: 58, height: 26)
-            } else {
-                notch.fill(.black).frame(width: 58, height: 26)
-            }
-        }
-        .frame(width: 84, height: 52)
-        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }
 
