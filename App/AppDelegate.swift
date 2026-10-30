@@ -39,6 +39,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let quickNoteKey = HotKey()
     /// Opens the Clipboard tab from any app, ready to search.
     private let clipboardKey = HotKey()
+    /// Gives each app its own keyboard input source. Not a tab: it works while the notch is away.
+    private let inputSwitch = InputSwitcher()
 
     override init() {
         let eventStore = EventStore()  // shared, and only created when Calendar or Tasks first needs it
@@ -56,6 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updater: updater,
         notchKey: notchKey,
         clipboardKey: clipboardKey,
+        inputSwitch: inputSwitch,
         previewAnimation: { [weak self] in self?.coordinator?.previewAnimation() },
         featureSettings: { [unowned self] in self.settingsView(for: $0) })
 
@@ -147,6 +150,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         tasks.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         notes.onSendToTasks = { [tasks] in tasks.add($0) }
         pinnedNotes.start()
+        inputSwitch.resume()
         quickNoteKey.onPress = { [weak self] in self?.startQuickNote() }
         volume.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         battery.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
@@ -216,6 +220,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Stops every feature, including the media helper process and the camera.
         features.update(presentations: [], enabled: [])
         pinnedNotes.stop()
+        inputSwitch.stop()
         mixer.isEnabled = false  // every app back to its own volume
         timer.allowSleep()
         volume.stop()
