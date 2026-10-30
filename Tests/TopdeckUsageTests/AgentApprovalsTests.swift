@@ -212,7 +212,8 @@ struct AgentDecisionTests {
         let answered = try decision(AgentDecision.answer([["SQLite"], ["Auth", "Search"]]).payload(for: request))
         #expect(answered["behavior"] as? String == "allow")
         let input = try #require(answered["updatedInput"] as? [String: Any])
-        #expect(input["answers"] as? [String: String] == ["Which database?": "SQLite", "Which extras?": "Auth, Search"])
+        let answers = input["answers"] as? [String: String]
+        #expect(answers == ["Which database?": "SQLite", "Which extras?": "Auth, Search"])
         #expect((input["questions"] as? [Any])?.count == 2, "the questions stay as asked")
     }
 
@@ -290,9 +291,8 @@ struct AgentApprovalTests {
 
     @Test func connectingAddsAWaitingHookBesideTheirsAndDisconnectingTakesOnlyOurs() throws {
         let sandbox = try Sandbox()
-        let others: [String: Any] = [
-            "hooks": ["PermissionRequest": [["matcher": "Bash", "hooks": [["type": "command", "command": "guard.sh"]]]]]
-        ]
+        let guardHook: [String: Any] = ["matcher": "Bash", "hooks": [["type": "command", "command": "guard.sh"]]]
+        let others: [String: Any] = ["hooks": ["PermissionRequest": [guardHook]]]
         try sandbox.write(others, for: .claude)
         try sandbox.hooks.install(.claude)
         let events = try #require(try sandbox.settings(for: .claude)["hooks"] as? [String: [[String: Any]]])
