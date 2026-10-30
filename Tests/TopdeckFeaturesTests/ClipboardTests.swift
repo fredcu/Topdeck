@@ -134,7 +134,8 @@ struct ClipboardTests {
         copy("https://exa mple.com/?utm_source=x")
         clipboard.check()
         let unparsed = "https://exa mple.com/?utm_source=x"
-        #expect(clipboard.items.map(\.text).prefix(2) == [unparsed, "https://example.com/post?id=5"], "unparsed: as is")
+        let cleaned = "https://example.com/post?id=5"
+        #expect(clipboard.items.map(\.text).prefix(2) == [unparsed, cleaned], "unparsed: as is")
         #expect(try self.clipboard().cleansLinks, "kept across launches")
     }
 

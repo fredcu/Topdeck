@@ -30,7 +30,8 @@ struct ClipboardRulesTests {
 
     @Test func aCopyNamingAPasswordManagerAsItsSourceIsSkipped() {
         // 1Password's browser extension copies while the browser is in front.
-        #expect(rules.ignores(types: ["public.utf8-plain-text"], apps: ["com.apple.Safari", "com.1password.1password"]))
+        let apps = ["com.apple.Safari", "com.1password.1password"]
+        #expect(rules.ignores(types: ["public.utf8-plain-text"], apps: apps))
     }
 
     @Test func listedAppsAreSkippedAndOthersKept() {

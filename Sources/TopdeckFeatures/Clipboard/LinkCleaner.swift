@@ -40,6 +40,7 @@ enum LinkCleaner {
     private static func isTracking(_ parameter: Substring) -> Bool {
         let raw = parameter.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).first ?? ""
         let name = (String(raw).removingPercentEncoding ?? String(raw)).lowercased()
-        return trackingNames.contains(name) || trackingPrefixes.contains { name.hasPrefix($0) && name.count > $0.count }
+        let tagged = trackingPrefixes.contains { name.hasPrefix($0) && name.count > $0.count }
+        return tagged || trackingNames.contains(name)
     }
 }
