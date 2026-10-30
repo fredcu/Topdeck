@@ -43,7 +43,8 @@ private func changing(_ json: String, _ key: String, to value: Any?) throws -> S
 }
 
 private func object(_ data: Data?) throws -> [String: Any] {
-    try #require(JSONSerialization.jsonObject(with: try #require(data)) as? [String: Any])
+    let data = try #require(data)
+    return try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
 }
 
 /// Whether the hook exited cleanly having printed nothing: the agent asks in its own prompt.
