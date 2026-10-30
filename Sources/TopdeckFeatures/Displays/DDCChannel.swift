@@ -125,13 +125,13 @@ enum SystemDDC {
     /// The private calls, each nil if this macOS doesn't have it.
     fileprivate enum Private {
         typealias CreateWithService = @convention(c) (CFAllocator?, io_service_t) -> Unmanaged<CFTypeRef>?
-        typealias TransferI2C = @convention(c) (CFTypeRef, UInt32, UInt32, UnsafeMutableRawPointer?, UInt32)
-            -> IOReturn
+        /// Reads or writes I²C: the service, the address, the sub-address, the bytes, their count.
+        typealias I2C = @convention(c) (CFTypeRef, UInt32, UInt32, UnsafeMutableRawPointer?, UInt32) -> IOReturn
         typealias DisplayInfo = @convention(c) (CGDirectDisplayID) -> Unmanaged<CFDictionary>?
 
         static let createWithService: CreateWithService? = symbol("IOAVServiceCreateWithService")
-        static let readI2C: TransferI2C? = symbol("IOAVServiceReadI2C")
-        static let writeI2C: TransferI2C? = symbol("IOAVServiceWriteI2C")
+        static let readI2C: I2C? = symbol("IOAVServiceReadI2C")
+        static let writeI2C: I2C? = symbol("IOAVServiceWriteI2C")
         static let displayInfo: DisplayInfo? = symbol(
             "CoreDisplay_DisplayCreateInfoDictionary",
             in: "/System/Library/Frameworks/CoreDisplay.framework/CoreDisplay")
@@ -194,9 +194,7 @@ private final class IOAVChannel: DDCChannel, @unchecked Sendable {
         return sent
     }
 
-    private func transfer(_ call: SystemDDC.Private.TransferI2C?, dataAddress: UInt32, _ bytes: inout [UInt8])
-        -> Bool
-    {
+    private func transfer(_ call: SystemDDC.Private.I2C?, dataAddress: UInt32, _ bytes: inout [UInt8]) -> Bool {
         guard let call else { return false }
         let service = service
         let status = bytes.withUnsafeMutableBytes { buffer in
