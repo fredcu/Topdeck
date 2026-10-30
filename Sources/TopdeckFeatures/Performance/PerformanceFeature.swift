@@ -45,6 +45,7 @@ public final class PerformanceFeature: NotchFeature {
     /// The only place the system is read, one reading at a time.
     @ObservationIgnored let queue = DispatchQueue(label: "net.icuai.topdeck.performance", qos: .utility)
     @ObservationIgnored private let makeSource: () -> any SnapshotSource
+    @ObservationIgnored private let interval: TimeInterval
     @ObservationIgnored private var timer: DispatchSourceTimer?
     /// Made when the tab opens and dropped when it closes, with everything it remembers.
     @ObservationIgnored private var source: (any SnapshotSource)?
@@ -54,9 +55,13 @@ public final class PerformanceFeature: NotchFeature {
     /// stays set past a stop until that reading ends, so a quick return can't start a second.
     @ObservationIgnored private var reading = false
 
-    public init() { makeSource = { Sampler() } }
+    public convenience init() { self.init(source: { Sampler() }) }
 
-    init(source: @escaping () -> any SnapshotSource) { makeSource = source }
+    /// `interval` is how often to read; a test that makes its own ticks sets it far off.
+    init(source: @escaping () -> any SnapshotSource, interval: TimeInterval = 1) {
+        makeSource = source
+        self.interval = interval
+    }
 
     public var view: some View { PerformanceView(performance: self) }
 
@@ -69,7 +74,7 @@ public final class PerformanceFeature: NotchFeature {
         source = makeSource()
         sample()
         let timer = DispatchSource.makeTimerSource(queue: .main)
-        timer.schedule(deadline: .now() + 1, repeating: 1, leeway: .milliseconds(100))
+        timer.schedule(deadline: .now() + interval, repeating: interval, leeway: .milliseconds(100))
         timer.setEventHandler { [weak self] in MainActor.assumeIsolated { self?.sample() } }
         timer.resume()
         self.timer = timer

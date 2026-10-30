@@ -108,7 +108,7 @@ struct PerformanceTests {
 
     @Test func aReadingThatEndsWhileTheTabIsOnScreenIsShown() async {
         let source = HeldReading(cpu: 40)
-        let feature = PerformanceFeature(source: { source })
+        let feature = PerformanceFeature(source: { source }, interval: 3600)
         feature.phase = .foreground
         source.waitUntilReading()
         #expect(feature.snapshot.cpu == nil, "nothing until the reading is done")
@@ -120,7 +120,7 @@ struct PerformanceTests {
 
     @Test func aReadingThatEndsAfterTheTabLeftIsNotShown() async {
         let source = HeldReading(cpu: 40)
-        let feature = PerformanceFeature(source: { source })
+        let feature = PerformanceFeature(source: { source }, interval: 3600)
         feature.phase = .foreground
         source.waitUntilReading()
         feature.phase = .background
@@ -131,7 +131,7 @@ struct PerformanceTests {
 
     @Test func readingsNeitherOverlapNorQueue() async {
         let source = HeldReading(cpu: 10)
-        let feature = PerformanceFeature(source: { source })
+        let feature = PerformanceFeature(source: { source }, interval: 3600)
         feature.phase = .foreground
         source.waitUntilReading()
         for _ in 0..<5 { feature.sample() }
@@ -150,10 +150,11 @@ struct PerformanceTests {
     @Test func comingBackNeverSeesTheLastVisitOrStartsASecondReading() async {
         let sources = [HeldReading(cpu: 10), HeldReading(cpu: 20)]
         var made = 0
-        let feature = PerformanceFeature(source: {
-            defer { made += 1 }
-            return sources[made]
-        })
+        let feature = PerformanceFeature(
+            source: {
+                defer { made += 1 }
+                return sources[made]
+            }, interval: 3600)
         feature.phase = .foreground
         sources[0].waitUntilReading()
         feature.phase = .background
