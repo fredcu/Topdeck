@@ -143,10 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
-        let pages =
-            SettingsSelection.Page.app + [.windows, .windowSwitcher, .inputSources, .commandBar, .menuBar]
-            + preferences.available.map { .feature($0) }
-        for page in pages {
+        for page in SettingsSelection.Page.all {
             add("settings.\(page.title)", "\(page.title) Settings", "Settings", "gearshape", "preferences") {
                 [weak self] in self?.settings.show(page)
             }
@@ -275,7 +272,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         battery.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         accessories.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         usage.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
-        usage.openSettings = { [weak self] in self?.settings.show(.feature(.usage)) }
+        usage.openSettings = { [weak self] in self?.settings.show(.space(.agents)) }
         agents.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         agents.onOngoing = { [weak coordinator] in coordinator?.setOngoing($0, for: .agents) }
         // A phone asking to send opens the notch on the shelf, where its request is.

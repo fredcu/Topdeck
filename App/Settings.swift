@@ -7,8 +7,8 @@ import TopdeckCore
 import TopdeckFeatures
 
 /// Accessory apps have no app menu, so Settings opens from the menu bar item or the notch's gear
-/// button, and activates the app while it's up. It's laid out like System Settings: a sidebar of
-/// pages, each marked by a colored icon, and the chosen page as a grouped form.
+/// button, and activates the app while it's up. A sidebar of General and Notch, then a page for each
+/// space and for what works outside the notch; a space's page holds a section for each of its features.
 @MainActor
 final class SettingsWindowController {
     private let preferences: NotchPreferences
@@ -25,7 +25,7 @@ final class SettingsWindowController {
     private let selection = SettingsSelection()
     private var window: NSWindow?
 
-    /// `featureSettings` supplies each tab's own settings, as the sections of its page.
+    /// `featureSettings` supplies each feature's own settings, as the sections under its switch.
     init(
         preferences: NotchPreferences, updater: Updater, notchKey: HotKey, clipboardKey: HotKey,
         inputSwitch: InputSwitcher, windows: WindowManager, windowSwitcher: WindowSwitcher,
@@ -77,19 +77,20 @@ final class SettingsWindowController {
 @Observable
 final class SettingsSelection {
     enum Page: Hashable {
-        case about, general, appearance, spaces, displays, activities, windows, windowSwitcher, inputSources,
-            commandBar, menuBar
-        case feature(FeatureID)
+        case general, notch, about, windows, windowSwitcher, commandBar, menuBar, inputSources
+        case space(SpaceID)
 
-        /// Topdeck's own pages, above the features.
-        static let app: [Self] = [.general, .appearance, .spaces, .displays, .activities]
+        /// The sidebar's groups, top to bottom.
+        static let spaces: [Self] = SpaceID.allCases.map { .space($0) }
+        static let outside: [Self] = [.windows, .windowSwitcher, .commandBar, .menuBar, .inputSources]
+        /// Every page, for the command bar.
+        static let all: [Self] = [.general, .notch] + spaces + outside + [.about]
     }
     var page = Page.general
 }
 
 struct SettingsView: View {
-    /// System Settings' proportions: a fixed width, and taller if you like.
-    static let size = CGSize(width: 715, height: 720)
+    static let size = CGSize(width: 820, height: 590)
 
     let preferences: NotchPreferences
     let updater: Updater
@@ -107,29 +108,23 @@ struct SettingsView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: $selection.page) {
-                AppRow().tag(SettingsSelection.Page.about)
-                Section {
-                    ForEach(SettingsSelection.Page.app, id: \.self) {
-                        SidebarRow(page: $0).tag($0)
-                    }
+                SidebarRow(page: .general).tag(SettingsSelection.Page.general)
+                SidebarRow(page: .notch).tag(SettingsSelection.Page.notch)
+                Section("Spaces") {
+                    ForEach(SettingsSelection.Page.spaces, id: \.self) { SidebarRow(page: $0).tag($0) }
                 }
-                Section {
+                Section("Outside the notch") {
                     SidebarRow(page: .windows, off: !windows.isEnabled).tag(SettingsSelection.Page.windows)
                     SidebarRow(page: .windowSwitcher, off: !windowSwitcher.isEnabled)
                         .tag(SettingsSelection.Page.windowSwitcher)
-                    SidebarRow(page: .inputSources, off: !inputSwitch.isEnabled)
-                        .tag(SettingsSelection.Page.inputSources)
                     SidebarRow(page: .commandBar, off: !commandBar.isEnabled).tag(SettingsSelection.Page.commandBar)
                     SidebarRow(page: .menuBar, off: !menuBar.isEnabled).tag(SettingsSelection.Page.menuBar)
+                    SidebarRow(page: .inputSources, off: !inputSwitch.isEnabled)
+                        .tag(SettingsSelection.Page.inputSources)
                 }
-                Section("Features") {
-                    ForEach(preferences.available, id: \.self) { feature in
-                        SidebarRow(page: .feature(feature), off: !preferences.isEnabled(feature))
-                            .tag(SettingsSelection.Page.feature(feature))
-                    }
-                }
+                Section { SidebarRow(page: .about).tag(SettingsSelection.Page.about) }
             }
-            .frame(minWidth: 215)  // the column width modifier is ignored in a hosted split view
+            .frame(minWidth: 240)  // the column width modifier is ignored in a hosted split view
             .toolbar(removing: .sidebarToggle)
         } detail: {
             page
@@ -142,19 +137,17 @@ struct SettingsView: View {
 
     @ViewBuilder private var page: some View {
         switch selection.page {
-        case .about: AboutSettings(updater: updater)
-        case .general: GeneralPage(preferences: preferences, notchKey: notchKey, clipboardKey: clipboardKey)
-        case .appearance: AppearancePage(preferences: preferences, previewAnimation: previewAnimation)
-        case .spaces: SpacesPage(preferences: preferences)
-        case .displays: DisplaysPage(preferences: preferences)
-        case .activities: ActivitiesPage(preferences: preferences)
+        case .general:
+            GeneralPage(preferences: preferences, notchKey: notchKey, clipboardKey: clipboardKey)
+        case .notch: NotchPage(preferences: preferences, previewAnimation: previewAnimation)
+        case .space(let space):
+            SpacePage(space: space, preferences: preferences, featureSettings: featureSettings)
         case .inputSources: InputSourcesPage(inputSwitch: inputSwitch)
         case .windows: WindowsPage(windows: windows)
         case .windowSwitcher: WindowSwitcherPage(switcher: windowSwitcher)
         case .commandBar: CommandBarPage(commandBar: commandBar)
         case .menuBar: MenuBarPage(menuBar: menuBar)
-        case .feature(let feature):
-            FeaturePage(feature: feature, preferences: preferences, settings: featureSettings(feature))
+        case .about: AboutSettings(updater: updater)
         }
     }
 }
@@ -162,172 +155,91 @@ struct SettingsView: View {
 extension SettingsSelection.Page {
     var title: String {
         switch self {
-        case .about: "About"
         case .general: "General"
-        case .appearance: "Appearance"
-        case .spaces: "Spaces"
-        case .displays: "Displays"
-        case .activities: "Live Activities"
+        case .notch: "Notch"
+        case .about: "About"
         case .inputSources: "Input Sources"
         case .windows: "Windows"
         case .windowSwitcher: "Window Switcher"
         case .commandBar: "Command Bar"
         case .menuBar: "Menu Bar"
-        case .feature(let feature): feature.title
+        case .space(let space): space.title
         }
     }
 
-    /// Its icon: a white symbol on a color, after the Apple app or System Settings pane it's closest to.
-    fileprivate var icon: (symbol: String, color: Color) {
+    /// Its sidebar symbol, in the system's plain style.
+    fileprivate var symbol: String {
         switch self {
-        case .about: ("info.circle", .gray)
-        case .general: ("gearshape", .gray)
-        case .appearance: ("paintbrush", .indigo)
-        case .spaces: ("square.grid.2x2", .teal)
-        case .displays: ("display", .blue)
-        case .activities: ("bell.badge", .red)
-        case .inputSources: ("keyboard", .gray)
-        case .windows: ("rectangle.split.2x1", .cyan)
-        case .windowSwitcher: ("rectangle.on.rectangle", .blue)
-        case .commandBar: ("command", .orange)
-        case .menuBar: ("menubar.rectangle", .gray)
-        case .feature(let feature):
-            switch feature {
-            case .media: ("play", .pink)
-            case .sound: (feature.symbol, .red)
-            case .shelf: (feature.symbol, .blue)
-            case .clipboard: (feature.symbol, .teal)
-            case .capture: (feature.symbol, .gray)
-            case .calendar: (feature.symbol, .red)
-            case .tasks: (feature.symbol, .orange)
-            case .notes: (feature.symbol, .yellow)
-            case .shortcuts: (feature.symbol, .indigo)
-            case .timer: (feature.symbol, .orange)
-            case .storage: (feature.symbol, .gray)
-            case .network: ("arrow.up.arrow.down", .blue)
-            case .usage: (feature.symbol, .purple)
-            case .agents: (feature.symbol, .gray)
-            case .admin: (feature.symbol, .gray)
-            case .monitors: (feature.symbol, .cyan)
-            case .performance: (feature.symbol, .green)
-            }
-        }
-    }
-
-    /// One line under its name at the top of the page.
-    fileprivate var summary: String {
-        switch self {
-        case .about: "The app, its version, and where to find help."
-        case .general: "Launch at login, keyboard shortcuts, and starting over."
-        case .appearance: "How the notch opens and closes, and its size."
-        case .spaces: "Which spaces the open notch shows, and in what order."
-        case .displays: "Which displays get a notch, and what the ones without one show."
-        case .activities: "What the closed notch shows for a moment when something changes."
-        case .inputSources: "Each app gets its own keyboard input source when you switch to it."
-        case .menuBar: "Hold \u{2318} and drag icons to the left of the divider to hide them behind the arrow."
-        case .windows: "Halves, thirds, quarters, and saved layouts for any app's windows."
-        case .windowSwitcher: "Option-Tab picks between every window, with thumbnails."
-        case .commandBar: "Type to open an app or run an action in Topdeck, from any app."
-        case .feature(let feature):
-            switch feature {
-            case .media: "What's playing in any app, with artwork, controls, and a waveform."
-            case .sound: "Your speakers and microphone, and every app's volume on its own fader."
-            case .shelf: "Files you drop on the notch, at hand to drag out, preview, or share."
-            case .clipboard: "A searchable history of what you copy, with favorites that stay."
-            case .capture: "Screenshots to mark up or pin, scrolling captures, text, QR codes, and colors."
-            case .calendar: "Today's events, with a Join button and a countdown for calls."
-            case .tasks: "Your Reminders, synced to your iPhone through iCloud."
-            case .notes: "Markdown notes that save as you type."
-            case .shortcuts: "The shortcuts you make in the Shortcuts app, a click away."
-            case .timer: "Timers, a stopwatch with laps, and Keep Awake."
-            case .storage: "What Xcode leaves behind and what fills your home folder, cleared to the Trash."
-            case .network: "Your download and upload speed, and how much you've used."
-            case .usage: "How much of each AI coding plan you've used."
-            case .agents: "When Claude Code or Codex needs you or finishes, in the closed notch."
-            case .admin: "Your launch agents and Homebrew packages, without a Terminal."
-            case .monitors: "External monitors' brightness and volume, and sleeping every display at once."
-            case .performance: "Cores, memory, disk, network, the busiest apps, and your battery's health."
+        case .general: "gearshape"
+        case .notch: "display"
+        case .about: "info.circle"
+        case .inputSources: "bolt"
+        case .windows: "rectangle"
+        case .windowSwitcher: "square.grid.2x2"
+        case .commandBar: "magnifyingglass"
+        case .menuBar: "list.bullet"
+        case .space(let space):
+            switch space {
+            case .now: "clock"
+            case .stash: "square.3.layers.3d"
+            case .plan: "calendar"
+            case .agents: "terminal"
+            case .mac: "cpu"
+            case .tools: "camera.viewfinder"
             }
         }
     }
 }
 
-/// A white symbol on a colored rounded square, the way System Settings marks its panes.
-private struct SettingsIcon: View {
-    let page: SettingsSelection.Page
-    var size: CGFloat = 20
-
-    var body: some View {
-        Image(systemName: page.icon.symbol)
-            .symbolVariant(.fill)
-            .font(.system(size: size * 0.5, weight: .semibold))
-            .foregroundStyle(.white)
-            .frame(width: size, height: size)
-            .background(page.icon.color.gradient, in: RoundedRectangle(cornerRadius: size * 0.24, style: .continuous))
-            .accessibilityHidden(true)
-    }
-}
-
-/// Topdeck itself, at the top of the sidebar where System Settings puts your account: it opens
-/// About.
-private struct AppRow: View {
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
-                .frame(width: 36, height: 36)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Topdeck").font(.headline)
-                Text("Version \(Updater.version)").font(.caption).foregroundStyle(.secondary)
-            }
-        }
-        .padding(.vertical, 4)
-    }
-}
-
-/// A page in the sidebar: its icon and name, and "Off" for a tab that's turned off.
+/// A page in the sidebar: its symbol and name, and "Off" for a feature that's turned off.
 private struct SidebarRow: View {
     let page: SettingsSelection.Page
     var off = false
 
     var body: some View {
         HStack {
-            Label {
-                Text(page.title)
-            } icon: {
-                SettingsIcon(page: page)
-            }
+            Label(page.title, systemImage: page.symbol)
             Spacer(minLength: 4)
             if off { Text("Off").foregroundStyle(.secondary) }
         }
     }
 }
 
-/// A page as System Settings lays one out: its icon, name, and what it's for, with the tab's
-/// switch when it's a tab, then its settings in groups.
+/// A page: its switch when it has one, then its settings in groups.
 private struct SettingsPage<Content: View>: View {
-    let page: SettingsSelection.Page
+    let title: String
     var isOn: Binding<Bool>?
     @ViewBuilder let content: Content
 
     var body: some View {
         Form {
-            Section {
-                HStack(spacing: 12) {
-                    SettingsIcon(page: page, size: 38)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(page.title).font(.headline)
-                        Text(page.summary).foregroundStyle(.secondary)
-                    }
-                    Spacer(minLength: 8)
-                    if let isOn {
-                        Toggle(page.title, isOn: isOn).labelsHidden().toggleStyle(.switch)
-                    }
-                }
-                .padding(.vertical, 2)
+            if let isOn {
+                Section { Toggle(title, isOn: isOn).font(.headline) }
             }
             content
+        }
+        .formStyle(.grouped)
+    }
+}
+
+/// A space's page: for each feature the space owns, its switch, then its own settings while it's on.
+private struct SpacePage: View {
+    let space: SpaceID
+    let preferences: NotchPreferences
+    let featureSettings: (FeatureID) -> AnyView?
+
+    var body: some View {
+        Form {
+            ForEach(space.features.filter { $0.home == space && preferences.available.contains($0) }, id: \.self) {
+                feature in
+                // A closure, not a method reference: see GeneralPage.
+                let isOn = Binding(
+                    get: { preferences.isEnabled(feature) }, set: { preferences.setEnabled(feature, $0) })
+                Section {
+                    Toggle(isOn: isOn) { Label(feature.title, systemImage: feature.symbol) }.font(.headline)
+                }
+                if preferences.isEnabled(feature), let settings = featureSettings(feature) { settings }
+            }
         }
         .formStyle(.grouped)
     }
@@ -338,23 +250,8 @@ private struct InputSourcesPage: View {
     @Bindable var inputSwitch: InputSwitcher
 
     var body: some View {
-        SettingsPage(page: .inputSources, isOn: $inputSwitch.isEnabled) {
+        SettingsPage(title: SettingsSelection.Page.inputSources.title, isOn: $inputSwitch.isEnabled) {
             if inputSwitch.isEnabled { inputSwitch.settingsView }
-        }
-    }
-}
-
-/// A tab's page: its switch, then its own settings while it's on.
-private struct FeaturePage: View {
-    let feature: FeatureID
-    let preferences: NotchPreferences
-    let settings: AnyView?
-
-    var body: some View {
-        // A closure, not a method reference: see GeneralPage.
-        let isOn = Binding(get: { preferences.isEnabled(feature) }, set: { preferences.setEnabled(feature, $0) })
-        SettingsPage(page: .feature(feature), isOn: isOn) {
-            if preferences.isEnabled(feature), let settings { settings }
         }
     }
 }
@@ -364,7 +261,7 @@ private struct WindowsPage: View {
     @Bindable var windows: WindowManager
 
     var body: some View {
-        SettingsPage(page: .windows, isOn: $windows.isEnabled) {
+        SettingsPage(title: SettingsSelection.Page.windows.title, isOn: $windows.isEnabled) {
             if windows.isEnabled { windows.settingsView }
         }
     }
@@ -375,7 +272,7 @@ private struct WindowSwitcherPage: View {
     @Bindable var switcher: WindowSwitcher
 
     var body: some View {
-        SettingsPage(page: .windowSwitcher, isOn: $switcher.isEnabled) {
+        SettingsPage(title: SettingsSelection.Page.windowSwitcher.title, isOn: $switcher.isEnabled) {
             if switcher.isEnabled { switcher.settingsView }
         }
     }
@@ -386,7 +283,7 @@ private struct CommandBarPage: View {
     @Bindable var commandBar: CommandBar
 
     var body: some View {
-        SettingsPage(page: .commandBar, isOn: $commandBar.isEnabled) {
+        SettingsPage(title: SettingsSelection.Page.commandBar.title, isOn: $commandBar.isEnabled) {
             if commandBar.isEnabled { commandBar.settingsView }
         }
     }
@@ -397,12 +294,13 @@ private struct MenuBarPage: View {
     @Bindable var menuBar: MenuBarHider
 
     var body: some View {
-        SettingsPage(page: .menuBar, isOn: $menuBar.isEnabled) {
+        SettingsPage(title: SettingsSelection.Page.menuBar.title, isOn: $menuBar.isEnabled) {
             if menuBar.isEnabled { menuBar.settingsView }
         }
     }
 }
 
+/// Launch, the shortcuts, which spaces the deck shows and in what order, and the two permissions.
 private struct GeneralPage: View {
     @Bindable var preferences: NotchPreferences
     let notchKey: HotKey
@@ -410,9 +308,11 @@ private struct GeneralPage: View {
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginError: String?
     @State private var confirmsReset = false
+    @State private var accessibility = VolumeKeyTap.isTrusted
+    @State private var screenRecording = CGPreflightScreenCaptureAccess()
 
     var body: some View {
-        SettingsPage(page: .general) {
+        SettingsPage(title: SettingsSelection.Page.general.title) {
             Section {
                 // A closure, not a method reference: converting the method to Binding's isolated
                 // setter type crashes the Swift 6.3 compiler in IRGen.
@@ -420,35 +320,39 @@ private struct GeneralPage: View {
                 if let loginError {
                     Text(loginError).font(.caption).foregroundStyle(.red)
                 }
-            }
-            Section("Keyboard Shortcuts") {
-                LabeledContent {
-                    ShortcutRecorder(shortcut: $preferences.notchShortcut, hotKey: notchKey)
-                } label: {
-                    Text("Open the notch")
-                    shortcutNote(
-                        notchKey, preferences.notchShortcut,
-                        "From any app, on the display under the pointer. Press it again or Escape to close.")
-                }
+                shortcutRow("Open the notch", $preferences.notchShortcut, notchKey)
                 if preferences.isEnabled(.clipboard) {
-                    LabeledContent {
-                        ShortcutRecorder(shortcut: $preferences.clipboardShortcut, hotKey: clipboardKey)
-                    } label: {
-                        Text("Search the clipboard")
-                        shortcutNote(
-                            clipboardKey, preferences.clipboardShortcut,
-                            "Opens the Clipboard tab ready to type; Return copies the first match.")
+                    shortcutRow("Search the clipboard", $preferences.clipboardShortcut, clipboardKey)
+                }
+                Toggle("Show on all displays", isOn: $preferences.showOnAllDisplays)
+            }
+            Section("Spaces") {
+                ForEach(Array(preferences.spaceOrder.enumerated()), id: \.element) { index, space in
+                    spaceRow(space, index)
+                }
+            }
+            Section {
+                LabeledContent("Accessibility") {
+                    if accessibility {
+                        Label("Allowed", systemImage: "checkmark").foregroundStyle(.green)
+                    } else {
+                        Button("Continue", action: VolumeKeyTap.requestTrust)  // not "Allow": see AccessRow
+                    }
+                }
+                LabeledContent("Screen Recording") {
+                    if screenRecording {
+                        Label("Allowed", systemImage: "checkmark").foregroundStyle(.green)
+                    } else {
+                        Button("Continue") {
+                            CGRequestScreenCaptureAccess()
+                            NSWorkspace.shared.open(.privacySettings("Privacy_ScreenCapture"))
+                        }
                     }
                 }
             }
             Section {
-                LabeledContent {
+                LabeledContent("Reset to defaults") {
                     Button("Reset\u{2026}", role: .destructive) { confirmsReset = true }
-                } label: {
-                    Text("Reset to defaults")
-                    Text(
-                        "Spaces, their order, shortcuts, appearance, and displays. Your notes, shelf, and history stay."
-                    )
                 }
                 .confirmationDialog("Reset Topdeck's settings?", isPresented: $confirmsReset) {
                     Button("Reset to Defaults", role: .destructive) { preferences.reset() }
@@ -457,13 +361,62 @@ private struct GeneralPage: View {
                 }
             }
         }
+        .onAppear(perform: refreshPermissions)
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            refreshPermissions()
+        }
     }
 
-    /// What a shortcut does, or that another app already has it.
-    private func shortcutNote(_ hotKey: HotKey, _ shortcut: KeyShortcut?, _ explanation: String) -> Text {
-        hotKey.isAvailable
-            ? Text(explanation)
-            : Text("Another app already uses \(shortcut?.display ?? "it"). Record another.").foregroundStyle(.red)
+    private func refreshPermissions() {
+        accessibility = VolumeKeyTap.isTrusted
+        screenRecording = CGPreflightScreenCaptureAccess()
+    }
+
+    /// A shortcut and its recorder, or that another app already has it.
+    private func shortcutRow(_ title: String, _ shortcut: Binding<KeyShortcut?>, _ hotKey: HotKey) -> some View {
+        LabeledContent {
+            ShortcutRecorder(shortcut: shortcut, hotKey: hotKey)
+        } label: {
+            Text(title)
+            if !hotKey.isAvailable {
+                Text("Another app already uses \(shortcut.wrappedValue?.display ?? "it"). Record another.")
+                    .foregroundStyle(.red)
+            }
+        }
+    }
+
+    /// A space: shown or hidden, and moved earlier or later. A space whose features are all off stays
+    /// out of the deck whatever is set here.
+    private func spaceRow(_ space: SpaceID, _ index: Int) -> some View {
+        HStack(spacing: 4) {
+            Toggle(
+                space.title,
+                isOn: Binding(
+                    get: { !preferences.hiddenSpaces.contains(space) },
+                    set: { preferences.setSpace(space, hidden: !$0) })
+            )
+            .disabled(preferences.spaceSet.spaces == [space])  // the last one on show stays
+            if !space.features.contains(where: preferences.isEnabled) {
+                Text("Its features are off").foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 8)
+            Button {
+                preferences.moveSpace(space, to: index - 1)
+            } label: {
+                Image(systemName: "chevron.up")
+            }
+            .disabled(index == 0)
+            .help("Move \(space.title) earlier")
+            Button {
+                preferences.moveSpace(space, to: index + 1)
+            } label: {
+                Image(systemName: "chevron.down")
+            }
+            .disabled(index == preferences.spaceOrder.count - 1)
+            .help("Move \(space.title) later")
+        }
+        .buttonStyle(.borderless)
+        .accessibilityElement(children: .contain)
     }
 
     private func setLaunchAtLogin(_ enabled: Bool) {
@@ -481,14 +434,17 @@ private struct GeneralPage: View {
     }
 }
 
-private struct AppearancePage: View {
+/// How the notch looks and where it shows, and the live activities that belong to no feature.
+private struct NotchPage: View {
     @Bindable var preferences: NotchPreferences
     let previewAnimation: () -> Void
+    @State private var screens = NSScreen.screens.filter { !$0.hasNotch }
+    @State private var trusted = VolumeKeyTap.isTrusted
 
     var body: some View {
-        SettingsPage(page: .appearance) {
+        SettingsPage(title: SettingsSelection.Page.notch.title) {
             Section {
-                LabeledContent {
+                LabeledContent("Open and close") {
                     HStack {
                         Picker("Open and close", selection: $preferences.animationStyle) {
                             ForEach(NotchAnimationStyle.allCases) { Text($0.title).tag($0) }
@@ -497,11 +453,8 @@ private struct AppearancePage: View {
                         .fixedSize()
                         Button("Preview", action: previewAnimation)
                     }
-                } label: {
-                    Text("Open and close")
-                    Text(preferences.animationStyle.summary)
                 }
-                LabeledContent {
+                LabeledContent("Open notch size") {
                     HStack {
                         Text("\(Int(preferences.expandedSize.width)) × \(Int(preferences.expandedSize.height))")
                             .monospacedDigit()
@@ -509,73 +462,9 @@ private struct AppearancePage: View {
                         Button("Reset") { preferences.resizeExpanded(to: NotchPreferences.defaultExpandedSize) }
                             .disabled(preferences.expandedSize == NotchPreferences.defaultExpandedSize)
                     }
-                } label: {
-                    Text("Open notch size")
-                    Text("Drag the open notch's bottom-right corner to make it smaller or larger.")
                 }
             }
-        }
-    }
-}
-
-/// The spaces in the open notch: shown or hidden, and their order, left wing first. A space whose
-/// features are all off stays out of the notch whatever is set here.
-private struct SpacesPage: View {
-    @Bindable var preferences: NotchPreferences
-
-    var body: some View {
-        SettingsPage(page: .spaces) {
-            Section {
-                ForEach(Array(preferences.spaceOrder.enumerated()), id: \.element) { index, space in
-                    HStack(spacing: 4) {
-                        Toggle(
-                            space.title,
-                            isOn: Binding(
-                                get: { !preferences.hiddenSpaces.contains(space) },
-                                set: { preferences.setSpace(space, hidden: !$0) })
-                        )
-                        .disabled(preferences.spaceSet.spaces == [space])  // the last one on show stays
-                        if !space.features.contains(where: preferences.isEnabled) {
-                            Text("Its features are off").foregroundStyle(.secondary)
-                        }
-                        Spacer(minLength: 8)
-                        Button {
-                            preferences.moveSpace(space, to: index - 1)
-                        } label: {
-                            Image(systemName: "chevron.up")
-                        }
-                        .disabled(index == 0)
-                        .help("Move \(space.title) earlier")
-                        Button {
-                            preferences.moveSpace(space, to: index + 1)
-                        } label: {
-                            Image(systemName: "chevron.down")
-                        }
-                        .disabled(index == preferences.spaceOrder.count - 1)
-                        .help("Move \(space.title) later")
-                    }
-                    .buttonStyle(.borderless)
-                    .accessibilityElement(children: .contain)
-                }
-            }
-        }
-    }
-}
-
-/// Where the notch shows: every display or just one, and what a display without a notch gets.
-private struct DisplaysPage: View {
-    @Bindable var preferences: NotchPreferences
-    @State private var screens = NSScreen.screens.filter { !$0.hasNotch }
-
-    var body: some View {
-        SettingsPage(page: .displays) {
-            Section {
-                Toggle(isOn: $preferences.showOnAllDisplays) {
-                    Text("Show on all displays")
-                    Text("Otherwise Topdeck uses the built-in display's notch, or the main display.")
-                }
-            }
-            Section {
+            Section("Displays Without a Notch") {
                 ForEach(screens, id: \.uuid) { screen in
                     Picker(
                         screen.localizedName,
@@ -590,39 +479,14 @@ private struct DisplaysPage: View {
                 if screens.isEmpty {
                     Text("None connected").foregroundStyle(.secondary)
                 }
-            } header: {
-                Text("Displays Without a Notch")
-            } footer: {
-                Text(
-                    "Each gets a notch as tall as its menu bar and as wide as a MacBook's, or a floating pill"
-                        + "\(screens.isEmpty ? ", which you can pick here when one is connected" : "")."
-                )
-                .foregroundStyle(.secondary)
             }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)) {
-            _ in screens = NSScreen.screens.filter { !$0.hasNotch }
-        }
-    }
-}
-
-/// Live activities that belong to no tab: volume, battery, and accessories.
-private struct ActivitiesPage: View {
-    @Bindable var preferences: NotchPreferences
-    @State private var trusted = VolumeKeyTap.isTrusted
-
-    var body: some View {
-        SettingsPage(page: .activities) {
             Section("Volume") {
                 Toggle("Show volume changes", isOn: $preferences.showsVolume)
                 // A closure, not a method reference: see GeneralPage.
                 let replaces = Binding(
                     get: { preferences.replacesVolumeDisplay }, set: { setReplacesVolumeDisplay($0) })
-                Toggle(isOn: replaces) {
-                    Text("Replace the macOS volume display")
-                    Text("Catches the volume keys so the change shows in the notch. Needs Accessibility access.")
-                }
-                .disabled(!preferences.showsVolume)
+                Toggle("Replace the macOS volume display", isOn: replaces)
+                    .disabled(!preferences.showsVolume)
                 if preferences.replacesVolumeDisplay, !trusted {
                     LabeledContent("Accessibility") {
                         Button("Open Accessibility Settings") {
@@ -633,13 +497,14 @@ private struct ActivitiesPage: View {
             }
             Section("Battery") {
                 Toggle("Show charging and battery", isOn: $preferences.showsBattery)
-                Toggle(isOn: $preferences.showsAccessoryBattery) {
-                    Text("Show a Bluetooth accessory's battery when it connects")
-                    Text("Experimental: Apple keyboards, mice, and trackpads.")
-                }
+                Toggle(
+                    "Show a Bluetooth accessory's battery when it connects", isOn: $preferences.showsAccessoryBattery)
             }
         }
         .onAppear { trusted = VolumeKeyTap.isTrusted }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)) {
+            _ in screens = NSScreen.screens.filter { !$0.hasNotch }
+        }
     }
 
     private func setReplacesVolumeDisplay(_ replaces: Bool) {
@@ -720,7 +585,7 @@ private struct AboutSettings: View {
                 }
                 .accessibilityHidden(true)
             VStack(spacing: 4) {
-                (Text("I") + Text("Love").foregroundStyle(Self.coral) + Text("Notch"))
+                Text("Topdeck")
                     .font(.system(.title, design: .rounded).bold())
                 Text("Version \(Updater.version)")
                     .font(.caption.monospacedDigit())
