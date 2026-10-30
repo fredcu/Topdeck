@@ -84,7 +84,7 @@ public enum BrewAction: Hashable, Sendable {
 
 public enum Brew {
     /// Where Homebrew installs itself: Apple silicon, then Intel.
-    static let standardPaths = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
+    public static let standardPaths = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
 
     /// The brew command on this Mac, or nil when Homebrew isn't installed.
     public static func locate(fileManager: FileManager = .default, paths: [String] = standardPaths) -> String? {

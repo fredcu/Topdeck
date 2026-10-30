@@ -128,7 +128,7 @@ public enum ToolProcess {
         _ strings: [String], _ body: (UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>) -> R
     ) -> R {
         var pointers = strings.map { strdup($0) } + [nil]
-        defer { pointers.compactMap { $0 }.forEach { free($0) } }
+        defer { for pointer in pointers { free(pointer) } }
         return pointers.withUnsafeMutableBufferPointer { body($0.baseAddress!) }
     }
 }

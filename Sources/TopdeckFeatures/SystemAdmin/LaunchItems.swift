@@ -108,7 +108,7 @@ public enum LaunchAction: String, CaseIterable, Sendable {
 public struct LaunchScanner: Sendable {
     public typealias Launchctl = @Sendable ([String]) async -> ToolProcess.Result
 
-    static let launchctl = "/bin/launchctl"
+    public static let launchctl = "/bin/launchctl"
 
     let home: URL
     let uid: uid_t
