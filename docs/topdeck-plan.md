@@ -50,9 +50,9 @@ limit, hide notch, plugin marketplace, themes, workflow automation.
 
 ## Batches
 
-Each line is one branch and one cloud session.
+Each line is one branch.
 
-Batch 1:
+Batch 1 (merged):
 
 1. `sticky-notes`: pinned notes, design below.
 2. `agent-approvals`: answer Claude Code and Codex permission requests and `AskUserQuestion` prompts
@@ -66,7 +66,7 @@ Batch 1:
 5. `capture-tools`: area screenshot with annotation, pin an image on screen, OCR, QR recognition,
    colour picker, scrolling capture.
 
-Batch 2:
+Batch 2 (merged):
 
 6. `input-switch`: remember and switch the input source per app.
 7. `display-controls`: per-display brightness and volume for external monitors over DDC, plus an
@@ -111,7 +111,15 @@ input, and unplugging the external display.
 
 ## How work flows
 
-Cloud sessions are Ubuntu x86_64 with no AppKit, SwiftUI or Xcode, so they cannot compile the app.
-Each pushes a branch; CI on GitHub's macOS runners compiles and tests it. The session reads the
-result, fixes failures, and stops when CI is green. Fred's primary session then fetches the branch,
-builds it on Xcode 27.1, reviews it and merges it to `main`. Fred checks behaviour on the Mac.
+All work is local. Each feature gets a branch, implemented by a Sonnet or Haiku subagent in the
+feature's folder, touching shared files only to register the feature. Logic goes in AppKit-free,
+tested code, and warnings are errors. The primary session builds the branch on Xcode 27.1, reviews it,
+waits for CI, and merges it to `main`. Nothing merges to `main` before review. Fred checks behaviour on
+the Mac.
+
+## Not yet verified on a Mac
+
+- Agent approvals in the notch.
+- R2 uploads against a real bucket.
+- DDC on a real monitor.
+- Scrolling capture.

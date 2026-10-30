@@ -6,17 +6,15 @@ scope, source and licence rules, and the design for each branch.
 Everything is named Topdeck. Types that describe the notch itself (`NotchState`, `NotchFeature`) keep
 that word. No upstream project names outside credits.
 
-## Cloud sessions
+## Working on this repo
 
-- The VM cannot compile this app. Push your branch, then read CI through `gh api`
-  (`repos/fredcu/Topdeck/actions/runs?branch=<branch>`, then that run's `jobs` and `logs`). `gh pr`
-  and `gh issue` are blocked. Fix failures and push until CI is green. Do not say work is done
-  before that.
-- Stay inside your task's feature folder. Touch shared files (`AppDelegate.swift`, `Settings.swift`,
+- Implementation runs locally in Sonnet or Haiku subagents, on a branch per feature. The primary
+  session reviews and merges.
+- Do not merge to `main` before review.
+- Stay inside the feature's folder. Touch shared files (`AppDelegate.swift`, `Settings.swift`,
   `project.yml`, `Package.swift`, `FeatureID`) only for the few lines that register your feature.
-- Do not merge to `main`. Fred's primary session reviews and merges.
-- Put logic in code with no AppKit and test it. Warnings are errors in our own targets.
-- Final report in Chinese: what changed, what CI proved, what still needs a real Mac. Its last line
+- Put logic in AppKit-free code and test it. Warnings are errors in our own targets.
+- Final report in Chinese: what changed, what was verified, what still needs a real Mac. Its last line
   is `完成时间：HH:MM`, read with `date '+%H:%M'`, or `完成时间：无法读取` if commands cannot run. Do not
   guess the time.
 
