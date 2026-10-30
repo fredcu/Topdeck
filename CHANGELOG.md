@@ -7,3 +7,4 @@
   layouts.
 - Clipboard pastes into the app in front, as plain text if you like, removes tracking from links, and skips apps you list.
 - Agents: answer Claude Code and Codex permission requests and Claude's questions from the notch.
+- Keep Awake: keep the screen on or let it sleep, and stay awake until a chosen time.
