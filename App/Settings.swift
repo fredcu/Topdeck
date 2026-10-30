@@ -17,6 +17,7 @@ final class SettingsWindowController {
     private let clipboardKey: HotKey
     private let inputSwitch: InputSwitcher
     private let windows: WindowManager
+    private let commandBar: CommandBar
     private let previewAnimation: () -> Void
     private let featureSettings: (FeatureID) -> AnyView?
     private let selection = SettingsSelection()
@@ -25,7 +26,8 @@ final class SettingsWindowController {
     /// `featureSettings` supplies each tab's own settings, as the sections of its page.
     init(
         preferences: NotchPreferences, updater: Updater, notchKey: HotKey, clipboardKey: HotKey,
-        inputSwitch: InputSwitcher, windows: WindowManager, previewAnimation: @escaping () -> Void,
+        inputSwitch: InputSwitcher, windows: WindowManager, commandBar: CommandBar,
+        previewAnimation: @escaping () -> Void,
         featureSettings: @escaping (FeatureID) -> AnyView?
     ) {
         self.preferences = preferences
@@ -34,6 +36,7 @@ final class SettingsWindowController {
         self.clipboardKey = clipboardKey
         self.inputSwitch = inputSwitch
         self.windows = windows
+        self.commandBar = commandBar
         self.previewAnimation = previewAnimation
         self.featureSettings = featureSettings
     }
@@ -44,8 +47,8 @@ final class SettingsWindowController {
         if window == nil {
             let root = SettingsView(
                 preferences: preferences, updater: updater, notchKey: notchKey, clipboardKey: clipboardKey,
-                inputSwitch: inputSwitch, windows: windows, previewAnimation: previewAnimation,
-                featureSettings: featureSettings, selection: selection)
+                inputSwitch: inputSwitch, windows: windows, commandBar: commandBar,
+                previewAnimation: previewAnimation, featureSettings: featureSettings, selection: selection)
             let host = NSHostingController(rootView: root)
             // The page's name goes in the toolbar, over a sidebar that runs to the top of the window.
             host.sceneBridgingOptions = [.title, .toolbars]
@@ -68,7 +71,7 @@ final class SettingsWindowController {
 @Observable
 final class SettingsSelection {
     enum Page: Hashable {
-        case about, general, appearance, displays, activities, windows, inputSources
+        case about, general, appearance, displays, activities, windows, inputSources, commandBar
         case feature(FeatureID)
 
         /// Topdeck's own pages, above the tabs.
@@ -87,6 +90,7 @@ struct SettingsView: View {
     let clipboardKey: HotKey
     let inputSwitch: InputSwitcher
     let windows: WindowManager
+    let commandBar: CommandBar
     let previewAnimation: () -> Void
     let featureSettings: (FeatureID) -> AnyView?
     @Bindable var selection: SettingsSelection
@@ -104,6 +108,7 @@ struct SettingsView: View {
                     SidebarRow(page: .windows, off: !windows.isEnabled).tag(SettingsSelection.Page.windows)
                     SidebarRow(page: .inputSources, off: !inputSwitch.isEnabled)
                         .tag(SettingsSelection.Page.inputSources)
+                    SidebarRow(page: .commandBar, off: !commandBar.isEnabled).tag(SettingsSelection.Page.commandBar)
                 }
                 Section("Tabs") {
                     ForEach(preferences.tabOrder, id: \.self) { feature in
@@ -132,6 +137,7 @@ struct SettingsView: View {
         case .activities: ActivitiesPage(preferences: preferences)
         case .inputSources: InputSourcesPage(inputSwitch: inputSwitch)
         case .windows: WindowsPage(windows: windows)
+        case .commandBar: CommandBarPage(commandBar: commandBar)
         case .feature(let feature):
             FeaturePage(feature: feature, preferences: preferences, settings: featureSettings(feature))
         }
@@ -148,6 +154,7 @@ extension SettingsSelection.Page {
         case .activities: "Live Activities"
         case .inputSources: "Input Sources"
         case .windows: "Windows"
+        case .commandBar: "Command Bar"
         case .feature(let feature): feature.title
         }
     }
@@ -162,6 +169,7 @@ extension SettingsSelection.Page {
         case .activities: ("bell.badge", .red)
         case .inputSources: ("keyboard", .gray)
         case .windows: ("rectangle.split.2x1", .cyan)
+        case .commandBar: ("command", .orange)
         case .feature(let feature):
             switch feature {
             case .media: ("play", .pink)
@@ -194,6 +202,7 @@ extension SettingsSelection.Page {
         case .activities: "What the closed notch shows for a moment when something changes."
         case .inputSources: "Each app gets its own keyboard input source when you switch to it."
         case .windows: "Halves, thirds, quarters, and saved layouts for any app's windows."
+        case .commandBar: "Type to open an app or run an action in Topdeck, from any app."
         case .feature(let feature):
             switch feature {
             case .media: "What's playing in any app, with artwork, controls, and a waveform."
@@ -331,6 +340,17 @@ private struct WindowsPage: View {
     var body: some View {
         SettingsPage(page: .windows, isOn: $windows.isEnabled) {
             if windows.isEnabled { windows.settingsView }
+        }
+    }
+}
+
+/// The command bar has no notch tab: its switch, then its shortcut while it's on.
+private struct CommandBarPage: View {
+    @Bindable var commandBar: CommandBar
+
+    var body: some View {
+        SettingsPage(page: .commandBar, isOn: $commandBar.isEnabled) {
+            if commandBar.isEnabled { commandBar.settingsView }
         }
     }
 }

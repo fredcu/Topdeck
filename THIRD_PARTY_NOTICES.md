@@ -389,7 +389,10 @@ adapts `Features/Tools/ScrollStitcher.swift` and the scroll tracker, frame
 stream, and session from `Features/Tools/ScreenshotCapture.swift`
 (`ScrollStitcher.swift`, `ScrollTracker.swift`, `ScreenGrab.swift`,
 `ScrollingSession.swift`), with its stitching tests, renamed for Topdeck and
-with comments translated from Spanish. Each adapted file names its origin in
+with comments translated from Spanish. The command bar adapts
+`Features/CommandBar` (`CommandMatcher.swift`, and the search, panel, and
+installed-app listing from `CommandBarFeature.swift` and
+`CommandBarPanel.swift`) the same way. Each adapted file names its origin in
 its header.
 
 ```text
