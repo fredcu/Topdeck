@@ -15,6 +15,7 @@ final class SettingsWindowController {
     private let updater: Updater
     private let notchKey: HotKey
     private let clipboardKey: HotKey
+    private let inputSwitch: InputSwitcher
     private let windows: WindowManager
     private let previewAnimation: () -> Void
     private let featureSettings: (FeatureID) -> AnyView?
@@ -24,13 +25,14 @@ final class SettingsWindowController {
     /// `featureSettings` supplies each tab's own settings, as the sections of its page.
     init(
         preferences: NotchPreferences, updater: Updater, notchKey: HotKey, clipboardKey: HotKey,
-        windows: WindowManager, previewAnimation: @escaping () -> Void,
+        inputSwitch: InputSwitcher, windows: WindowManager, previewAnimation: @escaping () -> Void,
         featureSettings: @escaping (FeatureID) -> AnyView?
     ) {
         self.preferences = preferences
         self.updater = updater
         self.notchKey = notchKey
         self.clipboardKey = clipboardKey
+        self.inputSwitch = inputSwitch
         self.windows = windows
         self.previewAnimation = previewAnimation
         self.featureSettings = featureSettings
@@ -42,8 +44,8 @@ final class SettingsWindowController {
         if window == nil {
             let root = SettingsView(
                 preferences: preferences, updater: updater, notchKey: notchKey, clipboardKey: clipboardKey,
-                windows: windows, previewAnimation: previewAnimation, featureSettings: featureSettings,
-                selection: selection)
+                inputSwitch: inputSwitch, windows: windows, previewAnimation: previewAnimation,
+                featureSettings: featureSettings, selection: selection)
             let host = NSHostingController(rootView: root)
             // The page's name goes in the toolbar, over a sidebar that runs to the top of the window.
             host.sceneBridgingOptions = [.title, .toolbars]
@@ -66,8 +68,11 @@ final class SettingsWindowController {
 @Observable
 final class SettingsSelection {
     enum Page: Hashable {
-        case about, general, appearance, displays, activities, windows
+        case about, general, appearance, displays, activities, windows, inputSources
         case feature(FeatureID)
+
+        /// Topdeck's own pages, above the tabs.
+        static let app: [Self] = [.general, .appearance, .displays, .activities]
     }
     var page = Page.general
 }
@@ -80,6 +85,7 @@ struct SettingsView: View {
     let updater: Updater
     let notchKey: HotKey
     let clipboardKey: HotKey
+    let inputSwitch: InputSwitcher
     let windows: WindowManager
     let previewAnimation: () -> Void
     let featureSettings: (FeatureID) -> AnyView?
@@ -90,12 +96,14 @@ struct SettingsView: View {
             List(selection: $selection.page) {
                 AppRow().tag(SettingsSelection.Page.about)
                 Section {
-                    ForEach([SettingsSelection.Page.general, .appearance, .displays, .activities], id: \.self) {
+                    ForEach(SettingsSelection.Page.app, id: \.self) {
                         SidebarRow(page: $0).tag($0)
                     }
                 }
                 Section {
                     SidebarRow(page: .windows, off: !windows.isEnabled).tag(SettingsSelection.Page.windows)
+                    SidebarRow(page: .inputSources, off: !inputSwitch.isEnabled)
+                        .tag(SettingsSelection.Page.inputSources)
                 }
                 Section("Tabs") {
                     ForEach(preferences.tabOrder, id: \.self) { feature in
@@ -122,6 +130,7 @@ struct SettingsView: View {
         case .appearance: AppearancePage(preferences: preferences, previewAnimation: previewAnimation)
         case .displays: DisplaysPage(preferences: preferences)
         case .activities: ActivitiesPage(preferences: preferences)
+        case .inputSources: InputSourcesPage(inputSwitch: inputSwitch)
         case .windows: WindowsPage(windows: windows)
         case .feature(let feature):
             FeaturePage(feature: feature, preferences: preferences, settings: featureSettings(feature))
@@ -137,6 +146,7 @@ extension SettingsSelection.Page {
         case .appearance: "Appearance"
         case .displays: "Displays"
         case .activities: "Live Activities"
+        case .inputSources: "Input Sources"
         case .windows: "Windows"
         case .feature(let feature): feature.title
         }
@@ -150,6 +160,7 @@ extension SettingsSelection.Page {
         case .appearance: ("paintbrush", .indigo)
         case .displays: ("display", .blue)
         case .activities: ("bell.badge", .red)
+        case .inputSources: ("keyboard", .gray)
         case .windows: ("rectangle.split.2x1", .cyan)
         case .feature(let feature):
             switch feature {
@@ -178,6 +189,7 @@ extension SettingsSelection.Page {
         case .appearance: "How the open notch looks, and how it opens and closes."
         case .displays: "Which displays get a notch, and what the ones without one show."
         case .activities: "What the closed notch shows for a moment when something changes."
+        case .inputSources: "Each app gets its own keyboard input source when you switch to it."
         case .windows: "Halves, thirds, quarters, and saved layouts for any app's windows."
         case .feature(let feature):
             switch feature {
@@ -277,6 +289,17 @@ private struct SettingsPage<Content: View>: View {
             content
         }
         .formStyle(.grouped)
+    }
+}
+
+/// Switching input sources per app: its switch, then its settings while it's on.
+private struct InputSourcesPage: View {
+    @Bindable var inputSwitch: InputSwitcher
+
+    var body: some View {
+        SettingsPage(page: .inputSources, isOn: $inputSwitch.isEnabled) {
+            if inputSwitch.isEnabled { inputSwitch.settingsView }
+        }
     }
 }
 
