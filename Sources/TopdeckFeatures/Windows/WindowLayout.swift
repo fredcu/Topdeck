@@ -4,7 +4,7 @@ import Foundation
 
 /// A saved arrangement of windows: where each app's windows were, as parts of their display, so it
 /// comes back the same on a display of another size.
-public struct WindowLayout: Codable, Hashable, Identifiable, Sendable {
+public struct WindowLayout: Codable, Equatable, Identifiable, Sendable {
     public var id: UUID
     public var name: String
     public var placements: [Placement]
@@ -15,7 +15,7 @@ public struct WindowLayout: Codable, Hashable, Identifiable, Sendable {
         self.placements = placements
     }
 
-    public struct Placement: Codable, Hashable, Sendable {
+    public struct Placement: Codable, Equatable, Sendable {
         /// The app's bundle ID.
         public var app: String
         /// The window's title when it was saved, to tell an app's windows apart.
