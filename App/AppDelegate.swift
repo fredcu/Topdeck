@@ -23,6 +23,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let shortcuts = ShortcutsFeature()
     private let timer = TimerFeature()
     private let network = NetworkFeature()
+    /// Window snapping and layouts: a Settings page and shortcuts, no tab.
+    private let windows = WindowManager()
     private lazy var features = FeatureHost(featureList)
     // System live activities, which belong to no tab.
     private let volume = VolumeMonitor()
@@ -54,6 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updater: updater,
         notchKey: notchKey,
         clipboardKey: clipboardKey,
+        windows: windows,
         previewAnimation: { [weak self] in self?.coordinator?.previewAnimation() },
         featureSettings: { [unowned self] in self.settingsView(for: $0) })
 
@@ -166,6 +169,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         coordinator.start()
+        windows.activate()
         self.coordinator = coordinator
         pendingMessages.forEach(showInNotch)
         pendingMessages = []
