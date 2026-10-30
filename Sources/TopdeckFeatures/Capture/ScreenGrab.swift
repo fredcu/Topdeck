@@ -36,8 +36,9 @@ enum ScreenGrab {
         return false
     }
 
-    /// The area as it is now, at the display's full resolution, without Topdeck's own windows.
-    static func image(of area: CaptureArea) async throws -> CaptureImage {
+    /// The area as it is now, at the display's full resolution, without the capture's own windows
+    /// (`excluding`, by window number). Other Topdeck windows, such as pinned notes, stay in.
+    static func image(of area: CaptureArea, excluding windowNumbers: [Int]) async throws -> CaptureImage {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         guard let display = content.displays.first(where: { $0.displayID == area.display }) else {
             throw Failure.noDisplay
@@ -49,15 +50,17 @@ enum ScreenGrab {
         configuration.height = pixels.height
         configuration.showsCursor = false
         configuration.captureResolution = .best
-        let apps = ownApps(in: content)
-        let filter = SCContentFilter(display: display, excludingApplications: apps, exceptingWindows: [])
+        let filter = filter(for: display, in: content, excluding: windowNumbers)
         let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
         return CaptureImage(image: image, scale: CGFloat(image.width) / max(1, area.rect.width))
     }
 
-    static func ownApps(in content: SCShareableContent) -> [SCRunningApplication] {
-        let own = ProcessInfo.processInfo.processIdentifier
-        return content.applications.filter { $0.processID == own }
+    static func filter(
+        for display: SCDisplay, in content: SCShareableContent, excluding windowNumbers: [Int]
+    ) -> SCContentFilter {
+        let excluded = CaptureGeometry.excludedWindows(windowNumbers, available: content.windows.map(\.windowID))
+        let windows = content.windows.filter { excluded.contains($0.windowID) }
+        return SCContentFilter(display: display, excludingWindows: windows)
     }
 }
 
@@ -76,14 +79,13 @@ final class ZoneStream: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked S
         self.onFrame = onFrame
     }
 
-    func start(_ area: CaptureArea, queue: DispatchQueue) async throws {
+    func start(_ area: CaptureArea, excluding windowNumbers: [Int], queue: DispatchQueue) async throws {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         guard let display = content.displays.first(where: { $0.displayID == area.display }) else {
             throw ScreenGrab.Failure.noDisplay
         }
-        // Without the frame and the progress panel: they're Topdeck's.
-        let apps = ScreenGrab.ownApps(in: content)
-        let filter = SCContentFilter(display: display, excludingApplications: apps, exceptingWindows: [])
+        // Without the frame and the progress panel.
+        let filter = ScreenGrab.filter(for: display, in: content, excluding: windowNumbers)
         let configuration = SCStreamConfiguration()
         let pixels = CaptureGeometry.pixels(area.rect.size, scale: area.scale)
         configuration.sourceRect = area.rect

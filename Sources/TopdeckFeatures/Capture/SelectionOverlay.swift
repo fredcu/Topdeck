@@ -7,16 +7,16 @@ import Carbon.HIToolbox
 @MainActor
 final class SelectionOverlay {
     private var window: SelectionWindow?
-    private var completion: ((CGRect, NSScreen) -> Void)?
+    private var completion: ((CGRect, NSScreen, Int) -> Void)?
     /// The app in front before the overlay took the keyboard, which gets it back: it's the one a
     /// scrolling capture scrolls.
     private var previousApp: NSRunningApplication?
 
     var isActive: Bool { window != nil }
 
-    /// Calls `completion` with the area in AppKit's global coordinates and its screen, or never when
-    /// cancelled.
-    func begin(completion: @escaping (CGRect, NSScreen) -> Void) {
+    /// Calls `completion` with the area in AppKit's global coordinates, its screen and the overlay's own
+    /// window number, to leave out of the capture, or never when cancelled.
+    func begin(completion: @escaping (CGRect, NSScreen, Int) -> Void) {
         guard window == nil else { return }
         let mouse = NSEvent.mouseLocation
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(mouse) }) ?? NSScreen.main else { return }
@@ -30,6 +30,7 @@ final class SelectionOverlay {
     }
 
     private func finish(_ rect: CGRect?, on screen: NSScreen) {
+        let number = window?.windowNumber ?? 0
         window?.orderOut(nil)
         window = nil
         if previousApp != NSRunningApplication.current { previousApp?.activate() }
@@ -37,7 +38,7 @@ final class SelectionOverlay {
         let completion = self.completion
         self.completion = nil
         guard let rect else { return }
-        completion?(rect.offsetBy(dx: screen.frame.minX, dy: screen.frame.minY), screen)
+        completion?(rect.offsetBy(dx: screen.frame.minX, dy: screen.frame.minY), screen, number)
     }
 }
 

@@ -101,7 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     Section { shelf.settingsView }
                 })
         case .clipboard: return section(clipboard.settingsView)
-        case .capture: return nil
+        case .capture: return section(capture.settingsView)
         case .calendar: return section(calendar.settingsView)
         case .tasks: return section(tasks.settingsView)
         case .shortcuts: return section(shortcuts.settingsView)
@@ -145,6 +145,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         shelf.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         capture.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         capture.onBegin = { [weak coordinator] in coordinator?.dismissAll() }
+        capture.isEnabled = { [preferences] in preferences.isEnabled(.capture) }
         capture.addToShelf = { [preferences, shelf] urls in preferences.isEnabled(.shelf) && shelf.add(urls) }
         calendar.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         calendar.onOngoing = { [weak coordinator] in coordinator?.setOngoing($0, for: .calendar) }

@@ -23,6 +23,12 @@ enum CaptureGeometry {
         CGRect(x: rect.minX - screen.minX, y: screen.maxY - rect.maxY, width: rect.width, height: rect.height)
     }
 
+    /// The windows to leave out of a capture: the capture's own, by `windowNumber`, that ScreenCaptureKit
+    /// lists as `available`. A window with no number yet has 0 or less; one that isn't on screen isn't listed.
+    static func excludedWindows(_ numbers: [Int], available: [CGWindowID]) -> Set<CGWindowID> {
+        Set(numbers.filter { $0 > 0 }.map { CGWindowID($0) }).intersection(available)
+    }
+
     /// The pixels an area of `size` points takes at `scale`.
     static func pixels(_ size: CGSize, scale: CGFloat) -> (width: Int, height: Int) {
         (max(1, Int((size.width * scale).rounded(.up))), max(1, Int((size.height * scale).rounded(.up))))

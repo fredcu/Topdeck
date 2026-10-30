@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 import AppKit
+import KeyboardShortcuts
 import Observation
 import SwiftUI
 import TopdeckCore
@@ -52,6 +53,8 @@ public final class CaptureFeature: NotchFeature {
     @ObservationIgnored public var addToShelf: (([URL]) -> Bool)?
     /// Called as a tool starts, so the notch gets out of the way.
     @ObservationIgnored public var onBegin: (() -> Void)?
+    /// Whether the tab is on; the shortcuts do nothing while it's off.
+    @ObservationIgnored public var isEnabled: () -> Bool = { true }
 
     static let colorsKey = "capture.colors"
     static let askedKey = "capture.askedForScreenRecording"
@@ -66,6 +69,13 @@ public final class CaptureFeature: NotchFeature {
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         colors = defaults.stringArray(forKey: Self.colorsKey) ?? []
+        // Each tool's shortcut works from any app, with the notch closed.
+        for tool in Tool.allCases {
+            KeyboardShortcuts.onKeyDown(for: .capture(tool)) { [weak self] in
+                guard let self, isEnabled() else { return }
+                run(tool)
+            }
+        }
     }
 
     public var view: some View { CaptureView(capture: self) }
@@ -81,7 +91,9 @@ public final class CaptureFeature: NotchFeature {
             askForAccess()
             return
         }
-        overlay.begin { [weak self] rect, screen in self?.selected(rect, on: screen, for: tool) }
+        overlay.begin { [weak self] rect, screen, window in
+            self?.selected(rect, on: screen, overlayWindow: window, for: tool)
+        }
     }
 
     /// Copies a colour picked earlier again.
@@ -99,7 +111,7 @@ public final class CaptureFeature: NotchFeature {
         report("Allow Screen Recording", symbol: "rectangle.dashed.badge.record")
     }
 
-    private func selected(_ rect: CGRect, on screen: NSScreen, for tool: Tool) {
+    private func selected(_ rect: CGRect, on screen: NSScreen, overlayWindow: Int, for tool: Tool) {
         guard let area = CaptureArea(rect, on: screen) else { return }
         if tool == .scrolling {
             let session = ScrollingSession(area: area, rect: rect, screen: screen) { [weak self] image in
@@ -112,7 +124,7 @@ public final class CaptureFeature: NotchFeature {
         }
         Task {
             do {
-                let image = try await ScreenGrab.image(of: area)
+                let image = try await ScreenGrab.image(of: area, excluding: [overlayWindow])
                 switch tool {
                 case .pin: pin(image)
                 case .text: readText(in: image)
@@ -238,5 +250,13 @@ public final class CaptureFeature: NotchFeature {
 
     private func report(_ title: String, symbol: String) {
         onActivity?(Activity(feature: .capture, symbol: symbol, title: title, duration: .seconds(2)))
+    }
+}
+
+extension KeyboardShortcuts.Name {
+    /// Each tool's shortcut. Screenshot starts as Control-Option-S; the others start without one.
+    static func capture(_ tool: CaptureFeature.Tool) -> Self {
+        let name = "capture" + tool.rawValue.prefix(1).uppercased() + tool.rawValue.dropFirst()
+        return Self(name, initial: tool == .screenshot ? .init(.s, modifiers: [.control, .option]) : nil)
     }
 }

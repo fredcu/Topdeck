@@ -30,6 +30,12 @@ Topdeck is local-first.
   list in Settings › Clipboard. **Clear History**
   removes everything but favorites, and turning it off stops reading the
   clipboard.
+- Capture tools (screenshots, scrolling captures, text, QR codes, pinned images)
+  need Screen Recording permission, which macOS asks for the first time you use
+  one. Captures are read on this Mac, text and QR codes with Apple's Vision
+  framework, and stay on it: they go to the clipboard or onto the screen. Only
+  **Add to Shelf** writes a file, in
+  `~/Library/Application Support/Topdeck/Captures`.
 - To move the media waveform with the music, Topdeck listens to your Mac's
   audio output, and macOS asks for "system audio recording" permission the first
   time. It listens only while the Media tab is open and something plays, turns

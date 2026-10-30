@@ -22,6 +22,14 @@ struct CaptureGeometryTests {
         #expect(area == CGRect(x: 0, y: 900, width: 100, height: 82))
     }
 
+    @Test func onlyTheCapturesOwnListedWindowsAreExcluded() {
+        // 7 is a pinned note, which stays in; 11 is the overlay; 20 isn't on screen any more.
+        let excluded = CaptureGeometry.excludedWindows([11, 20], available: [7, 11, 30])
+        #expect(excluded == [11])
+        #expect(CaptureGeometry.excludedWindows([-1, 0], available: [0, 7]).isEmpty)
+        #expect(CaptureGeometry.excludedWindows([], available: [7]).isEmpty)
+    }
+
     @Test func aClickIsNotAnArea() {
         let click = CaptureGeometry.selection(from: CGPoint(x: 5, y: 5), to: CGPoint(x: 7, y: 5), in: screen)
         #expect(!CaptureGeometry.isArea(click))

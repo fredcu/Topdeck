@@ -51,9 +51,10 @@ final class ScrollingSession {
             Task { @MainActor in self?.finish() }
         }
         self.zone = zone
+        let chrome = [border, panel].compactMap { $0?.windowNumber }
         Task {
             do {
-                try await zone.start(area, queue: tracker.queue)
+                try await zone.start(area, excluding: chrome, queue: tracker.queue)
             } catch {
                 guard !done else { return }
                 cancel()
