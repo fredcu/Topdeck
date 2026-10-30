@@ -31,9 +31,16 @@ Topdeck is local-first.
   keeps what you copy (text, links, images, and file locations) in
   `~/Library/Application Support/Topdeck` on this Mac only, up to 200 items
   plus your favorites. It skips anything the copying app marks secret or
-  temporary and anything copied in a password manager. **Clear History**
+  temporary, anything copied in a password manager, and copies from apps you
+  list in Settings › Clipboard. **Clear History**
   removes everything but favorites, and turning it off stops reading the
   clipboard.
+- Capture tools (screenshots, scrolling captures, text, QR codes, pinned images)
+  need Screen Recording permission, which macOS asks for the first time you use
+  one. Captures are read on this Mac, text and QR codes with Apple's Vision
+  framework, and stay on it: they go to the clipboard or onto the screen. Only
+  **Add to Shelf** writes a file, in
+  `~/Library/Application Support/Topdeck/Captures`.
 - To move the media waveform with the music, Topdeck listens to your Mac's
   audio output, and macOS asks for "system audio recording" permission the first
   time. It listens only while the Media tab is open and something plays, turns

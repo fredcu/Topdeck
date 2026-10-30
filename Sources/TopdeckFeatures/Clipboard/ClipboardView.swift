@@ -3,7 +3,8 @@ import AppKit
 import SwiftUI
 
 /// The clipboard tab: search, then click an item (or press Return for the first match) to put it
-/// back on the clipboard. Favorites come first and stay. Select mode ticks items to delete together,
+/// back on the clipboard, and paste it if the user chose that; with Option held, as plain text.
+/// Favorites come first and stay. Select mode ticks items to delete together,
 /// and Clear deletes all but favorites.
 struct ClipboardView: View {
     let clipboard: ClipboardFeature
@@ -51,7 +52,7 @@ struct ClipboardView: View {
                 TextField("Search what you copied", text: $query)
                     .textFieldStyle(.plain)
                     .focused($searching)
-                    .onSubmit { if let first = found.first { clipboard.pick(first) } }
+                    .onSubmit { if let first = found.first { pick(first) } }
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
@@ -161,7 +162,7 @@ struct ClipboardView: View {
         let ticked = selected.contains(item.id)
         return Button {
             if !selecting {
-                clipboard.pick(item)
+                pick(item)
             } else if ticked {
                 selected.remove(item.id)
             } else {
@@ -200,15 +201,24 @@ struct ClipboardView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(selecting ? (ticked ? "Deselect" : "Select") : "Copy again")
+        .help(selecting ? (ticked ? "Deselect" : "Select") : clipboard.pastesAfterPicking ? "Paste" : "Copy again")
         .contextMenu {
-            Button("Copy") { clipboard.pick(item) }
+            Button("Copy") { clipboard.pick(item, paste: false) }
+            Button("Paste") { clipboard.pick(item, plainText: false, paste: true) }
+            if item.rich != nil {
+                Button("Paste as Plain Text") { clipboard.pick(item, plainText: true, paste: true) }
+            }
             Button(item.favorite ? "Remove from Favorites" : "Add to Favorites") { clipboard.toggleFavorite(item) }
             Divider()
             Button("Delete") { delete(item) }
         }
         .accessibilityAddTraits(ticked ? .isSelected : [])
         .accessibilityAction(named: "Delete") { delete(item) }
+    }
+
+    /// Option leaves the formatting behind, whatever the setting.
+    private func pick(_ item: ClipItem) {
+        clipboard.pick(item, plainText: NSEvent.modifierFlags.contains(.option) ? true : nil)
     }
 
     private func delete(_ item: ClipItem) {

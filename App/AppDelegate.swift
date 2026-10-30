@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let media = MediaFeature()
     private let shelf = ShelfFeature()
     private let clipboard = ClipboardFeature()
+    private let capture = CaptureFeature()
     private let calendar: CalendarFeature
     private let tasks: TasksFeature
     private let notes = NotesFeature()
@@ -26,6 +27,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let timer = TimerFeature()
     private let storage = StorageFeature()
     private let network = NetworkFeature()
+    /// Window snapping and layouts: a Settings page and shortcuts, no tab.
+    private let windows = WindowManager()
     private lazy var features = FeatureHost(featureList)
     // System live activities, which belong to no tab.
     private let volume = VolumeMonitor()
@@ -40,6 +43,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let quickNoteKey = HotKey()
     /// Opens the Clipboard tab from any app, ready to search.
     private let clipboardKey = HotKey()
+    /// Gives each app its own keyboard input source. Not a tab: it works while the notch is away.
+    private let inputSwitch = InputSwitcher()
 
     override init() {
         let eventStore = EventStore()  // shared, and only created when Calendar or Tasks first needs it
@@ -57,11 +62,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updater: updater,
         notchKey: notchKey,
         clipboardKey: clipboardKey,
+        inputSwitch: inputSwitch,
+        windows: windows,
         previewAnimation: { [weak self] in self?.coordinator?.previewAnimation() },
         featureSettings: { [unowned self] in self.settingsView(for: $0) })
 
     private var featureList: [any NotchFeature] {
-        [media, shelf, clipboard, calendar, tasks, notes, shortcuts, timer, storage, network, usage, agents]
+        [media, shelf, clipboard, capture, calendar, tasks, notes, shortcuts, timer, storage, network, usage, agents]
     }
 
     private func tabView(for feature: FeatureID) -> AnyView {
@@ -72,6 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .shelf:
             return AnyView(shelf.view)
         case .clipboard: return AnyView(clipboard.view)
+        case .capture: return AnyView(capture.view)
         case .calendar: return AnyView(calendar.view)
         case .tasks: return AnyView(tasks.view)
         case .notes: return AnyView(notes.view)
@@ -98,6 +106,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     Section { shelf.settingsView }
                 })
         case .clipboard: return section(clipboard.settingsView)
+        case .capture: return section(capture.settingsView)
         case .calendar: return section(calendar.settingsView)
         case .tasks: return section(tasks.settingsView)
         case .shortcuts: return section(shortcuts.settingsView)
@@ -139,6 +148,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         media.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         media.onOngoing = { [weak coordinator] in coordinator?.setOngoing($0, for: .media) }
         shelf.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
+        capture.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
+        capture.onBegin = { [weak coordinator] in coordinator?.dismissAll() }
+        capture.isEnabled = { [preferences] in preferences.isEnabled(.capture) }
+        capture.addToShelf = { [preferences, shelf] urls in preferences.isEnabled(.shelf) && shelf.add(urls) }
         calendar.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         calendar.onOngoing = { [weak coordinator] in coordinator?.setOngoing($0, for: .calendar) }
         timer.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
@@ -149,6 +162,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         tasks.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         notes.onSendToTasks = { [tasks] in tasks.add($0) }
         pinnedNotes.start()
+        inputSwitch.resume()
         quickNoteKey.onPress = { [weak self] in self?.startQuickNote() }
         volume.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         battery.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
@@ -172,6 +186,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         coordinator.start()
+        windows.activate()
         self.coordinator = coordinator
         pendingMessages.forEach(showInNotch)
         pendingMessages = []
@@ -218,6 +233,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Stops every feature, including the media helper process and the camera.
         features.update(presentations: [], enabled: [])
         pinnedNotes.stop()
+        inputSwitch.stop()
         mixer.isEnabled = false  // every app back to its own volume
         timer.allowSleep()
         volume.stop()

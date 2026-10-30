@@ -4,6 +4,8 @@ import SwiftUI
 /// The timer tab: countdown presets or a running countdown, a stopwatch with laps, and keep awake.
 struct TimerView: View {
     let timer: TimerFeature
+    /// The clock time picked for keeping awake until; only its hour and minute count.
+    @State private var awakeTime = TimerView.nextHour()
 
     var body: some View {
         VStack(spacing: 10) {
@@ -50,10 +52,25 @@ struct TimerView: View {
             }
         } else {
             ViewThatFits(in: .vertical) {
-                awakePresets(explained: true)
-                awakePresets(explained: false)
+                awakePresets(explained: true, height: 34)
+                awakePresets(explained: false, height: 34)
+                awakePresets(explained: false, height: 26)
             }
         }
+    }
+
+    private var screenOnToggle: some View {
+        Toggle("Keep screen on", isOn: Binding(get: { timer.keepScreenOn }, set: { timer.keepScreenOn = $0 }))
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+            .font(.caption.weight(.medium))
+            .fixedSize()
+    }
+
+    /// The next whole hour from now.
+    nonisolated private static func nextHour(now: Date = .now, calendar: Calendar = .current) -> Date {
+        calendar.nextDate(after: now, matching: DateComponents(minute: 0, second: 0), matchingPolicy: .nextTime)
+            ?? now.addingTimeInterval(3600)
     }
 
     private func awake(until: Date, compact: Bool) -> some View {
@@ -69,7 +86,8 @@ struct TimerView: View {
                         .font(.system(size: compact ? 30 : 40, weight: .semibold, design: .rounded))
                 }
                 if !compact {
-                    Text("Your Mac and its display stay awake until then.")
+                    let note = timer.keepScreenOn ? "Your Mac and its display stay awake" : "Your Mac stays awake"
+                    Text("\(note) until then.")
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.6))
                 }
@@ -77,14 +95,16 @@ struct TimerView: View {
             HStack(spacing: 18) {
                 if until != .distantFuture { control("+30 min") { timer.extendAwake() } }
                 control("Turn Off", timer.allowSleep)
+                screenOnToggle
             }
         }
     }
 
-    private func awakePresets(explained: Bool) -> some View {
-        VStack(spacing: 10) {
+    private func awakePresets(explained: Bool, height: CGFloat) -> some View {
+        VStack(spacing: explained ? 10 : 8) {
             if explained {
-                Text("Keep your Mac and its display from sleeping through a download, a build, or a talk.")
+                let subject = timer.keepScreenOn ? "your Mac and its display" : "your Mac"
+                Text("Keep \(subject) from sleeping through a download, a build, or a talk.")
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.6))
                     .multilineTextAlignment(.center)
@@ -92,27 +112,42 @@ struct TimerView: View {
             }
             HStack(spacing: 8) {
                 ForEach(TimerFeature.awakePresets, id: \.self) { seconds in
-                    awakePreset(seconds < 3600 ? "\(Int(seconds / 60)) min" : "\(Int(seconds / 3600)) hr") {
+                    let title = seconds < 3600 ? "\(Int(seconds / 60)) min" : "\(Int(seconds / 3600)) hr"
+                    awakePreset(title, height) {
                         timer.keepAwake(for: seconds)
                     }
                     .accessibilityLabel("Keep awake for \(formatTime(seconds))")
                 }
-                awakePreset(nil) { timer.keepAwake(for: nil) }
+                awakePreset(nil, height) { timer.keepAwake(for: nil) }
                     .help("Until you turn it off")
                     .accessibilityLabel("Keep awake until you turn it off")
+            }
+            HStack(spacing: 8) {
+                DatePicker("Until", selection: $awakeTime, displayedComponents: .hourAndMinute)
+                    .labelsHidden()
+                    .datePickerStyle(.stepperField)
+                    .fixedSize()
+                    .accessibilityLabel("Time to keep awake until")
+                control("Until") {
+                    let time = Calendar.current.dateComponents([.hour, .minute], from: awakeTime)
+                    timer.keepAwake(.at(hour: time.hour ?? 0, minute: time.minute ?? 0))
+                }
+                .accessibilityLabel("Keep awake until the chosen time")
+                Spacer(minLength: 8)
+                screenOnToggle
             }
         }
         .padding(.top, 4)
     }
 
     /// A duration to stay awake for; nil for "until you turn it off".
-    private func awakePreset(_ title: String?, action: @escaping () -> Void) -> some View {
+    private func awakePreset(_ title: String?, _ height: CGFloat, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Group {
                 if let title { Text(title) } else { Image(systemName: "infinity") }
             }
             .font(.callout.weight(.medium))
-            .frame(maxWidth: .infinity, minHeight: 34)
+            .frame(maxWidth: .infinity, minHeight: height)
             .background(.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 9))
         }
         .buttonStyle(.plain)
