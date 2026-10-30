@@ -391,8 +391,11 @@ stream, and session from `Features/Tools/ScreenshotCapture.swift`
 `ScrollingSession.swift`), with its stitching tests, renamed for Topdeck and
 with comments translated from Spanish. The menu bar icon hider adapts
 `Features/MenuBar/MenuBarFeature.swift` (`MenuBarLayout.swift`,
-`MenuBarHider.swift`, `StatusBarSurface.swift`) the same way. Each adapted file
-names its origin in its header.
+`MenuBarHider.swift`, `StatusBarSurface.swift`) and the command bar adapts
+`Features/CommandBar` (`CommandMatcher.swift`, and the search, panel, and
+installed-app listing from `CommandBarFeature.swift` and
+`CommandBarPanel.swift`) the same way. Each adapted file names its origin in
+its header.
 
 ```text
 MIT License
