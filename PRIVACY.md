@@ -3,9 +3,7 @@
 Topdeck is local-first.
 
 - No accounts, analytics, telemetry, or device fingerprinting.
-- The network is used for three things only: the update check against GitHub
-  Releases, the AI Usage providers you turn on (below), and sharing with
-  Android phones when you use it, which stays on your local network (below).
+- The network is used only for the AI Usage providers you turn on (below).
   With no provider on, the AI Usage tab never touches the network.
 - Everything Topdeck creates (settings, notes, shelf items) stays on your Mac,
   unless you choose a notes folder that syncs, such as one in iCloud Drive.
