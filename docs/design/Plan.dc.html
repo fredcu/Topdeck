@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Plan</title>
+<link rel="stylesheet" href="deck.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}.ev{display:grid;grid-template-columns:48px 3px 1fr auto;gap:10px;align-items:center;min-height:50px}.ev .b{height:36px;border-radius:2px}.tk{display:flex;gap:10px;align-items:center;min-height:36px}.cb{width:17px;height:17px;border-radius:50%;box-shadow:inset 0 0 0 1.500px var(--t3);flex:none;display:inline-flex;align-items:center;justify-content:center;color:#000}</style></helmet>
+<div class="scene" style="width:1080px;height:580px">
+<div class="fake" style="left:70px;top:90px;width:940px;height:440px"></div>
+<div class="menubar"><div class="l"><b>Mail</b><span>File</span><span>Edit</span></div><div class="r num"><span>Sat 31 Oct 14:32</span></div></div>
+<div class="deck" style="width:700px;height:430px;margin-left:-350px">
+<div class="wings"><div class="wing"><button class="nav" type="button">Now</button><button class="nav" type="button">Stash</button><button class="nav on" type="button">Plan</button></div><div></div><div class="wing r"><button class="nav" type="button">Agents</button><button class="nav" type="button">Mac</button><button class="nav" type="button">Tools</button></div></div>
+<div class="sub"><div class="row" style="gap:14px"><div class="h">Today</div><div class="row" style="gap:6px"><button class="btn" type="button" style="height:27px;width:36px;background:var(--t1);color:#000;padding:0">Sat</button><button class="btn x" type="button" style="height:27px;width:36px;padding:0;color:var(--t2)">Sun</button><button class="btn x" type="button" style="height:27px;width:36px;padding:0;color:var(--t2)">Mon</button><button class="btn x" type="button" style="height:27px;width:36px;padding:0;color:var(--t2)">Tue</button></div></div><div class="row" style="gap:8px;height:30px;width:230px;padding:0 10px;border-radius:9px;background:var(--card2);color:var(--t3)"><span class="i i-plus sm" aria-hidden="true"></span><span class="m">Lunch tomorrow 1pm</span></div></div>
+<div class="body">
+<div class="card" style="flex:1.2;padding:6px 14px">
+<div class="ev"><span class="m num">15:00</span><span class="b" style="background:var(--sig)"></span><div class="col" style="gap:1px"><span class="t">Design review</span><span class="q">in 28 minutes</span></div><button class="btn a" type="button">Join</button></div>
+<div class="sep"></div>
+<div class="ev"><span class="m num">16:30</span><span class="b" style="background:#6CB2FF"></span><div class="col" style="gap:1px"><span class="t">Pick up from swimming</span><span class="q">Bondi</span></div><span></span></div>
+<div class="sep"></div>
+<div class="ev"><span class="m num">19:00</span><span class="b" style="background:#32D74B"></span><div class="col" style="gap:1px"><span class="t">Dinner with Sam</span><span class="q">The Grounds</span></div><span></span></div>
+</div>
+<div class="col" style="flex:1;padding:4px 6px;gap:0">
+<div class="tk"><span class="cb"></span><span class="s grow ell">Pay rent</span><span class="q" style="color:var(--sig)">Today</span></div>
+<div class="tk"><span class="cb"></span><span class="s grow ell">Renew domain</span><span class="q">Mon</span></div>
+<div class="tk"><span class="cb"></span><span class="s grow ell">Review icon</span><span class="q">Tue</span></div>
+<div class="tk"><span class="cb" style="background:var(--t3);box-shadow:none"><span class="i i-check sm" aria-hidden="true"></span></span><span class="q grow ell" style="text-decoration:line-through">Book dentist</span></div>
+<div class="tk"><span class="cb"></span><span class="s grow ell">交学校表格</span><span class="q">Wed</span></div>
+</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1080,"height":580}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

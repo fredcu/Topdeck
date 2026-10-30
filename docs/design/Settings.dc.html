@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings</title>
+<link rel="stylesheet" href="deck.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}.side{width:240px;flex:none;background:#17181B;padding:48px 10px 10px;display:flex;flex-direction:column;gap:1px}.sg{font-size:11px;font-weight:600;color:var(--t3);padding:12px 10px 4px}.si{height:29px;border-radius:7px;padding:0 10px;display:flex;align-items:center;gap:9px;font-size:13px;width:100%;text-align:left}.si.on{background:var(--card3)}.si .i{color:var(--t2)}.mainp{flex:1;min-width:0;padding:22px 32px;display:flex;flex-direction:column;gap:16px;overflow:hidden}.grp{border-radius:12px;background:#26272B;box-shadow:inset 0 0 0 1px var(--line)}.rw{min-height:44px;padding:0 14px;display:flex;align-items:center;justify-content:space-between;gap:12px}.tg{width:38px;height:22px;border-radius:11px;background:var(--go);position:relative;display:block;flex:none}.tg::after{content:"";position:absolute;right:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#fff}.tg.off{background:var(--card3)}.tg.off::after{right:auto;left:2px}.ord{display:flex;gap:6px}.chip{height:28px;padding:0 12px;border-radius:999px;background:var(--card3);font-size:12px;font-weight:600;display:inline-flex;align-items:center}.chip.dim{color:var(--t3)}</style></helmet>
+<div class="scene" style="width:1080px;height:680px">
+<div class="menubar"><div class="l"><b>Topdeck</b><span>Edit</span><span>Window</span></div><div class="r num"><span>Sat 31 Oct 14:32</span></div></div>
+<div class="hwnotch"></div>
+<div class="win" style="left:130px;top:62px;width:820px;height:590px;display:flex">
+<div class="lights" style="position:absolute;left:16px;top:16px"><i></i><i></i><i></i></div>
+<div class="side">
+<button class="si on" type="button"><span class="i i-gear sm" aria-hidden="true"></span>General</button>
+<button class="si" type="button"><span class="i i-display sm" aria-hidden="true"></span>Notch</button>
+<div class="sg">Spaces</div>
+<button class="si" type="button"><span class="i i-stack sm" aria-hidden="true"></span>Stash</button>
+<button class="si" type="button"><span class="i i-cal sm" aria-hidden="true"></span>Plan</button>
+<button class="si" type="button"><span class="i i-term sm" aria-hidden="true"></span>Agents</button>
+<button class="si" type="button"><span class="i i-cpu sm" aria-hidden="true"></span>Mac</button>
+<button class="si" type="button"><span class="i i-camera sm" aria-hidden="true"></span>Tools</button>
+<div class="sg">Outside the notch</div>
+<button class="si" type="button"><span class="i i-rect sm" aria-hidden="true"></span>Windows</button>
+<button class="si" type="button"><span class="i i-grid sm" aria-hidden="true"></span>Window Switcher</button>
+<button class="si" type="button"><span class="i i-search sm" aria-hidden="true"></span>Command Bar</button>
+<button class="si" type="button"><span class="i i-list sm" aria-hidden="true"></span>Menu Bar</button>
+<button class="si" type="button"><span class="i i-zap sm" aria-hidden="true"></span>Input Sources</button>
+</div>
+<div class="mainp">
+<div class="h">General</div>
+<div class="grp">
+<div class="rw"><span class="s">Launch at login</span><span class="tg"></span></div><div class="sep"></div>
+<div class="rw"><span class="s">Open the notch</span><span class="row" style="gap:6px"><span class="kbd">⌃</span><span class="kbd">⌥</span><span class="kbd">O</span></span></div><div class="sep"></div>
+<div class="rw"><span class="s">Open on hover</span><span class="tg"></span></div><div class="sep"></div>
+<div class="rw"><span class="s">Show on all displays</span><span class="tg off"></span></div>
+</div>
+<div class="grp">
+<div class="rw"><span class="s">Spaces</span><span class="ord"><span class="chip">Now</span><span class="chip">Stash</span><span class="chip">Plan</span><span class="chip">Agents</span><span class="chip">Mac</span><span class="chip dim">Tools</span></span></div>
+</div>
+<div class="grp">
+<div class="rw"><span class="s">Accessibility</span><span class="row" style="gap:6px;color:var(--go)"><span class="i i-check sm" aria-hidden="true"></span><span class="m">Allowed</span></span></div><div class="sep"></div>
+<div class="rw"><span class="s">Screen Recording</span><button class="btn" type="button" style="height:27px">Allow</button></div>
+</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1080,"height":680}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

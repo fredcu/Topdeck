@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Design language</title>
+<link rel="stylesheet" href="deck.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}</style></helmet>
+<div class="paper" style="width:1080px;height:760px;padding:48px;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:32px;align-content:start">
+<div class="col" style="grid-column:span 7;gap:14px">
+<div class="lab">Color</div>
+<div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px">
+<div class="col" style="gap:6px"><div class="swatch" style="background:#000"></div><div class="m">Deck</div><div class="q num">#000000</div></div>
+<div class="col" style="gap:6px"><div class="swatch" style="background:#151517"></div><div class="m">Card</div><div class="q num">#151517</div></div>
+<div class="col" style="gap:6px"><div class="swatch" style="background:#2A2A2E"></div><div class="m">Control</div><div class="q num">#2A2A2E</div></div>
+<div class="col" style="gap:6px"><div class="swatch" style="background:#F5F5F7"></div><div class="m">Text</div><div class="q num">#F5F5F7</div></div>
+<div class="col" style="gap:6px"><div class="swatch" style="background:#FFB340"></div><div class="m">Signal</div><div class="q num">#FFB340</div></div>
+<div class="col" style="gap:6px"><div class="swatch" style="background:#32D74B"></div><div class="m">Go</div><div class="q num">#32D74B</div></div>
+<div class="col" style="gap:6px"><div class="swatch" style="background:#FF6961"></div><div class="m">Stop</div><div class="q num">#FF6961</div></div>
+</div>
+</div>
+<div class="col" style="grid-column:span 5;gap:14px">
+<div class="lab">Shape</div>
+<div class="row" style="gap:18px;align-items:flex-end">
+<div class="col" style="gap:6px"><div style="width:74px;height:54px;background:#000;border-radius:0 0 30px 30px;box-shadow:inset 0 0 0 1px var(--line)"></div><div class="q">Deck 30</div></div>
+<div class="col" style="gap:6px"><div class="card" style="width:74px;height:54px;padding:0"></div><div class="q">Card 16</div></div>
+<div class="col" style="gap:6px"><div style="width:74px;height:54px;background:var(--card3);border-radius:9px"></div><div class="q">Control 9</div></div>
+<div class="col" style="gap:6px"><div style="width:74px;height:27px;background:var(--card3);border-radius:999px"></div><div class="q">Pill</div></div>
+</div>
+</div>
+<div class="col" style="grid-column:span 7;gap:12px">
+<div class="lab">Type</div>
+<div class="row" style="gap:20px;align-items:baseline"><div class="d">14:32</div><div class="q">Rounded 44 Timers</div></div>
+<div class="row" style="gap:20px;align-items:baseline"><div class="d2">$18.40</div><div class="q">Rounded 28 Metrics</div></div>
+<div class="row" style="gap:20px;align-items:baseline"><div class="h">Design review</div><div class="q">Bold 20 Titles</div></div>
+<div class="row" style="gap:20px;align-items:baseline"><div class="t">Midnight City</div><div class="q">Semibold 15 Items</div></div>
+<div class="row" style="gap:20px;align-items:baseline"><div class="s">Standup moved to Tuesday</div><div class="q">Regular 13 Body</div></div>
+<div class="row" style="gap:20px;align-items:baseline"><div class="m">In 18 minutes</div><div class="q">Regular 12 Detail</div></div>
+<div class="row" style="gap:20px;align-items:baseline"><div class="c">npm run build</div><div class="q">Mono 12 Commands</div></div>
+</div>
+<div class="col" style="grid-column:span 5;gap:12px">
+<div class="lab">Controls</div>
+<div class="row"><button class="nav on" type="button">Now</button><button class="nav" type="button">Stash</button><button class="nav" type="button">Plan</button></div>
+<div class="row"><button class="btn p" type="button">Allow</button><button class="btn" type="button">Deny</button><button class="btn a" type="button">Join</button><button class="btn x" type="button">Terminal</button></div>
+<div class="row" style="color:var(--t2)"><span class="i i-play"></span><span class="i i-pin"></span><span class="i i-search"></span><span class="i i-file"></span><span class="i i-cal"></span><span class="i i-hand"></span><span class="i i-term"></span><span class="i i-cpu"></span><span class="i i-vol"></span><span class="i i-camera"></span></div>
+<div class="card row between" style="width:100%"><div class="col" style="gap:2px"><div class="s">Sync</div><div class="q num">72%</div></div><span class="bar" style="width:150px"><i style="width:72%"></i></span></div>
+<div class="row"><span class="kbd">⌥</span><span class="kbd">Space</span><span class="badge">2</span><span class="dot"></span><span class="dot w"></span></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1080,"height":760}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

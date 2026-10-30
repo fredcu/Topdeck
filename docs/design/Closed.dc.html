@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Closed notch states</title>
+<link rel="stylesheet" href="deck.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}.cell{position:relative;height:150px;background:var(--wall);border-radius:14px;overflow:hidden}.cell .menubar{height:37px}.closed{position:absolute;top:0;left:50%;transform:translateX(-50%)}.tag{position:absolute;left:14px;bottom:10px;font-size:12px;color:#D8DCE2}.gap{width:172px;flex:none}</style></helmet>
+<div class="paper" style="width:1080px;height:760px;padding:40px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:150px;gap:20px;align-content:start">
+<div class="cell"><div class="menubar"></div><div class="closed" style="width:196px;padding:0"></div><div class="tag">Idle</div></div>
+<div class="cell"><div class="menubar"></div><div class="closed" style="width:292px"><div class="art" style="width:24px;height:24px;border-radius:6px"></div><div class="gap"></div><div class="row" style="gap:2px;height:18px;align-items:flex-end"><span style="width:3px;height:9px;background:#F2C14E;border-radius:2px"></span><span style="width:3px;height:17px;background:#F2C14E;border-radius:2px"></span><span style="width:3px;height:12px;background:#F2C14E;border-radius:2px"></span><span style="width:3px;height:15px;background:#F2C14E;border-radius:2px"></span></div></div><div class="tag">Playing</div></div>
+<div class="cell"><div class="menubar"></div><div class="closed" style="width:308px"><span class="i i-clock" aria-hidden="true"></span><div class="gap"></div><span class="num" style="font-family:var(--round)">24:58</span></div><div class="tag">Timer</div></div>
+<div class="cell"><div class="menubar"></div><div class="closed" style="width:360px"><span class="row" style="gap:6px;color:var(--sig)"><span class="i i-hand" aria-hidden="true"></span><span>Topdeck</span></span><div class="gap"></div><span class="badge">2</span></div><div class="tag">Agent waiting</div></div>
+<div class="cell"><div class="menubar"></div><div class="closed" style="width:372px"><span class="i i-cal" aria-hidden="true"></span><div class="gap"></div><span class="row" style="gap:8px"><span class="num" style="color:var(--sig)">4 min</span><button class="btn a" type="button" style="height:23px;padding:0 9px;font-size:12px;border-radius:7px">Join</button></span></div><div class="tag">Meeting soon</div></div>
+<div class="cell"><div class="menubar"></div><div class="closed" style="width:300px;height:96px;align-items:flex-end;padding-bottom:12px;justify-content:center;border-radius:0 0 22px 22px"><span class="row" style="gap:8px;color:var(--t2)"><span class="i i-share" aria-hidden="true"></span>Drop on Shelf</span></div><div class="tag">File dragged near</div></div>
+<div class="cell"><div class="menubar"></div><div class="closed" style="width:356px"><span class="i i-vol" aria-hidden="true"></span><div class="gap"></div><span class="bar" style="width:92px"><i style="width:64%"></i></span></div><div class="tag">Volume</div></div>
+<div class="cell"><div class="menubar"></div><div class="closed" style="width:340px"><span class="row" style="gap:6px"><span class="i i-check" style="color:var(--go)" aria-hidden="true"></span>Build</span><div class="gap"></div><span class="m">Done</span></div><div class="tag">Agent finished</div></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1080,"height":760}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

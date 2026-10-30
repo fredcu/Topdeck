@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Stash: Clipboard</title>
+<link rel="stylesheet" href="deck.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}.it .i{color:var(--t3)}</style></helmet>
+<div class="scene" style="width:1080px;height:580px">
+<div class="fake" style="left:70px;top:90px;width:940px;height:440px"></div>
+<div class="menubar"><div class="l"><b>Safari</b><span>File</span><span>Edit</span></div><div class="r num"><span>Sat 31 Oct 14:32</span></div></div>
+<div class="deck" style="width:700px;height:430px;margin-left:-350px">
+<div class="wings"><div class="wing"><button class="nav" type="button">Now</button><button class="nav on" type="button">Stash</button><button class="nav" type="button">Plan</button></div><div></div><div class="wing r"><button class="nav" type="button">Agents</button><button class="nav" type="button">Mac</button><button class="nav" type="button">Tools</button></div></div>
+<div class="sub"><div class="subt"><button type="button">Shelf</button><button class="on" type="button">Clipboard</button><button type="button">Notes</button></div><div class="row" style="gap:8px;height:30px;width:220px;padding:0 10px;border-radius:9px;background:var(--card2);color:var(--t3)"><span class="i i-search sm" aria-hidden="true"></span><span class="m">Search</span></div></div>
+<div class="body">
+<div class="col grow" style="gap:2px;flex:1.1">
+<div class="it on"><span class="i i-link" aria-hidden="true"></span><span class="s ell grow">https://github.com/fredcu/Topdeck</span><span class="q">Now</span></div>
+<div class="it"><span class="i i-note" aria-hidden="true"></span><span class="s ell grow">Standup moved to Tuesday at 10</span><span class="q">2m</span></div>
+<div class="it"><span class="i i-image" aria-hidden="true"></span><span class="s ell grow">Screenshot 14.03</span><span class="q">12m</span></div>
+<div class="it"><span class="i i-note" aria-hidden="true"></span><span class="s ell grow">swift test --parallel</span><span class="q">1h</span></div>
+<div class="it"><span class="i i-file" aria-hidden="true"></span><span class="s ell grow">Invoice.pdf</span><span class="q">3h</span></div>
+<div class="it"><span class="i i-pin" style="color:var(--sig)" aria-hidden="true"></span><span class="s ell grow">hello@example.com</span><span class="q">Pinned</span></div>
+<div class="it"><span class="i i-note" aria-hidden="true"></span><span class="s ell grow">下周二上午十点开会</span><span class="q">Yesterday</span></div>
+</div>
+<div class="card col" style="flex:1;justify-content:space-between">
+<div class="col" style="gap:8px"><div class="t">github.com</div><div class="c" style="line-height:1.5;word-break:break-all">https://github.com/fredcu/Topdeck</div></div>
+<div class="col" style="gap:10px"><div class="q">Safari</div><div class="row"><button class="btn p" type="button" style="flex:1">Paste</button><button class="btn" type="button">Plain</button><button class="ib" type="button" aria-label="Pin"><span class="i i-pin" aria-hidden="true"></span></button></div></div>
+</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1080,"height":580}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

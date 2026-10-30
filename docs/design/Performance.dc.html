@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mac: Performance</title>
+<link rel="stylesheet" href="deck.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}.cores{display:flex;gap:3px;align-items:flex-end;height:46px}.cores span{flex:1;border-radius:2px;background:var(--t1);display:block}.cores span.e{background:var(--t3)}.kv{display:flex;justify-content:space-between;gap:10px}</style></helmet>
+<div class="scene" style="width:1080px;height:580px">
+<div class="fake" style="left:70px;top:90px;width:940px;height:440px"></div>
+<div class="menubar"><div class="l"><b>Xcode</b><span>File</span><span>Edit</span></div><div class="r num"><span>Sat 31 Oct 14:32</span></div></div>
+<div class="deck" style="width:700px;height:430px;margin-left:-350px">
+<div class="wings"><div class="wing"><button class="nav" type="button">Now</button><button class="nav" type="button">Stash</button><button class="nav" type="button">Plan</button></div><div></div><div class="wing r"><button class="nav" type="button">Agents</button><button class="nav on" type="button">Mac</button><button class="nav" type="button">Tools</button></div></div>
+<div class="sub"><div class="subt"><button class="on" type="button">Performance</button><button type="button">Sound</button><button type="button">Displays</button><button type="button">Network</button><button type="button">Storage</button><button type="button">System</button></div></div>
+<div class="body" style="display:grid;grid-template-columns:1.3fr 1fr 1fr;grid-template-rows:1fr 1fr;gap:10px">
+<div class="card col" style="justify-content:space-between"><div class="row between" style="align-items:baseline"><span class="q">CPU</span><span class="d2">34%</span></div><div class="cores"><span class="e" style="height:30%"></span><span class="e" style="height:22%"></span><span class="e" style="height:40%"></span><span class="e" style="height:18%"></span><span style="height:82%"></span><span style="height:64%"></span><span style="height:48%"></span><span style="height:30%"></span><span style="height:54%"></span><span style="height:12%"></span></div></div>
+<div class="card col" style="justify-content:space-between"><div class="col" style="gap:4px"><span class="q">Memory</span><span class="d2">19.2</span></div><div class="col" style="gap:5px"><span class="bar"><i style="width:80%"></i></span><span class="m num">of 24 GB</span></div></div>
+<div class="card col" style="justify-content:space-between"><div class="col" style="gap:4px"><span class="q">GPU</span><span class="d2">12%</span></div><div class="row" style="gap:6px;color:var(--t2)"><span class="i i-therm sm" aria-hidden="true"></span><span class="m num">52° chip</span></div></div>
+<div class="card col" style="justify-content:space-between"><span class="q">Top apps</span><div class="col" style="gap:6px"><div class="kv"><span class="s ell">Xcode</span><span class="m num">42%</span></div><div class="kv"><span class="s ell">Safari</span><span class="m num">11%</span></div><div class="kv"><span class="s ell">Claude</span><span class="m num">6%</span></div></div></div>
+<div class="card col" style="justify-content:space-between"><span class="q">Disk</span><div class="col" style="gap:6px"><div class="kv"><span class="s num">412 GB</span><span class="m">free</span></div><div class="kv"><span class="s num">38 MB/s</span><span class="m">read</span></div><div class="kv"><span class="s num">9 MB/s</span><span class="m">write</span></div></div></div>
+<div class="card col" style="justify-content:space-between"><span class="q">Battery</span><div class="col" style="gap:6px"><div class="kv"><span class="s num">98%</span><span class="m">health</span></div><div class="kv"><span class="s num">11</span><span class="m">cycles</span></div><div class="kv"><span class="s num">65 W</span><span class="m">charger</span></div></div></div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1080,"height":580}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

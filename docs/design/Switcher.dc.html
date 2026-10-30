@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Window switcher</title>
+<link rel="stylesheet" href="deck.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}.sw{position:absolute;left:50%;top:190px;width:900px;margin-left:-450px;background:#121214;border-radius:22px;padding:16px;box-shadow:0 34px 90px rgba(0,0,0,.6),inset 0 0 0 1px rgba(255,255,255,.1)}.gridw{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.w{border-radius:13px;padding:8px;display:flex;flex-direction:column;gap:8px;min-width:0}.w.on{background:var(--card3);box-shadow:inset 0 0 0 1.500px var(--sig)}.prev{height:124px;border-radius:7px;background:#23262B;overflow:hidden;position:relative}.ln{position:absolute;left:12px;right:30px;height:6px;border-radius:3px;background:#3C4048}.mini{width:18px;height:18px;border-radius:5px;flex:none;display:block}</style></helmet>
+<div class="scene" style="width:1080px;height:680px">
+<div class="fake" style="left:70px;top:70px;width:940px;height:550px"></div>
+<div class="menubar"><div class="l"><b>Xcode</b><span>File</span><span>Edit</span></div><div class="r num"><span>Sat 31 Oct 14:32</span></div></div>
+<div class="hwnotch"></div>
+<div class="sw"><div class="gridw">
+<div class="w on"><div class="prev"><span class="ln" style="top:16px"></span><span class="ln" style="top:32px;right:70px"></span><span class="ln" style="top:48px;right:50px"></span></div><div class="row" style="gap:7px"><span class="mini" style="background:#3478F6"></span><span class="s ell">Xcode: AppDelegate.swift</span></div></div>
+<div class="w"><div class="prev" style="background:#E9E9EC"><span class="ln" style="top:16px;background:#C5C5CB"></span><span class="ln" style="top:32px;background:#C5C5CB;right:60px"></span></div><div class="row" style="gap:7px"><span class="mini" style="background:#2AA9E0"></span><span class="s ell">Safari: GitHub</span></div></div>
+<div class="w"><div class="prev" style="background:#101114"><span class="ln" style="top:16px;background:#32D74B;right:120px"></span><span class="ln" style="top:32px;background:#55585F;right:60px"></span></div><div class="row" style="gap:7px"><span class="mini" style="background:#222"></span><span class="s ell">Ghostty: zsh</span></div></div>
+<div class="w"><div class="prev" style="background:#FAF7EF"><span class="ln" style="top:16px;background:#D8D2C2"></span><span class="ln" style="top:32px;background:#D8D2C2"></span></div><div class="row" style="gap:7px"><span class="mini" style="background:#FF9F0A"></span><span class="s ell">Pages: Plan.pages</span></div></div>
+<div class="w"><div class="prev" style="background:#2A1C23"><div class="art" style="position:absolute;left:50%;top:50%;width:64px;height:64px;margin:-32px 0 0 -32px"></div></div><div class="row" style="gap:7px"><span class="mini" style="background:#FC3C44"></span><span class="s ell">Music</span></div></div>
+<div class="w"><div class="prev"><span class="ln" style="top:16px"></span></div><div class="row" style="gap:7px"><span class="mini" style="background:#34C759"></span><span class="s ell">Messages</span></div></div>
+<div class="w"><div class="prev" style="display:flex;align-items:center;justify-content:center;color:var(--t3)"><span class="i i-note xl" aria-hidden="true"></span></div><div class="row" style="gap:7px"><span class="mini" style="background:#FFD60A"></span><span class="s ell">Notes</span></div></div>
+<div class="w"><div class="prev" style="display:flex;align-items:center;justify-content:center;color:var(--t3)"><span class="i i-image xl" aria-hidden="true"></span></div><div class="row" style="gap:7px"><span class="mini" style="background:#FF6961"></span><span class="s ell" style="color:var(--t2)">Preview</span></div></div>
+</div></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1080,"height":680}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

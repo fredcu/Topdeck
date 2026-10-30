@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Capture editor</title>
+<link rel="stylesheet" href="deck.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}.tb{height:52px;display:flex;align-items:center;gap:6px;padding:0 12px 0 84px;border-bottom:1px solid var(--line)}.shot{position:absolute;left:150px;top:130px;width:780px;height:460px;background:#F4F4F6;border-radius:8px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.5)}.ln{position:absolute;left:32px;height:10px;border-radius:5px;background:#D8D9DE}.c{width:18px;height:18px}.col2{width:20px;height:20px;border-radius:50%;display:block}.mos{position:absolute;display:grid;grid-template-columns:repeat(8,1fr);overflow:hidden;border-radius:2px}.mos i{height:12px;display:block}</style></helmet>
+<div class="scene" style="width:1080px;height:680px">
+<div class="menubar"><div class="l"><b>Topdeck</b><span>Edit</span></div><div class="r num"><span>Sat 31 Oct 14:32</span></div></div>
+<div class="hwnotch"></div>
+<div class="win" style="left:60px;top:58px;width:960px;height:600px;background:#141416">
+<div class="tb"><div class="lights" style="position:absolute;left:16px;top:20px"><i></i><i></i><i></i></div>
+<button class="ib" type="button" aria-label="Select"><span class="i i-cursor" aria-hidden="true"></span></button><button class="ib on" type="button" aria-label="Arrow"><span class="i i-arrow" aria-hidden="true"></span></button><button class="ib" type="button" aria-label="Rectangle"><span class="i i-rect" aria-hidden="true"></span></button><button class="ib" type="button" aria-label="Ellipse"><span class="i i-oval" aria-hidden="true"></span></button><button class="ib" type="button" aria-label="Pen"><span class="i i-pen" aria-hidden="true"></span></button><button class="ib" type="button" aria-label="Text"><span class="i i-text" aria-hidden="true"></span></button><button class="ib" type="button" aria-label="Pixelate"><span class="i i-mosaic" aria-hidden="true"></span></button><button class="ib" type="button" aria-label="Number"><span class="i i-num" aria-hidden="true"></span></button>
+<span style="width:1px;height:22px;background:var(--line);margin:0 8px"></span>
+<span class="col2" style="background:#FF6961;box-shadow:0 0 0 2px #141416,0 0 0 3.500px #F5F5F7"></span><span class="col2" style="background:#FFB340;margin-left:4px"></span><span class="col2" style="background:#32D74B;margin-left:4px"></span><span class="col2" style="background:#6CB2FF;margin-left:4px"></span><span class="col2" style="background:#F5F5F7;margin-left:4px"></span>
+<span class="grow"></span>
+<button class="ib" type="button" aria-label="Undo"><span class="i i-undo" aria-hidden="true"></span></button><button class="ib" type="button" aria-label="Copy text"><span class="i i-text" aria-hidden="true"></span></button><button class="ib" type="button" aria-label="Pin"><span class="i i-pin" aria-hidden="true"></span></button><button class="ib" type="button" aria-label="Add to Shelf"><span class="i i-share" aria-hidden="true"></span></button><button class="btn p" type="button" style="margin-left:6px">Copy</button>
+</div>
+</div>
+<div class="shot" style="left:120px;top:128px;width:840px;height:510px">
+<div style="height:40px;background:#E5E6EA"></div>
+<span class="ln" style="top:72px;width:320px;height:18px;background:#1C1C1E"></span>
+<span class="ln" style="top:112px;width:620px"></span><span class="ln" style="top:136px;width:560px"></span><span class="ln" style="top:160px;width:600px"></span>
+<div style="position:absolute;left:32px;top:200px;width:360px;height:220px;border-radius:12px;background:#CFE2F9"></div>
+<div style="position:absolute;left:420px;top:200px;width:380px;height:100px;border-radius:12px;background:#E5E6EA"></div>
+<div class="mos" style="left:432px;top:222px;width:220px"><i style="background:#8A8B92"></i><i style="background:#C6C7CD"></i><i style="background:#A2A3AA"></i><i style="background:#6E6F76"></i><i style="background:#B7B8BE"></i><i style="background:#94959C"></i><i style="background:#C2C3C9"></i><i style="background:#7E7F86"></i><i style="background:#A2A3AA"></i><i style="background:#74757C"></i><i style="background:#BCBDC3"></i><i style="background:#90919A"></i><i style="background:#C9CACF"></i><i style="background:#7A7B82"></i><i style="background:#A9AAB0"></i><i style="background:#8D8E95"></i></div>
+<svg width="840" height="510" viewBox="0 0 840 510" style="position:absolute;left:0;top:0" aria-hidden="true"><rect x="24" y="192" width="376" height="236" rx="6" fill="none" stroke="#FF3B30" stroke-width="4"></rect><path d="M560 400L420 330" fill="none" stroke="#FF3B30" stroke-width="5" stroke-linecap="round"></path><path d="M404 322L442 323L427 353Z" fill="#FF3B30"></path></svg>
+<div style="position:absolute;left:566px;top:392px;font-size:22px;font-weight:700;color:#FF3B30">Move this up</div>
+<div style="position:absolute;left:12px;top:180px;width:26px;height:26px;border-radius:50%;background:#FF3B30;color:#fff;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center">1</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1080,"height":680}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>
