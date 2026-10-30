@@ -6,9 +6,9 @@ public enum FeatureID: String, CaseIterable, Hashable, Sendable {
     case media, sound, shelf, clipboard, capture, calendar, tasks, notes, shortcuts, timer, storage, network
     case usage, agents, monitors, admin, performance
 
-    /// SF Symbol for the tab's page in Settings, beside System Settings' own symbols. The notch draws
-    /// Tabler icons instead (TopdeckSurface's `FeatureID.icon`). Every name here exists on macOS 14.6,
-    /// the oldest supported.
+    /// SF Symbol for the feature's page in Settings, beside System Settings' own symbols. The deck
+    /// itself shows text labels and its own icons. Every name here exists on macOS 14.6, the oldest
+    /// supported.
     public var symbol: String {
         switch self {
         case .media: "play.circle"
