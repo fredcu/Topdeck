@@ -35,6 +35,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let windows = WindowManager()
     /// Option-Tab between every window: a Settings page and a shortcut, no tab.
     private let windowSwitcher = WindowSwitcher()
+    /// A search panel for apps and the actions below: a Settings page and a shortcut, no tab.
+    private let commandBar = CommandBar()
+    /// Hides menu bar icons behind a divider: a Settings page, no tab.
+    private let menuBar = MenuBarHider()
     private lazy var features = FeatureHost(featureList)
     // System live activities, which belong to no tab.
     private let volume = VolumeMonitor()
@@ -71,6 +75,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         inputSwitch: inputSwitch,
         windows: windows,
         windowSwitcher: windowSwitcher,
+        commandBar: commandBar,
+        menuBar: menuBar,
         previewAnimation: { [weak self] in self?.coordinator?.previewAnimation() },
         featureSettings: { [unowned self] in self.settingsView(for: $0) })
 
@@ -79,6 +85,64 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             media, shelf, clipboard, capture, calendar, tasks, notes, shortcuts, timer, storage, network, usage,
             agents, monitors, admin,
         ]
+    }
+
+    /// What the command bar can do, asked for each time it opens. This is the one list features join:
+    /// add a line here to make an action searchable.
+    private var commandActions: [CommandAction] {
+        var list: [CommandAction] = []
+        func add(
+            _ id: String, _ title: String, _ area: String, _ symbol: String, _ keywords: String = "",
+            _ run: @escaping @MainActor () -> Void
+        ) {
+            list.append(CommandAction(id: id, title: title, area: area, symbol: symbol, keywords: keywords, run: run))
+        }
+        for tab in preferences.tabs {
+            add("tab.\(tab.rawValue)", "Open \(tab.title)", "Notch", tab.symbol, "tab notch") { [weak self] in
+                self?.coordinator?.open(tab)
+            }
+        }
+        if preferences.isEnabled(.capture) {
+            for tool in CaptureFeature.Tool.allCases {
+                add("capture.\(tool.rawValue)", tool.title, "Capture", tool.symbol, "capture screen") { [capture] in
+                    capture.run(tool)
+                }
+            }
+        }
+        if preferences.isEnabled(.timer) {
+            add(
+                "awake", timer.keepsAwake ? "Let the Mac Sleep" : "Keep the Mac Awake", "Timer",
+                "cup.and.saucer", "keep awake caffeinate coffee sleep"
+            ) { [timer] in
+                if timer.keepsAwake { timer.allowSleep() } else { timer.keepAwake(for: nil) }
+            }
+        }
+        if preferences.isEnabled(.monitors) {
+            add("sleepDisplays", "Sleep Displays", "Displays", "display", "screen off monitor") { [monitors] in
+                monitors.sleepDisplays()
+            }
+        }
+        if windows.isEnabled {
+            for action in WindowAction.allCases {
+                add("window.\(action.rawValue)", action.title, "Windows", "rectangle.split.2x1", "window snap move") {
+                    [windows] in windows.perform(action)
+                }
+            }
+            for layout in windows.layouts {
+                add("layout.\(layout.id)", "Apply \(layout.name)", "Windows", "rectangle.3.group", "layout") {
+                    [windows] in windows.apply(layout)
+                }
+            }
+        }
+        let pages =
+            SettingsSelection.Page.app + [.windows, .windowSwitcher, .inputSources, .commandBar, .menuBar]
+            + preferences.tabOrder.map { .feature($0) }
+        for page in pages {
+            add("settings.\(page.title)", "\(page.title) Settings", "Settings", "gearshape", "preferences") {
+                [weak self] in self?.settings.show(page)
+            }
+        }
+        return list
     }
 
     private func tabView(for feature: FeatureID) -> AnyView {
@@ -206,6 +270,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         coordinator.start()
         windows.activate()
         windowSwitcher.activate()
+        commandBar.actions = { [unowned self] in self.commandActions }
+        commandBar.activate()
+        // Before the menu bar item is made, so it takes its place right of the divider.
+        menuBar.onPlaced = { [weak self] in self?.statusItem?.recreate() }
+        menuBar.activate()
         self.coordinator = coordinator
         pendingMessages.forEach(showInNotch)
         pendingMessages = []
@@ -252,7 +321,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Stops every feature, including the media helper process and the camera.
         features.update(presentations: [], enabled: [])
         pinnedNotes.stop()
+        commandBar.stop()
         inputSwitch.stop()
+        menuBar.stop()  // every hidden icon back
         mixer.isEnabled = false  // every app back to its own volume
         timer.allowSleep()
         volume.stop()

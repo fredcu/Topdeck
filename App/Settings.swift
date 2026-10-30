@@ -18,6 +18,8 @@ final class SettingsWindowController {
     private let inputSwitch: InputSwitcher
     private let windows: WindowManager
     private let windowSwitcher: WindowSwitcher
+    private let commandBar: CommandBar
+    private let menuBar: MenuBarHider
     private let previewAnimation: () -> Void
     private let featureSettings: (FeatureID) -> AnyView?
     private let selection = SettingsSelection()
@@ -27,6 +29,7 @@ final class SettingsWindowController {
     init(
         preferences: NotchPreferences, updater: Updater, notchKey: HotKey, clipboardKey: HotKey,
         inputSwitch: InputSwitcher, windows: WindowManager, windowSwitcher: WindowSwitcher,
+        commandBar: CommandBar, menuBar: MenuBarHider,
         previewAnimation: @escaping () -> Void,
         featureSettings: @escaping (FeatureID) -> AnyView?
     ) {
@@ -37,6 +40,8 @@ final class SettingsWindowController {
         self.inputSwitch = inputSwitch
         self.windows = windows
         self.windowSwitcher = windowSwitcher
+        self.commandBar = commandBar
+        self.menuBar = menuBar
         self.previewAnimation = previewAnimation
         self.featureSettings = featureSettings
     }
@@ -48,8 +53,8 @@ final class SettingsWindowController {
             let root = SettingsView(
                 preferences: preferences, updater: updater, notchKey: notchKey, clipboardKey: clipboardKey,
                 inputSwitch: inputSwitch, windows: windows, windowSwitcher: windowSwitcher,
-                previewAnimation: previewAnimation,
-                featureSettings: featureSettings, selection: selection)
+                commandBar: commandBar, menuBar: menuBar,
+                previewAnimation: previewAnimation, featureSettings: featureSettings, selection: selection)
             let host = NSHostingController(rootView: root)
             // The page's name goes in the toolbar, over a sidebar that runs to the top of the window.
             host.sceneBridgingOptions = [.title, .toolbars]
@@ -72,7 +77,7 @@ final class SettingsWindowController {
 @Observable
 final class SettingsSelection {
     enum Page: Hashable {
-        case about, general, appearance, displays, activities, windows, windowSwitcher, inputSources
+        case about, general, appearance, displays, activities, windows, windowSwitcher, inputSources, commandBar, menuBar
         case feature(FeatureID)
 
         /// Topdeck's own pages, above the tabs.
@@ -92,6 +97,8 @@ struct SettingsView: View {
     let inputSwitch: InputSwitcher
     let windows: WindowManager
     let windowSwitcher: WindowSwitcher
+    let commandBar: CommandBar
+    let menuBar: MenuBarHider
     let previewAnimation: () -> Void
     let featureSettings: (FeatureID) -> AnyView?
     @Bindable var selection: SettingsSelection
@@ -111,6 +118,8 @@ struct SettingsView: View {
                         .tag(SettingsSelection.Page.windowSwitcher)
                     SidebarRow(page: .inputSources, off: !inputSwitch.isEnabled)
                         .tag(SettingsSelection.Page.inputSources)
+                    SidebarRow(page: .commandBar, off: !commandBar.isEnabled).tag(SettingsSelection.Page.commandBar)
+                    SidebarRow(page: .menuBar, off: !menuBar.isEnabled).tag(SettingsSelection.Page.menuBar)
                 }
                 Section("Tabs") {
                     ForEach(preferences.tabOrder, id: \.self) { feature in
@@ -140,6 +149,8 @@ struct SettingsView: View {
         case .inputSources: InputSourcesPage(inputSwitch: inputSwitch)
         case .windows: WindowsPage(windows: windows)
         case .windowSwitcher: WindowSwitcherPage(switcher: windowSwitcher)
+        case .commandBar: CommandBarPage(commandBar: commandBar)
+        case .menuBar: MenuBarPage(menuBar: menuBar)
         case .feature(let feature):
             FeaturePage(feature: feature, preferences: preferences, settings: featureSettings(feature))
         }
@@ -157,6 +168,8 @@ extension SettingsSelection.Page {
         case .inputSources: "Input Sources"
         case .windows: "Windows"
         case .windowSwitcher: "Window Switcher"
+        case .commandBar: "Command Bar"
+        case .menuBar: "Menu Bar"
         case .feature(let feature): feature.title
         }
     }
@@ -172,6 +185,8 @@ extension SettingsSelection.Page {
         case .inputSources: ("keyboard", .gray)
         case .windows: ("rectangle.split.2x1", .cyan)
         case .windowSwitcher: ("rectangle.on.rectangle", .blue)
+        case .commandBar: ("command", .orange)
+        case .menuBar: ("menubar.rectangle", .gray)
         case .feature(let feature):
             switch feature {
             case .media: ("play", .pink)
@@ -203,8 +218,10 @@ extension SettingsSelection.Page {
         case .displays: "Which displays get a notch, and what the ones without one show."
         case .activities: "What the closed notch shows for a moment when something changes."
         case .inputSources: "Each app gets its own keyboard input source when you switch to it."
+        case .menuBar: "Hold \u{2318} and drag icons to the left of the divider to hide them behind the arrow."
         case .windows: "Halves, thirds, quarters, and saved layouts for any app's windows."
         case .windowSwitcher: "Option-Tab picks between every window, with thumbnails."
+        case .commandBar: "Type to open an app or run an action in Topdeck, from any app."
         case .feature(let feature):
             switch feature {
             case .media: "What's playing in any app, with artwork, controls, and a waveform."
@@ -353,6 +370,28 @@ private struct WindowSwitcherPage: View {
     var body: some View {
         SettingsPage(page: .windowSwitcher, isOn: $switcher.isEnabled) {
             if switcher.isEnabled { switcher.settingsView }
+        }
+    }
+}
+
+/// The command bar has no notch tab: its switch, then its shortcut while it's on.
+private struct CommandBarPage: View {
+    @Bindable var commandBar: CommandBar
+
+    var body: some View {
+        SettingsPage(page: .commandBar, isOn: $commandBar.isEnabled) {
+            if commandBar.isEnabled { commandBar.settingsView }
+        }
+    }
+}
+
+/// Menu Bar has no notch tab: its switch, then its delay while it's on.
+private struct MenuBarPage: View {
+    @Bindable var menuBar: MenuBarHider
+
+    var body: some View {
+        SettingsPage(page: .menuBar, isOn: $menuBar.isEnabled) {
+            if menuBar.isEnabled { menuBar.settingsView }
         }
     }
 }
