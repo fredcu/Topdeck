@@ -168,7 +168,8 @@ public struct R2Result: Equatable, Sendable {
     public let link: URL?
 }
 
-/// Sends one file to R2 as a single signed PUT over HTTPS. It only reads the file.
+/// Sends one file to R2 as a single signed PUT over HTTPS. It only reads the file. An object with the
+/// same key is never overwritten unless the caller says so.
 struct R2Client: Sendable {
     /// Sends the request with the file as its body, reporting the fraction sent; replaced in tests.
     var send: @Sendable (URLRequest, URL, @escaping @Sendable (Double) -> Void) async throws -> (Data, URLResponse)
@@ -178,10 +179,10 @@ struct R2Client: Sendable {
     static let largestFile: Int64 = 5 << 30
 
     func upload(
-        _ file: URL, to bucket: R2Bucket, credentials: R2Credentials,
+        _ file: URL, to bucket: R2Bucket, credentials: R2Credentials, replacing: Bool = false,
         progress: @escaping @Sendable (Double) -> Void = { _ in }
     ) async throws -> R2Result {
-        let (request, key) = try signedRequest(for: file, to: bucket, credentials: credentials)
+        let (request, key) = try signedRequest(for: file, to: bucket, credentials: credentials, replacing: replacing)
         let reply: (Data, URLResponse)
         do {
             reply = try await send(request, file, progress)
@@ -189,14 +190,18 @@ struct R2Client: Sendable {
             throw R2Error(transport: error)
         }
         guard let response = reply.1 as? HTTPURLResponse else { throw R2Error.badResponse }
+        guard response.statusCode != 412 else { throw R2Error.alreadyExists }
         guard (200..<300).contains(response.statusCode) else {
             throw R2Error.rejected(status: response.statusCode, code: R2Error.code(in: reply.0))
         }
         return R2Result(key: key, link: bucket.link(for: key))
     }
 
-    /// The signed PUT for `file`, and the key it's stored under.
-    func signedRequest(for file: URL, to bucket: R2Bucket, credentials: R2Credentials) throws -> (URLRequest, String) {
+    /// The signed PUT for `file`, and the key it's stored under. Unless `replacing`, it carries a signed
+    /// `If-None-Match: *`, so R2 refuses with 412 when the key is taken.
+    func signedRequest(
+        for file: URL, to bucket: R2Bucket, credentials: R2Credentials, replacing: Bool = false
+    ) throws -> (URLRequest, String) {
         let (host, bucketName, folder) = try bucket.checked()
         let values = try? file.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
         guard file.isFileURL, values?.isRegularFile == true else { throw R2Error.invalidFile(file.lastPathComponent) }
@@ -213,10 +218,11 @@ struct R2Client: Sendable {
         let payloadHash = "UNSIGNED-PAYLOAD"
         let contentType = UTType(filenameExtension: file.pathExtension)?.preferredMIMEType
         let date = now()
-        let headers = [
+        var headers = [
             "content-type": contentType ?? "application/octet-stream", "host": host,
             "x-amz-content-sha256": payloadHash, "x-amz-date": SigV4.timestamp(date),
         ]
+        if !replacing { headers["if-none-match"] = "*" }
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
         request.httpMethod = "PUT"
         // URLSession sets Host itself, from the URL.
@@ -276,6 +282,8 @@ public enum R2Error: LocalizedError, Equatable {
     case invalidPublicURL
     case invalidFile(String)
     case tooLarge
+    /// R2 answered 412: the key is taken, and the upload didn't ask to replace it.
+    case alreadyExists
     /// R2 answered with an error status, and the error code from its reply when there was one.
     case rejected(status: Int, code: String?)
     case offline
@@ -307,6 +315,7 @@ public enum R2Error: LocalizedError, Equatable {
         case .invalidPublicURL: "The public URL has to start with https:// and have no query."
         case .invalidFile(let name): "\(name) isn't a file R2 can take. Folders don't upload."
         case .tooLarge: "R2 takes files up to 5 GB in one upload."
+        case .alreadyExists: "A file with this name is already in the bucket."
         case .rejected(let status, let code): Self.reason(status: status, code: code)
         case .offline: "You're offline."
         case .insecure: "Couldn't make a secure connection to R2."

@@ -70,7 +70,8 @@ struct R2SigningTests {
         try Data("png".utf8).write(to: file)
 
         let client = R2Client(send: { _, _, _ in throw URLError(.cancelled) }, now: { exampleDate })
-        let (request, key) = try client.signedRequest(for: file, to: .example, credentials: credentials)
+        let (request, key) = try client.signedRequest(
+            for: file, to: .example, credentials: credentials, replacing: true)
         #expect(key == "drops/Screen Shot 1+1.png")
         #expect(request.httpMethod == "PUT")
         #expect(request.url?.scheme == "https")
@@ -83,6 +84,27 @@ struct R2SigningTests {
         #expect(authorization.hasPrefix("AWS4-HMAC-SHA256 Credential=\(accessKeyID)/20130524/auto/s3/aws4_request, "))
         #expect(authorization.contains(", SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date, "))
         #expect(authorization.hasSuffix(", Signature=0318f3f484449fb5f179290844a4e806c0f4c5f7e9fa05b7ad7818f8cbb20115"))
+        #expect(request.value(forHTTPHeaderField: "If-None-Match") == nil, "replacing leaves it out")
+    }
+
+    /// By default the request asks R2 to refuse a key that is taken, and signs that header so it can't be
+    /// stripped on the way.
+    @Test func refusesToOverwriteByDefault() throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "R2Tests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let file = folder.appending(path: "Screen Shot 1+1.png")
+        try Data("png".utf8).write(to: file)
+
+        let client = R2Client(send: { _, _, _ in throw URLError(.cancelled) }, now: { exampleDate })
+        let (request, _) = try client.signedRequest(for: file, to: .example, credentials: credentials)
+        #expect(request.value(forHTTPHeaderField: "If-None-Match") == "*")
+        let authorization = try #require(request.value(forHTTPHeaderField: "Authorization"))
+        let signed = "content-type;host;if-none-match;x-amz-content-sha256;x-amz-date"
+        #expect(authorization.contains(", SignedHeaders=\(signed), "))
+        let (replacing, _) = try client.signedRequest(
+            for: file, to: .example, credentials: credentials, replacing: true)
+        #expect(replacing.value(forHTTPHeaderField: "Authorization") != authorization)
     }
 }
 
@@ -183,10 +205,37 @@ struct R2SecretTests {
         #expect(R2Error.code(in: Data("<Code>\(secret)</Code>".utf8)) == nil)
     }
 
+    @Test func aTakenNameIsNotOverwritten() async throws {
+        let error = try await failedUpload(status: 412, body: Data("<Code>PreconditionFailed</Code>".utf8))
+        #expect(error == .alreadyExists)
+        #expect(error.errorDescription == "A file with this name is already in the bucket.")
+    }
+
+    /// The file's menu offers Replace after a 412, and that upload leaves the header out.
+    @Test func replacingUploadsOverATakenName() async throws {
+        let file = folder.appending(path: "a.txt")
+        try Data("a".utf8).write(to: file)
+        let client = R2Client(send: { request, _, _ in
+            let status = request.value(forHTTPHeaderField: "If-None-Match") == nil ? 200 : 412
+            let response = HTTPURLResponse(url: endpoint, statusCode: status, httpVersion: nil, headerFields: nil)
+            return (Data(), response ?? URLResponse())
+        })
+        let uploads = R2Uploads(defaults: defaults, keys: MemoryKeys().r2Keys, client: client)
+        uploads.bucket = .example
+        try uploads.saveKeys(accessKeyID: accessKeyID, secret: secret)
+        let item = ShelfItem(bookmark: Data(), name: "a.txt")
+
+        uploads.upload(item, from: file)
+        let taken = R2Uploads.Status.failed("A file with this name is already in the bucket.", alreadyExists: true)
+        #expect(await eventually { uploads.statuses[item.id] == taken })
+        uploads.upload(item, from: file, replacing: true)
+        #expect(await eventually { uploads.statuses[item.id] == .uploaded(nil) })
+    }
+
     @Test func noErrorTextHoldsAKey() async throws {
         var errors: [R2Error] = [
             .notSetUp, .invalidAccountID, .invalidBucket, .invalidFolder, .invalidPublicURL, .invalidFile("a.txt"),
-            .tooLarge, .offline, .insecure, .network(-1001), .cancelled, .badResponse,
+            .tooLarge, .alreadyExists, .offline, .insecure, .network(-1001), .cancelled, .badResponse,
             .rejected(status: 500, code: nil), .rejected(status: 400, code: "InvalidArgument"),
         ]
         errors.append(try await failedUpload(status: 401, body: Data("<Code>\(accessKeyID)</Code>".utf8)))

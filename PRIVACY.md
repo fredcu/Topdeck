@@ -3,8 +3,9 @@
 Topdeck is local-first.
 
 - No accounts, analytics, telemetry, or device fingerprinting.
-- The network is used only for the AI Usage providers you turn on (below).
-  With no provider on, the AI Usage tab never touches the network.
+- The network is used only for the AI Usage providers you turn on and for
+  uploads to your own Cloudflare R2 bucket (both below). With no provider on
+  and no upload started, neither touches the network.
 - Everything Topdeck creates (settings, notes, shelf items) stays on your Mac,
   unless you choose a notes folder that syncs, such as one in iCloud Drive.
 - System permissions (Calendar, Reminders, Camera, and so on) are requested only
@@ -20,15 +21,27 @@ Topdeck is local-first.
   The first time it runs, it reads NetSpeed's history from
   `~/Library/Application Support/NetSpeed` if it's there. **Clear History** in
   Settings › Network deletes it, and turning the tab off stops counting.
+- The Storage tab (off until you turn it on) scans only when you ask, and then
+  reads file and folder metadata (names, sizes, kinds), never contents. It
+  doesn't follow symbolic links, enter other volumes, or download iCloud files,
+  and sends nothing. Items you pick go to the Trash after you review the list;
+  nothing is deleted outright.
 - Messages sent with the Show in Notch action or an `topdeck://` link are
   only displayed: they're never stored, and nothing in them is opened.
 - Clipboard history is off until you turn it on in the Clipboard tab. Then it
   keeps what you copy (text, links, images, and file locations) in
   `~/Library/Application Support/Topdeck` on this Mac only, up to 200 items
   plus your favorites. It skips anything the copying app marks secret or
-  temporary and anything copied in a password manager. **Clear History**
+  temporary, anything copied in a password manager, and copies from apps you
+  list in Settings › Clipboard. **Clear History**
   removes everything but favorites, and turning it off stops reading the
   clipboard.
+- Capture tools (screenshots, scrolling captures, text, QR codes, pinned images)
+  need Screen Recording permission, which macOS asks for the first time you use
+  one. Captures are read on this Mac, text and QR codes with Apple's Vision
+  framework, and stay on it: they go to the clipboard or onto the screen. Only
+  **Add to Shelf** writes a file, in
+  `~/Library/Application Support/Topdeck/Captures`.
 - To move the media waveform with the music, Topdeck listens to your Mac's
   audio output, and macOS asks for "system audio recording" permission the first
   time. It listens only while the Media tab is open and something plays, turns
@@ -131,6 +144,15 @@ or a server, and every connection is end-to-end encrypted.
 Topdeck keeps nothing about the phones it meets. macOS asks once for Local
 Network access; turning it off in **System Settings › Privacy & Security ›
 Local Network** turns this feature off and nothing else.
+
+## Uploading to R2
+
+Files in the shelf go to your own Cloudflare R2 bucket only when you choose
+**Upload to R2** on a file. The upload goes over HTTPS to your account's R2
+address and nowhere else, and never replaces a file already in the bucket unless
+you choose **Replace in R2**. Your R2 keys stay in the keychain and aren't
+written to files, settings, or logs. The bucket's address (account ID, bucket
+name, folder, public URL) is kept in Topdeck's settings.
 
 A change that weakens any of these points must say so in its pull request and
 update this file.

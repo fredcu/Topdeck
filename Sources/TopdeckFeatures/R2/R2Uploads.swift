@@ -12,7 +12,8 @@ public final class R2Uploads {
     public enum Status: Equatable, Sendable {
         case uploading(Double)
         case uploaded(URL?)
-        case failed(String)
+        /// `alreadyExists` when the bucket has a file by that name, which only a replacing upload can overwrite.
+        case failed(String, alreadyExists: Bool = false)
     }
 
     public var bucket: R2Bucket {
@@ -64,8 +65,9 @@ public final class R2Uploads {
         hasKeys = false
     }
 
-    /// Uploads the file at `url` for `item`, unless it's already on its way.
-    public func upload(_ item: ShelfItem, from url: URL) {
+    /// Uploads the file at `url` for `item`, unless it's already on its way. A file whose name is taken in
+    /// the bucket fails rather than overwrite it, unless `replacing`.
+    public func upload(_ item: ShelfItem, from url: URL, replacing: Bool = false) {
         if case .uploading = statuses[item.id] { return }
         guard let credentials = keys.read() else {
             fail(item.id, R2Error.notSetUp)
@@ -75,7 +77,9 @@ public final class R2Uploads {
         let (client, bucket) = (client, bucket)
         uploads[item.id] = Task {
             do {
-                let result = try await client.upload(url, to: bucket, credentials: credentials) { fraction in
+                let result = try await client.upload(
+                    url, to: bucket, credentials: credentials, replacing: replacing
+                ) { fraction in
                     Task { @MainActor in self.progress(item.id, fraction) }
                 }
                 finish(item.id, result)
@@ -117,7 +121,7 @@ public final class R2Uploads {
             return
         }
         let reason = error.errorDescription ?? ""
-        statuses[id] = .failed(reason)
+        statuses[id] = .failed(reason, alreadyExists: error == .alreadyExists)
         // Only the reason, which never holds a key.
         Log.features.error("R2 upload failed: \(reason, privacy: .private)")
         let activity = Activity(

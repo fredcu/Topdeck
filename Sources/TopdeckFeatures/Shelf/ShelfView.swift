@@ -93,8 +93,11 @@ private struct ShelfItemView: View {
             Button("Cancel Upload") { uploads.cancel(item) }
         case .uploaded(let link?):
             Button("Copy R2 Link") { uploads.copyLink(link) }
-            Button("Upload to R2 Again") { upload(url, with: uploads) }.disabled(url == nil)
-        case .failed(let reason):
+            Button("Upload to R2 Again") { upload(url, with: uploads, replacing: true) }.disabled(url == nil)
+        case .failed(let reason, alreadyExists: true):
+            Text(reason)
+            Button("Replace in R2") { upload(url, with: uploads, replacing: true) }.disabled(url == nil)
+        case .failed(let reason, alreadyExists: false):
             Text(reason)
             Button("Try Upload Again") { upload(url, with: uploads) }.disabled(url == nil)
         case .uploaded(nil), nil:
@@ -102,9 +105,9 @@ private struct ShelfItemView: View {
         }
     }
 
-    private func upload(_ url: URL?, with uploads: R2Uploads) {
+    private func upload(_ url: URL?, with uploads: R2Uploads, replacing: Bool = false) {
         guard let url else { return }
-        uploads.upload(item, from: url)
+        uploads.upload(item, from: url, replacing: replacing)
     }
 
     private func accessibilityName(url: URL?) -> String {
@@ -129,7 +132,7 @@ private struct UploadStatusView: View {
             ProgressView(value: fraction).progressViewStyle(.linear).controlSize(.mini).frame(width: 44)
         case .uploaded:
             Image(systemName: "checkmark.icloud").font(.caption2).foregroundStyle(.green)
-        case .failed(let reason):
+        case .failed(let reason, _):
             Text("Failed").font(.caption2.bold()).foregroundStyle(.orange).help(reason)
         }
     }
@@ -141,7 +144,7 @@ extension R2Uploads.Status {
         switch self {
         case .uploading(let fraction): "uploading, \(Int(fraction * 100)) percent"
         case .uploaded: "uploaded to R2"
-        case .failed(let reason): "upload failed: \(reason)"
+        case .failed(let reason, _): "upload failed: \(reason)"
         }
     }
 }
