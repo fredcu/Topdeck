@@ -26,7 +26,8 @@ Topdeck is local-first.
   keeps what you copy (text, links, images, and file locations) in
   `~/Library/Application Support/Topdeck` on this Mac only, up to 200 items
   plus your favorites. It skips anything the copying app marks secret or
-  temporary and anything copied in a password manager. **Clear History**
+  temporary, anything copied in a password manager, and copies from apps you
+  list in Settings › Clipboard. **Clear History**
   removes everything but favorites, and turning it off stops reading the
   clipboard.
 - To move the media waveform with the music, Topdeck listens to your Mac's
