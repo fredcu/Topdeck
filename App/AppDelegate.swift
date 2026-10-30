@@ -33,6 +33,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let monitors = MonitorsFeature()
     /// Window snapping and layouts: a Settings page and shortcuts, no tab.
     private let windows = WindowManager()
+    /// Hides menu bar icons behind a divider: a Settings page, no tab.
+    private let menuBar = MenuBarHider()
     private lazy var features = FeatureHost(featureList)
     // System live activities, which belong to no tab.
     private let volume = VolumeMonitor()
@@ -68,6 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         clipboardKey: clipboardKey,
         inputSwitch: inputSwitch,
         windows: windows,
+        menuBar: menuBar,
         previewAnimation: { [weak self] in self?.coordinator?.previewAnimation() },
         featureSettings: { [unowned self] in self.settingsView(for: $0) })
 
@@ -202,6 +205,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         coordinator.start()
         windows.activate()
+        // Before the menu bar item is made, so it takes its place right of the divider.
+        menuBar.onPlaced = { [weak self] in self?.statusItem?.recreate() }
+        menuBar.activate()
         self.coordinator = coordinator
         pendingMessages.forEach(showInNotch)
         pendingMessages = []
@@ -249,6 +255,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         features.update(presentations: [], enabled: [])
         pinnedNotes.stop()
         inputSwitch.stop()
+        menuBar.stop()  // every hidden icon back
         mixer.isEnabled = false  // every app back to its own volume
         timer.allowSleep()
         volume.stop()
