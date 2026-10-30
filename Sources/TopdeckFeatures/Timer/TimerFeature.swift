@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 import AppKit
-import IOKit.pwr_mgt
 import Observation
 import SwiftUI
 import TopdeckCore
@@ -52,7 +51,7 @@ public struct Stopwatch: Equatable, Sendable {
 /// A countdown timer, a stopwatch, and keep awake. None needs work to start or stop: a countdown is
 /// one wall-clock deadline (never a per-second tick) and the stopwatch is arithmetic, so both keep
 /// going across sleep and while the tab is hidden, and the display only ticks while it's on screen.
-/// Keeping awake is one power assertion, plus a deadline when it's timed.
+/// Keeping awake is a power assertion or two, plus a deadline when it ends by itself.
 @MainActor
 @Observable
 public final class TimerFeature: NotchFeature {
@@ -65,22 +64,41 @@ public final class TimerFeature: NotchFeature {
     public private(set) var stopwatch = Stopwatch()
     /// When keeping the Mac awake ends: nil while it's off, `.distantFuture` until it's turned off.
     public private(set) var awakeUntil: Date?
+    /// Whether keeping awake keeps the display on too, or lets it sleep while the Mac stays up.
+    public var keepScreenOn: Bool {
+        didSet {
+            defaults.set(keepScreenOn, forKey: Self.screenOnKey)
+            if keepsAwake { _ = assertions.hold(screenOn: keepScreenOn) }
+        }
+    }
     /// Raised when a countdown finishes, and when keeping awake runs out.
     @ObservationIgnored public var onActivity: ((Activity) -> Void)?
     /// Shows the closed notch that the Mac is being kept awake, and for how long; nil once it isn't.
     @ObservationIgnored public var onOngoing: ((Activity?) -> Void)?
     @ObservationIgnored private var alarm: Task<Void, Never>?
-    @ObservationIgnored private var assertion: IOPMAssertionID = 0
+    @ObservationIgnored private var assertions: PowerAssertions
     @ObservationIgnored private var awakeEnd: Task<Void, Never>?
     @ObservationIgnored private var sleepObserver: NSObjectProtocol?
     /// Where the Mac says it's about to sleep.
     @ObservationIgnored private let workspace: NotificationCenter
+    @ObservationIgnored private let defaults: UserDefaults
+    private static let screenOnKey = "timer.keepsScreenOn"
 
     public static let presets: [TimeInterval] = [60, 180, 300, 600, 900, 1500, 2700, 3600]
     public static let awakePresets: [TimeInterval] = [1800, 3600, 7200, 14_400]
 
-    public init(workspace: NotificationCenter = NSWorkspace.shared.notificationCenter) {
+    public convenience init(
+        workspace: NotificationCenter = NSWorkspace.shared.notificationCenter, defaults: UserDefaults = .standard
+    ) {
+        self.init(workspace: workspace, defaults: defaults, assertions: .live)
+    }
+
+    init(workspace: NotificationCenter, defaults: UserDefaults, assertions: PowerAssertions) {
         self.workspace = workspace
+        self.defaults = defaults
+        self.assertions = assertions
+        // On by default: keeping the display on is what keep awake always did.
+        keepScreenOn = defaults.object(forKey: Self.screenOnKey) as? Bool ?? true
     }
 
     public var view: some View { TimerView(timer: self) }
@@ -158,27 +176,23 @@ public final class TimerFeature: NotchFeature {
     /// Whether the Mac is being kept awake.
     public var keepsAwake: Bool { awakeUntil != nil }
 
-    /// Keeps the Mac and its display from sleeping for `seconds`, or until turned off when that's nil.
-    /// Starting again replaces the time left.
+    /// Keeps the Mac awake for `seconds`, or until turned off when that's nil.
     public func keepAwake(for seconds: TimeInterval?, now: Date = .now) {
-        if assertion == 0 {
-            // Named so `pmset -g assertions` says who's keeping the Mac awake.
-            let status = IOPMAssertionCreateWithName(
-                kIOPMAssertPreventUserIdleDisplaySleep as CFString, IOPMAssertionLevel(kIOPMAssertionLevelOn),
-                "Topdeck: Keep Awake, in the Timer tab" as CFString, &assertion)
-            guard status == kIOReturnSuccess else {
-                Log.features.error("Couldn't keep the Mac awake: \(status, privacy: .public)")
-                assertion = 0
-                return
-            }
-        }
-        let until = seconds.map { now.addingTimeInterval($0) }
+        keepAwake(seconds.map(AwakeEnd.after) ?? .never, now: now)
+    }
+
+    /// Keeps the Mac awake, and its display too with `keepScreenOn`, until `end`. Starting again
+    /// replaces the end.
+    public func keepAwake(_ end: AwakeEnd, now: Date = .now, calendar: Calendar = .current) {
+        guard assertions.hold(screenOn: keepScreenOn) else { return }
+        let until = end.deadline(from: now, calendar: calendar)
         awakeUntil = until ?? .distantFuture
         awakeEnd?.cancel()
         awakeEnd = nil
-        if let seconds {
+        if let until {
+            let delay = max(0, until.timeIntervalSince(now))
             awakeEnd = Task { [weak self] in
-                do { try await Task.sleep(for: .seconds(seconds), tolerance: .seconds(1)) } catch { return }
+                do { try await Task.sleep(for: .seconds(delay), tolerance: .seconds(1)) } catch { return }
                 self?.endAwake(announce: true)
             }
         }
@@ -206,8 +220,7 @@ public final class TimerFeature: NotchFeature {
 
     private func endAwake(announce: Bool) {
         guard keepsAwake else { return }
-        if assertion != 0 { IOPMAssertionRelease(assertion) }
-        assertion = 0
+        assertions.releaseAll()
         awakeUntil = nil
         awakeEnd?.cancel()
         awakeEnd = nil
@@ -219,8 +232,8 @@ public final class TimerFeature: NotchFeature {
         }
     }
 
-    /// Whether the power assertion is held. For tests.
-    var holdsAssertion: Bool { assertion != 0 }
+    /// Whether any power assertion is held. For tests.
+    var holdsAssertion: Bool { !assertions.held.isEmpty }
 }
 
 /// "1:05" or "1:02:03"; with `tenths`, "1:05.3". Countdowns round whole seconds up, so 0:00 means

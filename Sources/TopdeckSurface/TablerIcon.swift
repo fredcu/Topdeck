@@ -48,6 +48,7 @@ extension FeatureID {
         case .sound: "volume"
         case .shelf: "inbox"
         case .clipboard: "clipboard-list"
+        case .capture: "capture"
         case .calendar: "calendar"
         case .tasks: "list-check"
         case .notes: "notes"
