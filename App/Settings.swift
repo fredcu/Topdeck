@@ -77,7 +77,8 @@ final class SettingsWindowController {
 @Observable
 final class SettingsSelection {
     enum Page: Hashable {
-        case about, general, appearance, displays, activities, windows, windowSwitcher, inputSources, commandBar, menuBar
+        case about, general, appearance, displays, activities, windows, windowSwitcher, inputSources, commandBar,
+            menuBar
         case feature(FeatureID)
 
         /// Topdeck's own pages, above the tabs.
