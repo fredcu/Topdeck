@@ -25,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let shortcuts = ShortcutsFeature()
     private let timer = TimerFeature()
     private let network = NetworkFeature()
+    private let admin = SystemAdminFeature()
     private lazy var features = FeatureHost(featureList)
     // System live activities, which belong to no tab.
     private let volume = VolumeMonitor()
@@ -60,7 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         featureSettings: { [unowned self] in self.settingsView(for: $0) })
 
     private var featureList: [any NotchFeature] {
-        [media, shelf, clipboard, calendar, tasks, notes, shortcuts, timer, network, usage, agents]
+        [media, shelf, clipboard, calendar, tasks, notes, shortcuts, timer, network, usage, agents, admin]
     }
 
     private func tabView(for feature: FeatureID) -> AnyView {
@@ -81,6 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return AnyView(usage.view)
         case .agents:
             return AnyView(agents.view)
+        case .admin: return AnyView(admin.view)
         }
     }
 
@@ -106,6 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return AnyView(usage.settingsView)  // sections of its own
         case .agents:
             return section(agents.settingsView)
+        case .admin: return nil
         }
     }
 
@@ -144,6 +147,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         network.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         network.onOngoing = { [weak coordinator] in coordinator?.setOngoing($0, for: .network) }
         shortcuts.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
+        admin.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         tasks.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         notes.onSendToTasks = { [tasks] in tasks.add($0) }
         pinnedNotes.start()
