@@ -106,10 +106,116 @@ struct PerformanceTests {
         #expect(feature.snapshot == PerformanceFeature.Snapshot(), "nothing kept for a long gap")
     }
 
+    @Test func aReadingThatEndsWhileTheTabIsOnScreenIsShown() async {
+        let source = HeldReading(cpu: 40)
+        let feature = PerformanceFeature(source: { source })
+        feature.phase = .foreground
+        source.waitUntilReading()
+        #expect(feature.snapshot.cpu == nil, "nothing until the reading is done")
+        source.release()
+        await feature.settle()
+        #expect(feature.snapshot.cpu == 40)
+        feature.phase = .background
+    }
+
+    @Test func aReadingThatEndsAfterTheTabLeftIsNotShown() async {
+        let source = HeldReading(cpu: 40)
+        let feature = PerformanceFeature(source: { source })
+        feature.phase = .foreground
+        source.waitUntilReading()
+        feature.phase = .background
+        source.release()
+        await feature.settle()
+        #expect(feature.snapshot == PerformanceFeature.Snapshot())
+    }
+
+    @Test func readingsNeitherOverlapNorQueue() async {
+        let source = HeldReading(cpu: 10)
+        let feature = PerformanceFeature(source: { source })
+        feature.phase = .foreground
+        source.waitUntilReading()
+        for _ in 0..<5 { feature.sample() }
+        source.release()
+        await feature.settle()
+        #expect(source.started == 1, "ticks during a reading are skipped, not saved for later")
+        feature.sample()
+        source.waitUntilReading()
+        source.release()
+        await feature.settle()
+        #expect(source.started == 2)
+        #expect(!source.overlapped)
+        feature.phase = .background
+    }
+
+    @Test func comingBackNeverSeesTheLastVisitOrStartsASecondReading() async {
+        let sources = [HeldReading(cpu: 10), HeldReading(cpu: 20)]
+        var made = 0
+        let feature = PerformanceFeature(source: {
+            defer { made += 1 }
+            return sources[made]
+        })
+        feature.phase = .foreground
+        sources[0].waitUntilReading()
+        feature.phase = .background
+        feature.phase = .foreground
+        #expect(sources[1].started == 0, "the first reading is still going")
+        sources[0].release()
+        await feature.settle()
+        #expect(feature.snapshot == PerformanceFeature.Snapshot(), "the first visit's reading is thrown away")
+        feature.sample()
+        sources[1].waitUntilReading()
+        sources[1].release()
+        await feature.settle()
+        #expect(feature.snapshot.cpu == 20)
+        #expect(!sources[0].overlapped && !sources[1].overlapped)
+        feature.phase = .background
+    }
+
     @Test func theSystemAnswers() {
         #expect(!Probes.coreTicks().isEmpty)
         #expect(Probes.memory()?.used ?? 0 > 0)
         #expect(Probes.diskSpace()?.total ?? 0 > 0)
         #expect(!Probes.processes().isEmpty)
     }
+}
+
+extension PerformanceFeature {
+    /// Waits until the reading on the queue has ended and its result has been handled.
+    fileprivate func settle() async {
+        queue.sync {}
+        await withCheckedContinuation { continuation in DispatchQueue.main.async { continuation.resume() } }
+    }
+}
+
+/// A reading that stays on the queue until the test lets it go, and notices if two run at once.
+private final class HeldReading: SnapshotSource, @unchecked Sendable {
+    private let cpu: Double
+    private let lock = NSLock()
+    private let entered = DispatchSemaphore(value: 0)
+    private let gate = DispatchSemaphore(value: 0)
+    private var running = 0
+    private var count = 0
+    private var both = false
+
+    init(cpu: Double) { self.cpu = cpu }
+
+    var started: Int { lock.withLock { count } }
+    var overlapped: Bool { lock.withLock { both } }
+
+    func read() -> PerformanceFeature.Snapshot {
+        lock.withLock {
+            count += 1
+            running += 1
+            if running > 1 { both = true }
+        }
+        entered.signal()
+        gate.wait()
+        lock.withLock { running -= 1 }
+        var snapshot = PerformanceFeature.Snapshot()
+        snapshot.performanceCores = [cpu]
+        return snapshot
+    }
+
+    func waitUntilReading() { #expect(entered.wait(timeout: .now() + 5) == .success) }
+    func release() { gate.signal() }
 }
