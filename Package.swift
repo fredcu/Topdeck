@@ -17,6 +17,10 @@ let package = Package(
         .library(name: "TopdeckUsage", targets: ["TopdeckUsage"]),
         .library(name: "TopdeckMixer", targets: ["TopdeckMixer"]),
     ],
+    dependencies: [
+        // Recorders and global shortcuts for Windows (MIT, see THIRD_PARTY_NOTICES.md).
+        .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", exact: "3.1.0")
+    ],
     targets: [
         // State machine, feature lifecycle, diagnostics. No AppKit, so it tests anywhere.
         .target(name: "TopdeckCore", swiftSettings: strict),
@@ -26,7 +30,7 @@ let package = Package(
             // The notch's own icons from Tabler Icons (tabler.io; MIT, see THIRD_PARTY_NOTICES.md).
             resources: [.copy("Resources/Icons")], swiftSettings: strict),
         // Feature modules: each one a NotchFeature plus its views.
-        .target(name: "TopdeckFeatures", dependencies: ["TopdeckCore"], swiftSettings: strict),
+        .target(name: "TopdeckFeatures", dependencies: ["TopdeckCore", "KeyboardShortcuts"], swiftSettings: strict),
         // The GitHub build's developer tabs: AI Usage, OpenUsage's providers (MIT, in OpenUsage/) with
         // Topdeck's tab, and Agents, Claude Code and Codex hooks (in Agents/).
         .target(

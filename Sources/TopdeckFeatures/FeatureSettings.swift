@@ -153,41 +153,6 @@ extension ShortcutsFeature {
     }
 }
 
-extension ClipboardFeature {
-    public var settingsView: some View { ClipboardSettings(clipboard: self) }
-}
-
-private struct ClipboardSettings: View {
-    let clipboard: ClipboardFeature
-
-    var body: some View {
-        Group {
-            // A closure, not a method reference: see the app's GeneralSettings.
-            Toggle(
-                isOn: Binding(
-                    get: { clipboard.isRecording },
-                    set: { $0 ? clipboard.startRecording() : clipboard.stopRecording() })
-            ) {
-                Text("Keep a history of what you copy")
-                Text(
-                    "Looks at the clipboard twice a second while it's on. Skips passwords, anything marked private, "
-                        + "and copies from password managers. Kept on this Mac only.")
-            }
-            if clipboard.isRecording, clipboard.access != .allowed {
-                LabeledContent("Paste from other apps") {
-                    Button("Open Privacy Settings") { NSWorkspace.shared.open(.privacySettings("Privacy_Pasteboard")) }
-                }
-            }
-            LabeledContent(clipboard.items.count == 1 ? "1 item" : "\(clipboard.items.count) items") {
-                Button("Clear History", role: .destructive, action: clipboard.clear)
-                    .disabled(clipboard.items.allSatisfy(\.favorite))
-            }
-            .help("Favorites stay.")
-        }
-        .onAppear(perform: clipboard.refreshAccess)
-    }
-}
-
 extension NetworkFeature {
     public var settingsView: some View { NetworkSettings(network: self) }
 }
