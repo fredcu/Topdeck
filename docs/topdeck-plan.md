@@ -13,8 +13,13 @@ OmniMac (MIT), Atoll (MIT) and MacTools (GPL-3.0-only).
   schemes, log subsystems, data folders, keychain labels. Rename adapted code on the way in. The only
   place an upstream name may appear is its credit and copyright notice.
 - GPL and non-free projects are behaviour references only. Never copy, translate or closely paraphrase
-  them, and do not open their source files: MacTools, AltTab, Ice, boring.notch, DockDoor, macshot,
-  InputSourcePro, Cork.
+  them, and do not open their source files: MacTools at any later revision, AltTab, Ice, boring.notch,
+  DockDoor, macshot, InputSourcePro, Cork.
+- One exception: MacTools at commit `9197035650b67f1c313960e8b1dded7a710264dd`, the last Apache-2.0
+  revision before its GPL move. Plugins in `Plugins/` at that commit may be adapted. Read only that
+  commit, never a newer file, and take no fixes from later history. Keep its copyright notice, mark
+  the code as changed, and record the commit in `THIRD_PARTY_NOTICES.md`. Do not use the MacTools
+  name or branding.
 - Topdeck stays MIT.
 
 ## Reuse sources
@@ -25,12 +30,12 @@ OmniMac (MIT), Atoll (MIT) and MacTools (GPL-3.0-only).
 | `window-manager` | Rectangle (MIT), and KeyboardShortcuts (MIT) for the shortcut recorder |
 | `clipboard-plus` | Maccy (MIT) for ignore rules and plain paste, on the existing Clipboard feature |
 | `capture-tools` | capcap (MIT), then OmniMac `Features/Tools` (MIT) for what it lacks |
-| `input-switch` | TypeSwitch (MIT) |
-| `display-controls` | MonitorControl (MIT) |
-| `keep-awake-plus` | The existing Keep Awake, then OmniMac `Features/KeepAwake` (MIT) without closed-lid mode |
-| `storage-tools` | OpenDisk (MIT) as a candidate; evaluate before adopting |
-| `system-admin` | No reusable project. Thin wrappers over `brew` JSON output and `launchctl` |
-| `r2-upload` | Soto S3 (Apache-2.0) against the R2 endpoint |
+| `input-switch` | MacTools `AutoInput` at the Apache-2.0 commit, or TypeSwitch (MIT) |
+| `display-controls` | MonitorControl (MIT), MacTools `DisplayBrightness` and `DisplaySleep` at the Apache-2.0 commit |
+| `keep-awake-plus` | The existing Keep Awake, then MacTools `KeepAwake` at the Apache-2.0 commit, without closed-lid mode |
+| `storage-tools` | MacTools `XcodeClean` at the Apache-2.0 commit; OpenDisk (MIT) as a candidate for the disk browser |
+| `system-admin` | MacTools `LaunchControl` and `Homebrew` at the Apache-2.0 commit |
+| `r2-upload` | MacTools `CloudflareR2` at the Apache-2.0 commit, or Soto S3 (Apache-2.0) |
 | Batch 3 | OmniMac for the window switcher and command bar, Stats (MIT) for performance, hidden (MIT) for the menu bar |
 
 ## Scope
@@ -90,7 +95,8 @@ A note has three states: in the notch (default), pinned to the desktop, always o
   window has no title bar.
 - The window edits the same `NotesFeature` store as the notch. It must become key for typing, and
   Chinese input composition must work; do not intercept Escape during marked text.
-- Saved state: `window: desktop|top` and a stable `id:` in the note's front matter. Today a note
+- Saved state: `window: desktop|top` and a stable `topdeck-id:` in the note's front matter (plain
+  `id:` belongs to other Markdown apps). Today a note
   named after its title gets a new ID on every launch, so window state cannot key on it.
 - Frames: UserDefaults, keyed by note ID and display, so dragging does not rewrite the file.
 - Unplugged display: move the window onto a visible screen and keep the saved frame for its return.

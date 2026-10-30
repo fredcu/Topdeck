@@ -26,7 +26,8 @@ Topdeck is local-first.
   keeps what you copy (text, links, images, and file locations) in
   `~/Library/Application Support/Topdeck` on this Mac only, up to 200 items
   plus your favorites. It skips anything the copying app marks secret or
-  temporary and anything copied in a password manager. **Clear History**
+  temporary, anything copied in a password manager, and copies from apps you
+  list in Settings › Clipboard. **Clear History**
   removes everything but favorites, and turning it off stops reading the
   clipboard.
 - To move the media waveform with the music, Topdeck listens to your Mac's
@@ -100,7 +101,10 @@ for Codex) and first keeps a copy of the file as it was in
 file per session into `~/Library/Application Support/Topdeck/Agents`: the
 session's state, its project folder, the app it runs in, its process ID, and
 the tool's own words for what it's waiting for. Your prompts, code, and tool
-output are never written, and nothing leaves your Mac. Disconnecting removes the
+output are never written, and nothing leaves your Mac. When a tool asks for
+permission, the request, including the tool's input such as a command or file
+contents, goes to Topdeck over a local socket, stays in memory only while the
+request waits, and never leaves your Mac. Disconnecting removes the
 hooks, and with no tool connected, the script and the session files too.
 
 ## Sharing with Android

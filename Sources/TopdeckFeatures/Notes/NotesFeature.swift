@@ -25,7 +25,8 @@ public enum NoteSort: String, CaseIterable, Identifiable, Sendable {
 /// Application Support unless the user picks a folder, such as one in iCloud Drive, so they reach
 /// the iPhone's Files app or a Markdown app there. They load when the tab comes on screen, save half
 /// a second after typing stops, are written out whenever the tab goes away, and leave memory when
-/// the feature stops. Empty notes are never saved.
+/// the feature stops, except notes with a window of their own: those load at launch and keep saving
+/// while the notch is away. Empty notes are never saved.
 @MainActor
 @Observable
 public final class NotesFeature: NotchFeature {
@@ -38,7 +39,7 @@ public final class NotesFeature: NotchFeature {
             } else {
                 flush()
             }
-            if phase == .stopped { notes = [] }
+            if phase == .stopped { keepOnlyWindowed() }
         }
     }
     public private(set) var notes: [Note] = []
@@ -62,6 +63,8 @@ public final class NotesFeature: NotchFeature {
     public private(set) var wantsEditorFocus = false
     /// Adds a task from a checklist item; returns whether it was added.
     @ObservationIgnored public var onSendToTasks: ((String) -> Bool)?
+    /// Called with a note's id once it has gone to the Trash.
+    @ObservationIgnored public var onDelete: ((Note.ID) -> Void)?
 
     private static let sortKey = "notes.sort"
     private static let shortcutKey = "notes.quickNoteShortcut"
@@ -90,6 +93,9 @@ public final class NotesFeature: NotchFeature {
     public var view: some View { NotesView(notes: self) }
 
     public var selected: Note? { notes.first { $0.id == selection } }
+
+    /// The notes shown in windows of their own.
+    public var windowed: [Note] { notes.filter { $0.window != nil } }
 
     /// The notes the list shows: matching the search, pinned first, then in the chosen order.
     public var visibleNotes: [Note] {
@@ -146,6 +152,22 @@ public final class NotesFeature: NotchFeature {
         change(id) { $0.isPinned.toggle() }
     }
 
+    /// Shows a note in a window on the desktop or on top, or, with nil, only in the notch again. From
+    /// its first window on, the note keeps its id in its file, since the window's place is stored by it.
+    public func setWindow(_ id: Note.ID, _ window: NoteWindow?) {
+        change(id) { note in
+            note.window = window
+            if window != nil { note.storesID = true }
+        }
+    }
+
+    /// Reads the folder for the notes that have windows, at launch and when the folder changes, even
+    /// while the notch has never shown Notes.
+    public func loadWindowed() {
+        load()
+        if phase == .stopped { keepOnlyWindowed() }
+    }
+
     /// Sends a note's unticked checklist items to Tasks. Returns how many were added.
     @discardableResult
     public func sendToTasks(_ id: Note.ID) -> Int {
@@ -176,6 +198,7 @@ public final class NotesFeature: NotchFeature {
             }
         }
         if selection == id { selection = visibleNotes.first?.id }
+        onDelete?(id)
     }
 
     /// The note's file, written out first, for dragging it out of the notch.
@@ -214,7 +237,7 @@ public final class NotesFeature: NotchFeature {
         // named by title are named by their id.
         let known = Dictionary(
             notes.compactMap { note in note.fileName.map { ($0, note.id) } }, uniquingKeysWith: { first, _ in first })
-        let stored = (listing ?? []).filter { $0.pathExtension.lowercased() == "md" }.compactMap { url -> Note? in
+        var stored = (listing ?? []).filter { $0.pathExtension.lowercased() == "md" }.compactMap { url -> Note? in
             guard let contents = try? String(contentsOf: url, encoding: .utf8) else { return nil }
             let values = try? url.resourceValues(forKeys: Set(keys))
             let name = url.lastPathComponent
@@ -222,6 +245,15 @@ public final class NotesFeature: NotchFeature {
             return Note(
                 id: id, fileName: name, contents: contents, modified: values?.contentModificationDate ?? .distantPast,
                 created: values?.creationDate)
+        }
+        // A copy of a file, say from Finder, has its original's id: it gets its own, written to it.
+        // The older file keeps the id, so its window stays its own.
+        stored.sort { ($0.created, $0.fileName ?? "") < ($1.created, $1.fileName ?? "") }
+        var seen: Set<Note.ID> = []
+        for index in stored.indices where !seen.insert(stored[index].id).inserted {
+            stored[index].id = UUID()
+            unsaved.insert(stored[index].id)
+            scheduleSave()
         }
         // Edits not yet on disk win over what's stored.
         let pending = notes.filter { unsaved.contains($0.id) }
@@ -232,14 +264,14 @@ public final class NotesFeature: NotchFeature {
     }
 
     /// Writes every unsaved note now, renaming a file Topdeck named when its title changed; a note
-    /// emptied out is deleted rather than kept blank.
+    /// emptied out is deleted rather than kept blank, unless it has a window to come back to.
     func flush() {
         pendingSave?.cancel()
         let manager = FileManager.default
         for id in unsaved {
             guard let index = notes.firstIndex(where: { $0.id == id }) else { continue }
             let note = notes[index]
-            if note.isEmpty {
+            if note.isEmpty, note.window == nil {
                 if let name = note.fileName { try? manager.removeItem(at: directory.appending(path: name)) }
                 notes[index].fileName = nil
                 continue
@@ -268,6 +300,11 @@ public final class NotesFeature: NotchFeature {
             }
         }
         unsaved = []
+    }
+
+    /// Lets go of every note but those with windows, and edits not yet written.
+    private func keepOnlyWindowed() {
+        notes = notes.filter { $0.window != nil || unsaved.contains($0.id) }
     }
 
     /// Shows the given notes as they'd load from disk. For tests and snapshots only.
@@ -342,7 +379,7 @@ public final class NotesFeature: NotchFeature {
         notes = []
         unsaved = []
         selection = nil
-        if phase == .foreground { load() }
+        loadWindowed()
     }
 
     /// The folder a bookmark points to. A stale bookmark still resolves; it's renewed next time the
