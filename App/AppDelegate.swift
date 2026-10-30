@@ -24,6 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var pinnedNotes = PinnedNoteWindows(notes: notes)
     private let shortcuts = ShortcutsFeature()
     private let timer = TimerFeature()
+    private let storage = StorageFeature()
     private let network = NetworkFeature()
     private lazy var features = FeatureHost(featureList)
     // System live activities, which belong to no tab.
@@ -60,7 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         featureSettings: { [unowned self] in self.settingsView(for: $0) })
 
     private var featureList: [any NotchFeature] {
-        [media, shelf, clipboard, calendar, tasks, notes, shortcuts, timer, network, usage, agents]
+        [media, shelf, clipboard, calendar, tasks, notes, shortcuts, timer, storage, network, usage, agents]
     }
 
     private func tabView(for feature: FeatureID) -> AnyView {
@@ -76,6 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .notes: return AnyView(notes.view)
         case .shortcuts: return AnyView(shortcuts.view)
         case .timer: return AnyView(timer.view)
+        case .storage: return AnyView(storage.view)
         case .network: return AnyView(network.view)
         case .usage:
             return AnyView(usage.view)
@@ -101,7 +103,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .shortcuts: return section(shortcuts.settingsView)
         case .notes: return section(notes.settingsView)
         case .network: return section(network.settingsView)
-        case .timer: return nil
+        case .timer, .storage: return nil
         case .usage:
             return AnyView(usage.settingsView)  // sections of its own
         case .agents:

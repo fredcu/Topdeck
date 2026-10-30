@@ -20,6 +20,11 @@ Topdeck is local-first.
   The first time it runs, it reads NetSpeed's history from
   `~/Library/Application Support/NetSpeed` if it's there. **Clear History** in
   Settings › Network deletes it, and turning the tab off stops counting.
+- The Storage tab (off until you turn it on) scans only when you ask, and then
+  reads file and folder metadata (names, sizes, kinds), never contents. It
+  doesn't follow symbolic links, enter other volumes, or download iCloud files,
+  and sends nothing. Items you pick go to the Trash after you review the list;
+  nothing is deleted outright.
 - Messages sent with the Show in Notch action or an `topdeck://` link are
   only displayed: they're never stored, and nothing in them is opened.
 - Clipboard history is off until you turn it on in the Clipboard tab. Then it

@@ -151,6 +151,7 @@ extension SettingsSelection.Page {
             case .notes: (feature.symbol, .yellow)
             case .shortcuts: (feature.symbol, .indigo)
             case .timer: (feature.symbol, .orange)
+            case .storage: (feature.symbol, .gray)
             case .network: ("arrow.up.arrow.down", .blue)
             case .usage: (feature.symbol, .purple)
             case .agents: (feature.symbol, .gray)
@@ -177,6 +178,7 @@ extension SettingsSelection.Page {
             case .notes: "Markdown notes that save as you type."
             case .shortcuts: "The shortcuts you make in the Shortcuts app, a click away."
             case .timer: "Timers, a stopwatch with laps, and Keep Awake."
+            case .storage: "What Xcode leaves behind and what fills your home folder, cleared to the Trash."
             case .network: "Your download and upload speed, and how much you've used."
             case .usage: "How much of each AI coding plan you've used."
             case .agents: "When Claude Code or Codex needs you or finishes, in the closed notch."
