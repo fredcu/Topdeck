@@ -3,9 +3,10 @@
 Topdeck is local-first.
 
 - No accounts, analytics, telemetry, or device fingerprinting.
-- The network is used only for the AI Usage providers you turn on and for
-  uploads to your own Cloudflare R2 bucket (both below). With no provider on
-  and no upload started, neither touches the network.
+- The network is used only for the AI Usage providers you turn on, for
+  uploads to your own Cloudflare R2 bucket (both below), and when you run a
+  Homebrew action in System Admin. With no provider on, no upload started, and
+  no Homebrew action run, none of them touches the network.
 - Everything Topdeck creates (settings, notes, shelf items) stays on your Mac,
   unless you choose a notes folder that syncs, such as one in iCloud Drive.
 - System permissions (Calendar, Reminders, Camera, and so on) are requested only
@@ -29,6 +30,10 @@ Topdeck is local-first.
 - The Monitors tab talks to the monitors attached to your Mac over DDC, the
   control channel in the display cable, to read and set their brightness and
   volume. It sends nothing over the network.
+- The System Admin tab (off until you turn it on) reads and manages your launch
+  agents on this Mac with `launchctl`, and sends nothing. Its Homebrew actions
+  run `brew`, which contacts Homebrew's servers only when you run an action,
+  such as an upgrade.
 - Messages sent with the Show in Notch action or an `topdeck://` link are
   only displayed: they're never stored, and nothing in them is opened.
 - Clipboard history is off until you turn it on in the Clipboard tab. Then it

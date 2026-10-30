@@ -12,3 +12,4 @@
 - Storage: clean Xcode's DerivedData, device support, archives, and caches, and see what fills the home folder. Items go to the Trash after a review.
 - Shelf: upload a file to your Cloudflare R2 bucket from its menu and copy its link. Keys stay in the keychain.
 - Monitors: set external monitors' brightness and volume over DDC, and put every display to sleep.
+- System Admin: start, stop, load, disable, and remove your launch agents, and upgrade, uninstall, and check Homebrew packages, from the notch. Off by default.

@@ -58,6 +58,7 @@ extension FeatureID {
         case .network: "ufo"  // beaming your data up and down
         case .usage: "gauge"
         case .agents: "terminal-2"
+        case .admin: "server"
         case .monitors: "device-desktop"
         }
     }

@@ -29,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let timer = TimerFeature()
     private let storage = StorageFeature()
     private let network = NetworkFeature()
+    private let admin = SystemAdminFeature()
     private let monitors = MonitorsFeature()
     /// Window snapping and layouts: a Settings page and shortcuts, no tab.
     private let windows = WindowManager()
@@ -73,7 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var featureList: [any NotchFeature] {
         [
             media, shelf, clipboard, capture, calendar, tasks, notes, shortcuts, timer, storage, network, usage,
-            agents, monitors,
+            agents, monitors, admin,
         ]
     }
 
@@ -98,6 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .agents:
             return AnyView(agents.view)
         case .monitors: return AnyView(monitors.view)
+        case .admin: return AnyView(admin.view)
         }
     }
 
@@ -126,6 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .agents:
             return section(agents.settingsView)
         case .monitors: return nil
+        case .admin: return nil
         }
     }
 
@@ -170,6 +173,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         network.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         network.onOngoing = { [weak coordinator] in coordinator?.setOngoing($0, for: .network) }
         shortcuts.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
+        admin.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         tasks.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         notes.onSendToTasks = { [tasks] in tasks.add($0) }
         pinnedNotes.start()
