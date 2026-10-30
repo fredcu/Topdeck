@@ -180,6 +180,7 @@ extension SettingsSelection.Page {
             case .agents: (feature.symbol, .gray)
             case .admin: (feature.symbol, .gray)
             case .monitors: (feature.symbol, .cyan)
+            case .performance: (feature.symbol, .green)
             }
         }
     }
@@ -212,6 +213,7 @@ extension SettingsSelection.Page {
             case .agents: "When Claude Code or Codex needs you or finishes, in the closed notch."
             case .admin: "Your launch agents and Homebrew packages, without a Terminal."
             case .monitors: "External monitors' brightness and volume, and sleeping every display at once."
+            case .performance: "Cores, memory, disk, network, the busiest apps, and your battery's health."
             }
         }
     }

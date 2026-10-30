@@ -389,8 +389,13 @@ adapts `Features/Tools/ScrollStitcher.swift` and the scroll tracker, frame
 stream, and session from `Features/Tools/ScreenshotCapture.swift`
 (`ScrollStitcher.swift`, `ScrollTracker.swift`, `ScreenGrab.swift`,
 `ScrollingSession.swift`), with its stitching tests, renamed for Topdeck and
-with comments translated from Spanish. Each adapted file names its origin in
-its header.
+with comments translated from Spanish. The Performance tab adapts
+`Features/Performance` (`SystemProbes.swift`, `SystemStats.swift`,
+`TopProcesses.swift`, `BatteryReport.swift`, `Temperature.swift`): the per-core
+CPU, GPU, memory, disk, process, and battery readings and the temperature
+sensor lookup, in `Sources/TopdeckFeatures/Performance`, shortened and without
+history, alerts, or menu bar items. Each adapted file names its origin in its
+header.
 
 ```text
 MIT License
