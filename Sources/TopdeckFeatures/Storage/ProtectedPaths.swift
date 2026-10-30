@@ -23,6 +23,8 @@ public enum ProtectedPaths {
         /// A folder directly in ~/Library, such as Caches or Developer.
         case libraryFolder
         case trash
+        /// ~/Library/Keychains, ~/.ssh and ~/.gnupg, and everything inside them.
+        case credentials
         case symbolicLink
         case missing
     }
@@ -52,6 +54,7 @@ public enum ProtectedPaths {
             }
         }
         let inside = p.dropFirst(home.count + 1).split(separator: "/").map(String.init)
+        if isCredentials(inside) { return .credentials }
         if inside.count == 1, standardFolders.contains(inside[0]) { return .standardFolder }
         if inside.count == 2, inside[0] == "Library" { return .libraryFolder }
         if inside[0] == ".Trash" { return .trash }
@@ -79,6 +82,13 @@ public enum ProtectedPaths {
         let components = path.split(separator: "/")
         guard !components.contains(where: { $0 == "." || $0 == ".." }) else { return nil }
         return "/" + components.joined(separator: "/")
+    }
+
+    /// Compared without regard to case, as the default macOS volume does.
+    private static func isCredentials(_ inside: [String]) -> Bool {
+        let first = inside[0].lowercased()
+        if first == ".ssh" || first == ".gnupg" { return true }
+        return first == "library" && inside.count > 1 && inside[1].lowercased() == "keychains"
     }
 
     private static func parent(of path: String) -> String {
