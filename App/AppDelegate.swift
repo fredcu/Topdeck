@@ -33,6 +33,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let monitors = MonitorsFeature()
     /// Window snapping and layouts: a Settings page and shortcuts, no tab.
     private let windows = WindowManager()
+    /// Option-Tab between every window: a Settings page and a shortcut, no tab.
+    private let windowSwitcher = WindowSwitcher()
     /// A search panel for apps and the actions below: a Settings page and a shortcut, no tab.
     private let commandBar = CommandBar()
     /// Hides menu bar icons behind a divider: a Settings page, no tab.
@@ -72,6 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         clipboardKey: clipboardKey,
         inputSwitch: inputSwitch,
         windows: windows,
+        windowSwitcher: windowSwitcher,
         commandBar: commandBar,
         menuBar: menuBar,
         previewAnimation: { [weak self] in self?.coordinator?.previewAnimation() },
@@ -132,7 +135,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         let pages =
-            SettingsSelection.Page.app + [.windows, .inputSources, .commandBar, .menuBar]
+            SettingsSelection.Page.app + [.windows, .windowSwitcher, .inputSources, .commandBar, .menuBar]
             + preferences.tabOrder.map { .feature($0) }
         for page in pages {
             add("settings.\(page.title)", "\(page.title) Settings", "Settings", "gearshape", "preferences") {
@@ -266,6 +269,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         coordinator.start()
         windows.activate()
+        windowSwitcher.activate()
         commandBar.actions = { [unowned self] in self.commandActions }
         commandBar.activate()
         // Before the menu bar item is made, so it takes its place right of the divider.
