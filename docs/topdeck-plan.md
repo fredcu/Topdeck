@@ -95,7 +95,8 @@ A note has three states: in the notch (default), pinned to the desktop, always o
   window has no title bar.
 - The window edits the same `NotesFeature` store as the notch. It must become key for typing, and
   Chinese input composition must work; do not intercept Escape during marked text.
-- Saved state: `window: desktop|top` and a stable `id:` in the note's front matter. Today a note
+- Saved state: `window: desktop|top` and a stable `topdeck-id:` in the note's front matter (plain
+  `id:` belongs to other Markdown apps). Today a note
   named after its title gets a new ID on every launch, so window state cannot key on it.
 - Frames: UserDefaults, keyed by note ID and display, so dragging does not rewrite the file.
 - Unplugged display: move the window onto a visible screen and keep the saved frame for its return.
