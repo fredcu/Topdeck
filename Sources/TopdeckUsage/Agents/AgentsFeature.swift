@@ -73,7 +73,9 @@ public struct AgentSession: Identifiable, Hashable, Sendable {
 /// only when the user connects a tool, see `AgentHooks`) write a small file per session; this
 /// watches that folder for changes, so nothing runs between events. While an agent waits for
 /// approval, the closed notch says so until it's answered; when one finishes while its app is in
-/// the background, the notch says that too. The GitHub build only: hooks don't fit the App Sandbox.
+/// the background, the notch says that too. While the notch runs, permission requests and
+/// `AskUserQuestion` prompts can be answered here (`AgentSocket`); a request nobody answers goes back
+/// to the agent's own prompt. The GitHub build only: hooks don't fit the App Sandbox.
 @MainActor
 @Observable
 public final class AgentsFeature: NotchFeature {
@@ -83,6 +85,8 @@ public final class AgentsFeature: NotchFeature {
     }
     /// Waiting ones first, then newest first.
     public private(set) var sessions: [AgentSession] = []
+    /// Permission requests held for an answer, oldest first.
+    public private(set) var requests: [AgentRequest] = []
     /// Tools with the notch's hooks in their settings.
     public private(set) var connected: Set<AgentTool> = []
     /// Why the last connect or disconnect failed.
@@ -91,6 +95,14 @@ public final class AgentsFeature: NotchFeature {
     public var announcesDone: Bool {
         didSet { defaults.set(announcesDone, forKey: Self.announceKey) }
     }
+    /// Per-feature setting: answer permission requests in the notch. Off, every request goes
+    /// straight to the agent's own prompt.
+    public var answersRequests: Bool {
+        didSet {
+            defaults.set(answersRequests, forKey: Self.answerKey)
+            update()
+        }
+    }
     /// Raised when an agent finishes.
     @ObservationIgnored public var onActivity: ((Activity) -> Void)?
     /// Agents waiting for approval, for the closed notch; nil when none is.
@@ -98,9 +110,13 @@ public final class AgentsFeature: NotchFeature {
 
     let hooks: AgentHooks
     private static let announceKey = "agents.announcesDone"
+    private static let answerKey = "agents.answersRequests"
+    /// How long a request waits in the notch before the agent's own prompt takes over.
+    static let holdLimit: TimeInterval = 110
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var watcher: DispatchSourceFileSystemObject?
     @ObservationIgnored private var shownWaiting: Activity?
+    @ObservationIgnored private var server: AgentSocket?
 
     public convenience init(defaults: UserDefaults = .standard) {
         self.init(hooks: AgentHooks(), defaults: defaults)
@@ -110,6 +126,7 @@ public final class AgentsFeature: NotchFeature {
         self.hooks = hooks
         self.defaults = defaults
         announcesDone = defaults.object(forKey: Self.announceKey) as? Bool ?? true
+        answersRequests = defaults.object(forKey: Self.answerKey) as? Bool ?? true
     }
 
     public var view: some View { AgentsView(agents: self) }
@@ -119,6 +136,9 @@ public final class AgentsFeature: NotchFeature {
 
     /// Whether the session folder is being watched.
     var isWatching: Bool { watcher != nil }
+
+    /// Whether the approval socket is listening.
+    var isServing: Bool { server?.isListening == true }
 
     public func connect(_ tool: AgentTool) { change { try hooks.install(tool) } }
 
@@ -137,6 +157,27 @@ public final class AgentsFeature: NotchFeature {
         guard let app = session.app, let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: app)
         else { return }
         NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+    }
+
+    /// Sends the user's answer to the waiting hook. One that doesn't fit the request sends nothing,
+    /// and the agent asks in its own prompt.
+    public func answer(_ request: AgentRequest, _ decision: AgentDecision) {
+        guard requests.contains(where: { $0.id == request.id }) else { return }
+        if let payload = decision.payload(for: request) {
+            server?.reply(to: request.id, with: payload)
+        } else {
+            server?.release(request.id)
+        }
+        drop(request.id)
+    }
+
+    /// Hands the request back to the agent's own prompt and brings its terminal forward.
+    public func answerInTerminal(_ request: AgentRequest) {
+        server?.release(request.id)
+        drop(request.id)
+        if let session = sessions.first(where: { $0.id == "\(request.tool.rawValue)-\(request.session)" }) {
+            open(session)
+        }
     }
 
     /// Forgets a session, for one whose agent ended without saying so.
@@ -163,11 +204,42 @@ public final class AgentsFeature: NotchFeature {
             watcher?.cancel()
             watcher = nil
             sessions = []
+            serve(false)
             showWaiting(nil)
             return
         }
         if watcher == nil { watch() }
+        serve(answersRequests)
         reload(announcing: false)
+    }
+
+    /// Opens the approval socket, or closes it and lets every held request go to the agent's own
+    /// prompt. A socket that won't open (another Topdeck has it, say) is tried again next update.
+    private func serve(_ on: Bool) {
+        guard on else {
+            server?.stop()
+            server = nil
+            requests = []
+            return
+        }
+        guard server == nil else { return }
+        let server = AgentSocket(
+            path: hooks.socket, holdLimit: Self.holdLimit,
+            onRequest: { [weak self] in self?.received($0) },
+            onGone: { [weak self] in self?.drop($0) })
+        guard (try? server.start()) != nil else { return }
+        self.server = server
+    }
+
+    func received(_ request: AgentRequest) {
+        requests.append(request)
+        showWaiting(Self.waiting(in: sessions, requests: requests))
+    }
+
+    private func drop(_ id: UUID) {
+        guard requests.contains(where: { $0.id == id }) else { return }
+        requests.removeAll { $0.id == id }
+        showWaiting(Self.waiting(in: sessions, requests: requests))
     }
 
     /// A new, renamed, or removed session file changes the folder; the hook script renames each
@@ -218,13 +290,20 @@ public final class AgentsFeature: NotchFeature {
                         duration: .seconds(3)))
             }
         }
-        showWaiting(Self.waiting(in: found))
+        showWaiting(Self.waiting(in: found, requests: requests))
     }
 
     /// The closed notch's reminder that agents are waiting for approval: the project when it's one.
-    static func waiting(in sessions: [AgentSession]) -> Activity? {
-        let waiting = sessions.filter { $0.state == .waiting }
-        guard let first = waiting.first else { return nil }
+    /// A session with a request held in the notch counts once.
+    static func waiting(in sessions: [AgentSession], requests: [AgentRequest] = []) -> Activity? {
+        var projects: [(id: String, project: String)] = requests.map {
+            ("\($0.tool.rawValue)-\($0.session)", $0.project)
+        }
+        for session in sessions where session.state == .waiting && !projects.contains(where: { $0.id == session.id }) {
+            projects.append((session.id, session.project))
+        }
+        let waiting = Set(projects.map(\.id))
+        guard let first = projects.first else { return nil }
         let title = waiting.count == 1 ? first.project : "\(waiting.count) waiting"
         return Activity(feature: .agents, symbol: "hand.raised.fill", title: title, duration: .zero)
     }
