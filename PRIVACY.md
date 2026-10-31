@@ -8,7 +8,7 @@ Topdeck is local-first.
   you turn it on, and when you run a Homebrew action in System Admin. With no
   provider on, no upload started, Synced lyrics off, and no Homebrew action
   run, none of them touches the network.
-- Synced lyrics (Settings › Media) is off until you turn it on. Then, while the
+- Synced lyrics (Settings › Now) is off until you turn it on. Then, while the
   notch shows what's playing, the title, artist, album, and length of the
   track go to lrclib.net, a free third-party service, to find its lyrics, and
   nothing else is sent. Found lyrics are cached on this Mac in
@@ -61,7 +61,7 @@ Topdeck is local-first.
   audio output, and macOS asks for "system audio recording" permission the first
   time. It listens only while the Media tab is open and something plays, turns
   the sound into loudness per frequency band as it plays, and never records,
-  stores, or sends audio. Turn it off in Settings › Media.
+  stores, or sends audio. Turn it off in Settings › Now.
 - Shuffle, repeat, Music's up next and lyrics, Spotify's recently played, and,
   in the App Store edition, all of Media's controls talk to Music or Spotify
   through their own AppleScript, on this Mac. macOS asks first (Privacy &

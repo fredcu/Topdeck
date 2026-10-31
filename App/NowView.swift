@@ -202,6 +202,7 @@ private struct LyricsLines: View {
             .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: cursor)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(cursor.current ?? "")
+            .accessibilityHidden(cursor.current == nil)
         }
     }
 

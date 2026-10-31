@@ -157,7 +157,7 @@ struct LyricsClient: Sendable {
     }
 
     /// The result that is this track and has synced lyrics: titles equal or one inside the other,
-    /// within 2 seconds. An equal title and artist wins, then the closest length. Nil beats the wrong song.
+    /// within 2 seconds, and unless the titles are equal the artists too. An equal title and artist wins, then the closest length. Nil beats the wrong song.
     static func best(_ records: [Record], for track: LyricsTrack) -> (lrc: String, lyrics: SyncedLyrics)? {
         let title = normalized(track.title)
         let artist = normalized(track.artist ?? "")
@@ -169,7 +169,15 @@ struct LyricsClient: Sendable {
             else { continue }
             let other = normalized(record.trackName ?? "")
             guard !other.isEmpty, other.contains(title) || title.contains(other) else { continue }
-            let rank = other == title && normalized(record.artistName ?? "") == artist ? 0 : 1
+            let otherArtist = normalized(record.artistName ?? "")
+            let sameArtist = otherArtist == artist
+            // A title that only contains the other ("Love" in "Love Story") must come with the artist.
+            if other != title, !sameArtist,
+                otherArtist.isEmpty || !(otherArtist.contains(artist) || artist.contains(otherArtist))
+            {
+                continue
+            }
+            let rank = other == title && sameArtist ? 0 : 1
             let gap = abs(duration - track.duration)
             if best.map({ (rank, gap) < ($0.rank, $0.gap) }) ?? true { best = (rank, gap, found) }
         }

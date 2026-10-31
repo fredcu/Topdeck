@@ -349,7 +349,7 @@ public final class MediaFeature: NotchFeature {
     /// and an off setting never touch the network or the cache.
     private func updateSynced() {
         guard syncedLyrics, phase == .foreground, let now = nowPlaying, !now.title.isEmpty,
-            let duration = now.duration, duration > 0
+            let duration = now.duration?.rounded(), duration > 0  // whole seconds: jitter isn't a new track
         else { return endSynced() }
         let track = LyricsTrack(title: now.title, artist: now.artist, album: now.album, duration: duration)
         guard track != syncedTrack else { return }

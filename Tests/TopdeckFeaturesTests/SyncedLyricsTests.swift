@@ -124,6 +124,18 @@ struct LyricsMatchingTests {
         #expect(best([record("")]) == nil)
     }
 
+    @Test func aContainedTitleNeedsTheArtistToo() {
+        let love = LyricsTrack(title: "Love", artist: "Ana Vale", duration: 200)
+        #expect(best([record("Love Story", "Someone Else")], for: love) == nil)
+        #expect(best([record("Love Story", "Ana Vale")], for: love) != nil)
+        #expect(best([record("Love Story", "Ana Vale & Friends")], for: love) != nil)
+        #expect(best([record("Love Story", "")], for: love) == nil)
+    }
+
+    @Test func anEqualTitleByAnotherArtistIsStillAccepted() {
+        #expect(best([record("Made Up", "Someone Else")]) != nil)
+    }
+
     @Test func caseAndAccentsDontMatter() {
         #expect(best([record("MADE ÚP")]) != nil)
     }
@@ -446,6 +458,19 @@ struct MediaSyncedLyricsTests {
         media.phase = .foreground
         try? await Task.sleep(for: .milliseconds(100))
         #expect(source.asked.isEmpty && media.synced == nil)
+        media.phase = .stopped
+    }
+
+    @Test func subSecondDurationJitterIsTheSameTrack() async {
+        let source = Source()
+        let media = feature(source)
+        media.phase = .foreground
+        media.receive(track("A", duration: 200.2))
+        #expect(await eventually { media.synced != nil })
+        media.receive(track("A", duration: 199.8))
+        #expect(media.synced != nil)
+        try? await Task.sleep(for: .milliseconds(50))
+        #expect(source.asked == ["A"])
         media.phase = .stopped
     }
 
