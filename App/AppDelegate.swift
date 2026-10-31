@@ -94,9 +94,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         var list: [CommandAction] = []
         func add(
             _ id: String, _ title: String, _ area: String, _ symbol: String, _ keywords: String = "",
-            _ run: @escaping @MainActor () -> Void
+            shortcut: String? = nil, _ run: @escaping @MainActor () -> Void
         ) {
-            list.append(CommandAction(id: id, title: title, area: area, symbol: symbol, keywords: keywords, run: run))
+            list.append(
+                CommandAction(
+                    id: id, title: title, area: area, symbol: symbol, keywords: keywords, shortcut: shortcut, run: run))
         }
         for space in preferences.spaceSet.spaces {
             add(
@@ -133,7 +135,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if windows.isEnabled {
             for action in WindowAction.allCases {
-                add("window.\(action.rawValue)", action.title, "Windows", "rectangle.split.2x1", "window snap move") {
+                add(
+                    "window.\(action.rawValue)", action.title, "Windows", "rectangle.split.2x1", "window snap move",
+                    shortcut: action.shortcutText
+                ) {
                     [windows] in windows.perform(action)
                 }
             }

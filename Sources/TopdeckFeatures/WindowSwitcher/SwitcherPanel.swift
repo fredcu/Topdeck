@@ -5,6 +5,7 @@ import AppKit
 import Observation
 import ScreenCaptureKit
 import SwiftUI
+import TopdeckSurface
 
 @MainActor
 @Observable
@@ -17,13 +18,16 @@ final class SwitcherModel {
     var icons: [pid_t: NSImage] = [:]
     var windowIDs: [Int: CGWindowID] = [:]
     var showsThumbnails = false
-    var itemSize: CGSize { showsThumbnails ? CGSize(width: 210, height: 150) : CGSize(width: 140, height: 112) }
+    var itemSize: CGSize { showsThumbnails ? CGSize(width: 210, height: 166) : CGSize(width: 140, height: 112) }
+    /// The board's four across; a row of icons alone can run as wide as the display allows.
+    var maxColumns: Int { showsThumbnails ? 4 : .max }
 
     var shown: [SwitcherEntry] { SwitcherList.filter(all, query: query) }
     var selected: SwitcherEntry? { shown.indices.contains(selection) ? shown[selection] : nil }
 
-    static let spacing: CGFloat = 8
+    static let spacing: CGFloat = 10
     static let padding: CGFloat = 16
+    /// The typed search, shown only while there is one.
     static let headerHeight: CGFloat = 30
 }
 
@@ -126,14 +130,15 @@ final class SwitcherPanelController {
         let size = model.itemSize
         let count = max(1, model.shown.count)
         let usable = screen.visibleFrame.width * 0.85 - SwitcherModel.padding * 2 + SwitcherModel.spacing
-        let columns = min(count, max(1, Int(usable / (size.width + SwitcherModel.spacing))))
+        let columns = min(count, model.maxColumns, max(1, Int(usable / (size.width + SwitcherModel.spacing))))
         let rows = min(4, (count + columns - 1) / columns)
         model.columns = columns
         let width = max(
             360,
             CGFloat(columns) * (size.width + SwitcherModel.spacing) - SwitcherModel.spacing + SwitcherModel.padding * 2)
         let height =
-            SwitcherModel.headerHeight + CGFloat(rows) * (size.height + SwitcherModel.spacing) + SwitcherModel.padding
+            (model.query.isEmpty ? 0 : SwitcherModel.headerHeight)
+            + CGFloat(rows) * (size.height + SwitcherModel.spacing) - SwitcherModel.spacing + SwitcherModel.padding * 2
         panel.setFrame(
             CGRect(x: screen.frame.midX - width / 2, y: screen.frame.midY - height / 2, width: width, height: height),
             display: true)
@@ -175,22 +180,24 @@ private final class SwitcherPanel: NSPanel {
 
 // MARK: Views
 
-private struct SwitcherView: View {
+struct SwitcherView: View {
     let model: SwitcherModel
     let onClick: (Int) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass").foregroundStyle(model.query.isEmpty ? .tertiary : .secondary)
-                Text(model.query).font(.system(size: 13, weight: .medium))
-                Spacer()
+            if !model.query.isEmpty {
+                HStack(spacing: 8) {
+                    DeckIconView(.search, size: 14).foregroundStyle(Deck.tertiary)
+                    Text(model.query).deckText(.body)
+                    Spacer()
+                }
+                .padding(.horizontal, 8)
+                .frame(height: SwitcherModel.headerHeight)
             }
-            .padding(.horizontal, 20)
-            .frame(height: SwitcherModel.headerHeight)
-            .padding(.top, 8)
             if model.shown.isEmpty {
-                Text("No matches").foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
+                Text("No matches").deckText(.body, color: Deck.tertiary).frame(
+                    maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollViewReader { proxy in
                     ScrollView(.vertical, showsIndicators: false) {
@@ -211,19 +218,22 @@ private struct SwitcherView: View {
                                 .onTapGesture { onClick(index) }
                             }
                         }
-                        .padding(.horizontal, SwitcherModel.padding)
-                        .padding(.bottom, SwitcherModel.padding)
                     }
                     .onChange(of: model.selection) { _, index in proxy.scrollTo(index) }
                 }
             }
         }
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(.white.opacity(0.12)))
+        .padding(SwitcherModel.padding)
+        .background(
+            Deck.Floating.panel, in: RoundedRectangle(cornerRadius: Deck.Floating.switcherRadius, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Deck.Floating.switcherRadius, style: .continuous)
+                .strokeBorder(Deck.hairline, lineWidth: 1))
     }
 }
 
-private struct SwitcherItem: View {
+struct SwitcherItem: View {
     let entry: SwitcherEntry
     let icon: NSImage?
     let thumbnail: NSImage?
@@ -231,56 +241,64 @@ private struct SwitcherItem: View {
     let isSelected: Bool
     let size: CGSize
 
+    /// "Xcode: AppDelegate.swift"; a window named for its app is just the app.
+    private var label: String { entry.title == entry.appName ? entry.appName : "\(entry.appName): \(entry.title)" }
+
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 8) {
             if showsThumbnail {
-                ZStack(alignment: .bottomTrailing) {
-                    Group {
-                        if let thumbnail {
-                            Image(nsImage: thumbnail).resizable().aspectRatio(contentMode: .fit)
-                        } else {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.primary.opacity(0.06))
-                                iconView.frame(width: 46, height: 46)
-                            }
-                        }
+                ZStack {
+                    Deck.Floating.well
+                    if let thumbnail {
+                        Image(nsImage: thumbnail).resizable().aspectRatio(contentMode: .fit)
+                    } else {
+                        iconView(46)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    if thumbnail != nil { iconView.frame(width: 26, height: 26).padding(4) }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 124)
+                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                HStack(spacing: 7) {
+                    iconView(18)
+                    Text(label)
+                        .deckText(.body, color: entry.isMinimized ? Deck.secondary : Deck.text)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Spacer(minLength: 0)
                 }
             } else {
-                iconView.frame(width: 56, height: 56)
-            }
-            Text(entry.title)
-                .font(.system(size: 12, weight: .medium))
-                .lineLimit(showsThumbnail ? 1 : 2)
-                .multilineTextAlignment(.center)
-        }
-        .overlay(alignment: .topTrailing) {
-            if entry.isMinimized {
-                Image(systemName: "arrow.down.forward.square.fill")
-                    .symbolRenderingMode(.palette)
-                    .foregroundStyle(.white, .orange)
-                    .accessibilityLabel("Minimized")
+                iconView(56)
+                Text(label)
+                    .deckText(.body, color: entry.isMinimized ? Deck.secondary : Deck.text)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
             }
         }
         .padding(8)
-        .frame(width: size.width, height: size.height)
+        .frame(width: size.width, height: size.height, alignment: .top)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous).fill(
-                isSelected ? Color.primary.opacity(0.18) : .clear)
+            RoundedRectangle(cornerRadius: 13, style: .continuous).fill(isSelected ? Deck.control : .clear)
         )
-        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            if isSelected {
+                RoundedRectangle(cornerRadius: 13, style: .continuous).strokeBorder(Deck.signal, lineWidth: 1.5)
+            }
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(entry.isMinimized ? "\(label), minimized" : label)
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 
-    private var iconView: some View {
+    private func iconView(_ side: CGFloat) -> some View {
         Group {
             if let icon {
                 Image(nsImage: icon).resizable().interpolation(.high)
             } else {
-                Image(systemName: "macwindow").resizable().scaledToFit().foregroundStyle(.secondary)
+                DeckIconView(.app, size: side).foregroundStyle(Deck.tertiary)
             }
         }
+        .frame(width: side, height: side)
+        .accessibilityHidden(true)
     }
 }
