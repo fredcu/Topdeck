@@ -81,29 +81,25 @@ private struct MediaCard: View {
     var body: some View {
         if let now = media.nowPlaying {
             DeckCard {
-                VStack(spacing: 12) {
-                    HStack(spacing: 12) {
-                        artwork
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(now.title).deckText(.item).lineLimit(1)
-                            if let artist = now.artist { Text(artist).deckText(.detail).lineLimit(1) }
+                // The smallest deck has no height for the big cover and the controls under it.
+                ViewThatFits(in: .vertical) {
+                    VStack(spacing: 12) {
+                        HStack(spacing: 12) {
+                            artwork(72)
+                            titles(now)
+                            Spacer(minLength: 0)
                         }
                         Spacer(minLength: 0)
+                        controls(now)
                     }
-                    Spacer(minLength: 0)
-                    VStack(spacing: 8) {
-                        progress(now)
-                        HStack {
-                            Spacer(minLength: 0)
-                            HStack(spacing: 18) {
-                                transport(.previous, "Previous", .previousTrack)
-                                transport(
-                                    now.isPlaying ? .pause : .play, now.isPlaying ? "Pause" : "Play", .togglePlayPause,
-                                    on: true)
-                                transport(.next, "Next", .nextTrack)
-                            }
+                    VStack(spacing: 6) {
+                        HStack(spacing: 10) {
+                            artwork(40)
+                            titles(now)
                             Spacer(minLength: 0)
                         }
+                        Spacer(minLength: 0)
+                        controls(now)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -111,7 +107,14 @@ private struct MediaCard: View {
         }
     }
 
-    private var artwork: some View {
+    private func titles(_ now: NowPlaying) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(now.title).deckText(.item).lineLimit(1)
+            if let artist = now.artist { Text(artist).deckText(.detail).lineLimit(1) }
+        }
+    }
+
+    private func artwork(_ side: CGFloat) -> some View {
         Group {
             if let image = media.artwork {
                 Image(nsImage: image).resizable().aspectRatio(contentMode: .fill)
@@ -119,21 +122,30 @@ private struct MediaCard: View {
                 Deck.control
             }
         }
-        .frame(width: 72, height: 72)
+        .frame(width: side, height: side)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .accessibilityHidden(true)
     }
 
-    /// The bar with the elapsed time under its left end and the length under its right.
-    private func progress(_ now: NowPlaying) -> some View {
+    /// The bar, and under it the elapsed time, the transport, and the length.
+    private func controls(_ now: NowPlaying) -> some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             let position = Self.position(now, at: context.date)
-            VStack(spacing: 6) {
+            VStack(spacing: 8) {
                 DeckBar(now.duration.map { $0 > 0 ? position / $0 : 0 } ?? 0)
-                HStack {
-                    Text(Self.clock(position)).deckText(.caption)
-                    Spacer()
-                    if let duration = now.duration { Text(Self.clock(duration)).deckText(.caption) }
+                ZStack {
+                    HStack {
+                        Text(Self.clock(position)).deckText(.caption)
+                        Spacer()
+                        if let duration = now.duration { Text(Self.clock(duration)).deckText(.caption) }
+                    }
+                    HStack(spacing: 18) {
+                        transport(.previous, "Previous", .previousTrack)
+                        transport(
+                            now.isPlaying ? .pause : .play, now.isPlaying ? "Pause" : "Play", .togglePlayPause,
+                            on: true)
+                        transport(.next, "Next", .nextTrack)
+                    }
                 }
             }
         }
@@ -178,12 +190,12 @@ private struct AgentCard: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
                     DeckIconView(.hand)
-                    Text(project).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                    Text(project).deckText(.body, color: Deck.signal).fontWeight(.semibold).lineLimit(1)
                     Spacer(minLength: Deck.Metric.gap)
                     Text(detail).deckText(.caption).lineLimit(1)
                 }
                 .foregroundStyle(Deck.signal)
-                Text(summary).deckText(.command).lineLimit(3)
+                Text(summary).deckText(.command).lineLimit(3).truncationMode(.middle)
                 Spacer(minLength: 0)
                 HStack(spacing: Deck.Metric.gap) { buttons }
             }
@@ -219,13 +231,13 @@ private struct AgentCard: View {
         switch waiting {
         case .request(let request) where !request.isQuestion:
             Button("Allow") { agents.answer(request, .allow) }
-                .buttonStyle(.deck(.primary)).frame(maxWidth: .infinity)
+                .buttonStyle(.deck(.primary, fill: true))
             Button("Deny") { agents.answer(request, .deny) }
-                .buttonStyle(.deck()).frame(maxWidth: .infinity)
+                .buttonStyle(.deck(fill: true))
         case .request:
-            Button("Answer") { open(.agents) }.buttonStyle(.deck(.accent)).frame(maxWidth: .infinity)
+            Button("Answer") { open(.agents) }.buttonStyle(.deck(.accent, fill: true))
         case .session(let session):
-            Button("Open") { agents.open(session) }.buttonStyle(.deck(.outline)).frame(maxWidth: .infinity)
+            Button("Open") { agents.open(session) }.buttonStyle(.deck(.outline, fill: true))
         }
     }
 }
@@ -253,7 +265,11 @@ private struct EventCard: View {
                         }
                     }
                 }
-                if event != nil, task != nil { DeckSeparator() }
+                if event != nil, task != nil {
+                    Spacer(minLength: 0)
+                    DeckSeparator()
+                    Spacer(minLength: 0)
+                }
                 if let task {
                     HStack {
                         Text(task.title).deckText(.body).lineLimit(1)

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 import AppKit
 import SwiftUI
+import TopdeckSurface
 
 /// The shelf tab: dropped files in a scrolling row. Drag them back out, double-click to preview,
 /// or use the context menu to reveal, AirDrop, upload to R2, or remove them.
@@ -9,36 +10,62 @@ struct ShelfView: View {
 
     var body: some View {
         if shelf.items.isEmpty {
-            VStack(spacing: 8) {
-                FeatureUnavailableView(
-                    symbol: "tray.and.arrow.down",
-                    title: "Drop files here",
-                    message: "Drag files onto the notch to keep them handy, then drag them back out when you need them."
-                )
-            }
+            DeckEmptyLine("Drop files here")
         } else {
-            VStack(alignment: .leading, spacing: 6) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(alignment: .top, spacing: 8) {
-                        ForEach(shelf.items.reversed()) { item in
-                            ShelfItemView(shelf: shelf, item: item)
+            VStack(spacing: 0) {
+                DeckCard(padding: 0) {
+                    ScrollView(.horizontal) {
+                        LazyHStack(alignment: .top, spacing: Deck.Metric.gap) {
+                            ForEach(shelf.items.reversed()) { item in
+                                ShelfItemView(shelf: shelf, item: item)
+                            }
+                            DropTile()
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 20)
                     }
+                    .fadingEdges(.horizontal)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                }
+                Text("^[\(shelf.items.count) item](inflect: true)")
+                    .deckText(.caption)
                     .padding(.horizontal, 6)
-                }
-                .fadingEdges(.horizontal)
-                HStack(spacing: 12) {
-                    Text(shelf.items.count == 1 ? "1 item" : "\(shelf.items.count) items")
-                        .foregroundStyle(.white.opacity(0.5))
-                    Spacer()
-                    Button("AirDrop All") { shelf.airDrop(shelf.items) }
-                    Button("Clear") { shelf.removeAll() }
-                }
-                .font(.caption)
-                .buttonStyle(.plain)
-                .lineLimit(1)
+                    .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
             }
         }
+    }
+}
+
+extension ShelfFeature {
+    /// The second row's buttons: AirDrop everything, and clear the shelf.
+    public var headerActions: some View { ShelfActions(shelf: self) }
+}
+
+private struct ShelfActions: View {
+    let shelf: ShelfFeature
+
+    var body: some View {
+        if !shelf.items.isEmpty {
+            DeckIconButton(.share, label: "AirDrop All") { shelf.airDrop(shelf.items) }
+            DeckIconButton(.trash, label: "Clear") { shelf.removeAll() }
+        }
+    }
+}
+
+/// The empty slot at the end of the row: where the next file goes.
+private struct DropTile: View {
+    var body: some View {
+        VStack(spacing: 8) {
+            DeckIconView(.plus, size: 20)
+                .foregroundStyle(Deck.tertiary)
+                .frame(width: 84, height: 84)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Deck.hairline, lineWidth: 1.5)
+                )
+            Text("Drop").deckText(.caption)
+        }
+        .frame(width: 104)
+        .accessibilityHidden(true)
     }
 }
 
@@ -48,23 +75,27 @@ private struct ShelfItemView: View {
 
     var body: some View {
         let url = shelf.url(for: item)
-        VStack(spacing: 4) {
+        VStack(spacing: 8) {
             icon(for: url)
                 .resizable()
-                .frame(width: 44, height: 44)
+                .scaledToFit()
+                .frame(width: 52, height: 52)
                 .opacity(url == nil ? 0.35 : 1)
+                .frame(width: 84, height: 84)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Deck.cardRaised))
             // One line, middle-truncated, so the extension stays readable (never "Screenshot.p-ng").
             Text(item.name)
-                .font(.caption2)
+                .deckText(.body)
                 .lineLimit(1)
                 .truncationMode(.middle)
+                .frame(width: 104)
             if url == nil {
-                Text("Missing").font(.caption2.bold()).foregroundStyle(.orange)
+                Text("Missing").deckText(.caption, color: Deck.stop)
             } else if let status {
                 UploadStatusView(status: status)
             }
         }
-        .frame(width: 76)
+        .frame(width: 104)
         .contentShape(Rectangle())
         .onDrag { url.flatMap { NSItemProvider(contentsOf: $0) } ?? NSItemProvider() }
         .onTapGesture(count: 2) { shelf.quickLook(item) }
@@ -129,11 +160,11 @@ private struct UploadStatusView: View {
     var body: some View {
         switch status {
         case .uploading(let fraction):
-            ProgressView(value: fraction).progressViewStyle(.linear).controlSize(.mini).frame(width: 44)
+            DeckBar(fraction).frame(width: 52)
         case .uploaded:
-            Image(systemName: "checkmark.icloud").font(.caption2).foregroundStyle(.green)
+            DeckIconView(.check, size: 13).foregroundStyle(Deck.go)
         case .failed(let reason, _):
-            Text("Failed").font(.caption2.bold()).foregroundStyle(.orange).help(reason)
+            Text("Failed").deckText(.caption, color: Deck.stop).help(reason)
         }
     }
 }
