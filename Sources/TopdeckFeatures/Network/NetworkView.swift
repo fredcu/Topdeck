@@ -1,129 +1,65 @@
 // SPDX-License-Identifier: MIT
 import SwiftUI
-
-/// Download in Vercel's Geist blue and upload in its amber: the dark-mode pair NetSpeed's palette
-/// validator picked to tell apart with any color vision, each with a lighter step for gradients.
-enum NetworkTint {
-    static let down = Color(red: 0.196, green: 0.569, blue: 1)  // #3291FF
-    static let downLight = Color(red: 0.51, green: 0.76, blue: 1)  // #82C2FF
-    static let up = Color(red: 0.851, green: 0.467, blue: 0.024)  // #D97706
-    static let upLight = Color(red: 0.98, green: 0.73, blue: 0.33)  // #FABA54
-
-    /// Lit from the top, like the Sound tab's faders.
-    static var downFill: LinearGradient { lit(down, from: downLight) }
-    static var upFill: LinearGradient { lit(up, from: upLight) }
-
-    private static func lit(_ color: Color, from light: Color) -> LinearGradient {
-        LinearGradient(colors: [light, color], startPoint: .top, endPoint: .bottom)
-    }
-}
+import TopdeckSurface
 
 /// The Network tab: the speed now over a graph of the last minute, beside the history as bars by
-/// the hour, day, or month. A short notch keeps the numbers and the bars and drops the captions.
+/// the hour, day, or month. Download is the bright one and upload the quiet one, in the graph, the
+/// totals and the bars alike.
 struct NetworkView: View {
     let network: NetworkFeature
 
     var body: some View {
         GeometryReader { proxy in
-            let compact = proxy.size.height < 140
-            HStack(spacing: 8) {
-                LiveCard(network: network, compact: compact)
+            HStack(spacing: Deck.Metric.gap) {
+                LiveCard(network: network)
                     .frame(width: min(max(proxy.size.width * 0.38, 132), 230))
-                HistoryCard(network: network, compact: compact)
+                HistoryCard(network: network)
             }
         }
-    }
-}
-
-/// Cards like the AI Usage tiles: a faint tint from the top corner and a hairline edge.
-private struct Card: ViewModifier {
-    let tint: Color
-
-    func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
-        content
-            .background(
-                shape.fill(
-                    LinearGradient(
-                        colors: [tint.opacity(0.16), .white.opacity(0.03)], startPoint: .topLeading,
-                        endPoint: .bottomTrailing))
-            )
-            .clipShape(shape)
-            .overlay(shape.strokeBorder(.white.opacity(0.08)))
     }
 }
 
 /// The download's speed, big, with the upload's under it, over the last minute's graph.
 private struct LiveCard: View {
     let network: NetworkFeature
-    let compact: Bool
 
     var body: some View {
         let rate = network.rate
         let down = NetworkFeature.speed(rate.down)
         let up = NetworkFeature.speed(rate.up)
-        let padding: CGFloat = compact ? 8 : 10
-        VStack(alignment: .leading, spacing: compact ? 1 : 3) {
-            if !compact {
+        DeckCard {
+            VStack(alignment: .leading, spacing: 6) {
                 // The minute's peak joins the caption where there's room for both.
                 ViewThatFits(in: .horizontal) {
                     HStack {
-                        label("Download", color: NetworkTint.down)
+                        Text("Download").deckText(.caption)
                         Spacer(minLength: 6)
                         if let peak = network.recent.map(\.rate.down).max(), peak > 0 {
                             let speed = NetworkFeature.speed(peak)
-                            Text("peak \(speed.value) \(speed.unit)")
-                                .font(.system(size: 9, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.45))
-                                .fixedSize()
+                            Text("peak \(speed.value) \(speed.unit)").deckText(.caption)
                         }
                     }
-                    label("Download", color: NetworkTint.down)
+                    Text("Download").deckText(.caption)
                 }
-            }
-            HStack(alignment: .firstTextBaseline, spacing: 3) {
-                if compact {
-                    Image(systemName: "arrow.down")
-                        .font(.system(size: 11, weight: .heavy))
-                        .foregroundStyle(NetworkTint.downLight)
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(down.value).deckText(.metric)
+                    Text(down.unit).deckText(.detail)
+                }
+                HStack {
+                    Text("Upload").deckText(.caption)
+                    Spacer(minLength: 6)
+                    Text("\(up.value) \(up.unit)").deckText(.body)
                 }
                 // ponytail: no rolling digits. A numericText transition on a number that changes every
                 // second kept the open tab at 12-51% of a core (0.5% without); roll them only if that changes.
-                Text(down.value)
-                    .font(.system(size: compact ? 22 : 32, weight: .bold, design: .rounded))
-                Text(down.unit)
-                    .font(.system(size: compact ? 10 : 12, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.55))
+                Sparkline(samples: network.recent).padding(.top, 4)
             }
-            HStack(spacing: 3) {
-                Image(systemName: "arrow.up").font(.system(size: compact ? 8 : 9, weight: .heavy))
-                Text("\(up.value) \(up.unit)")
-            }
-            .font(.system(size: compact ? 10.5 : 13, weight: .semibold, design: .rounded))
-            .foregroundStyle(NetworkTint.upLight)
-            Sparkline(samples: network.recent)
-                .padding(.horizontal, -padding)
-                .padding(.bottom, -padding)
-                .padding(.top, compact ? 2 : 6)
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .monospacedDigit()
-        .lineLimit(1)
-        .padding(padding)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .modifier(Card(tint: NetworkTint.down))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Network speed")
         .accessibilityValue("\(Self.spoken(down)) down, \(Self.spoken(up)) up")
-    }
-
-    private func label(_ title: String, color: Color) -> some View {
-        HStack(spacing: 4) {
-            Circle().fill(color).frame(width: 6, height: 6).shadow(color: color, radius: 2)
-            Text(title).textCase(.uppercase).tracking(0.6)
-        }
-        .font(.system(size: 9, weight: .bold))
-        .foregroundStyle(.white.opacity(0.5))
-        .fixedSize()
     }
 
     static func spoken(_ speed: (value: String, unit: String)) -> String {
@@ -131,16 +67,16 @@ private struct LiveCard: View {
     }
 }
 
-/// The last minute of speed: the download as a glowing blue area with a dot on its latest reading,
-/// and the upload as an amber line. Scaled to the minute's peak, never below 100 KB/s, so idle
-/// chatter stays a ripple. Drawn once per reading, never animated in between.
+/// The last minute of speed: the download as a bright area with a dot on its latest reading, and the
+/// upload as a quiet line. Scaled to the minute's peak, never below 100 KB/s, so idle chatter stays a
+/// ripple. Drawn once per reading, never animated in between.
 private struct Sparkline: View {
     let samples: [RateSample]
 
     var body: some View {
         Canvas { context, size in
             let baseline = Path(CGRect(x: 0, y: size.height - 1, width: size.width, height: 1))
-            context.fill(baseline, with: .color(.white.opacity(0.06)))
+            context.fill(baseline, with: .color(Deck.hairline))
             guard samples.count > 1, let latest = samples.last?.at else { return }
             let peak = max(samples.map { max($0.rate.down, $0.rate.up) }.max() ?? 0, 100_000)
             let top: CGFloat = 8
@@ -162,20 +98,16 @@ private struct Sparkline: View {
             context.fill(
                 area,
                 with: .linearGradient(
-                    Gradient(colors: [NetworkTint.down.opacity(0.5), NetworkTint.down.opacity(0.02)]),
+                    Gradient(colors: [Deck.text.opacity(0.3), Deck.text.opacity(0.02)]),
                     startPoint: CGPoint(x: 0, y: top), endPoint: CGPoint(x: 0, y: size.height)))
             context.stroke(
-                Self.smooth(points(\.up)), with: .color(NetworkTint.up),
+                Self.smooth(points(\.up)), with: .color(Deck.tertiary),
                 style: StrokeStyle(lineWidth: 1.2, lineCap: .round, lineJoin: .round))
-            context.drawLayer { glow in
-                glow.addFilter(.shadow(color: NetworkTint.down, radius: 3))
-                glow.stroke(
-                    line, with: .color(NetworkTint.downLight),
-                    style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
-                let head = down[down.count - 1]
-                let dot = CGRect(x: head.x - 3, y: head.y - 3, width: 6, height: 6)
-                glow.fill(Path(ellipseIn: dot), with: .color(.white))
-            }
+            context.stroke(
+                line, with: .color(Deck.text), style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            let head = down[down.count - 1]
+            context.fill(
+                Path(ellipseIn: CGRect(x: head.x - 3, y: head.y - 3, width: 6, height: 6)), with: .color(Deck.text))
         }
         .accessibilityHidden(true)
     }
@@ -198,115 +130,54 @@ private struct Sparkline: View {
 /// pointer's), and its bars.
 private struct HistoryCard: View {
     let network: NetworkFeature
-    let compact: Bool
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var picked: Int?
-    @Namespace private var selection
 
     var body: some View {
         let buckets = network.buckets
         let bar = picked.flatMap { buckets.indices.contains($0) ? buckets[$0] : nil }
         let traffic = bar?.traffic ?? buckets.reduce(Traffic()) { $0 + $1.traffic }
-        let caption = bar.map { network.range.label($0.start) } ?? network.range.caption
-        VStack(alignment: .leading, spacing: compact ? 4 : 6) {
-            if compact {
-                // The bar under the pointer shows its time where the switch was.
-                Group {
-                    if bar == nil {
-                        picker(short: true)
-                    } else {
-                        Text(caption)
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.75))
-                    }
-                }
-                .frame(height: 20)
-            } else {
-                picker(short: false)
-                Text(caption)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.5))
-            }
-            Totals(traffic: traffic, compact: compact)
-            Bars(buckets: buckets, range: network.range, picked: $picked)
-            if !compact, let first = buckets.first, let last = buckets.last {
+        DeckCard {
+            VStack(alignment: .leading, spacing: Deck.Metric.gap) {
                 HStack {
-                    Text(network.range.axisLabel(first.start))
-                    Spacer()
-                    Text(network.range.axisLabel(buckets[buckets.count / 2].start))
-                    Spacer()
-                    Text(network.range.axisLabel(last.start))
+                    DeckSegmented(HistoryRange.allCases, selection: network.range, title: \.title) { range in
+                        picked = nil
+                        network.range = range
+                    }
+                    .fixedSize()
+                    Spacer(minLength: Deck.Metric.gap)
+                    // The bar under the pointer says which one it is.
+                    if let bar { Text(network.range.label(bar.start)).deckText(.detail).lineLimit(1) }
                 }
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(.white.opacity(0.4))
-                .accessibilityHidden(true)
-            }
-        }
-        .padding(compact ? 8 : 10)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .modifier(Card(tint: .white))
-        .animation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.82), value: network.range)
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: picked)
-    }
-
-    /// Day, Week, Month, and Year, or 24h, 7d, 30d, and 1y in a short notch, with a light that slides to
-    /// the one picked.
-    private func picker(short: Bool) -> some View {
-        HStack(spacing: 0) {
-            ForEach(HistoryRange.allCases) { range in
-                let chosen = network.range == range
-                Button {
-                    picked = nil
-                    network.range = range
-                } label: {
-                    Text(short ? range.shortTitle : range.title)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.white.opacity(chosen ? 1 : 0.5))
-                        .padding(.horizontal, short ? 6 : 8)
-                        .frame(height: short ? 16 : 18)
-                        .background {
-                            if chosen {
-                                Capsule().fill(.white.opacity(0.16)).matchedGeometryEffect(id: "range", in: selection)
-                            }
-                        }
-                        .contentShape(Capsule())
+                Totals(traffic: traffic)
+                Bars(buckets: buckets, range: network.range, picked: $picked)
+                if let first = buckets.first, let last = buckets.last {
+                    HStack {
+                        Text(network.range.axisLabel(first.start))
+                        Spacer()
+                        Text(network.range.axisLabel(buckets[buckets.count / 2].start))
+                        Spacer()
+                        Text(network.range.axisLabel(last.start))
+                    }
+                    .deckText(.caption)
+                    .accessibilityHidden(true)
                 }
-                .buttonStyle(.plain)
-                .help(range.caption)
-                .accessibilityLabel(range.caption)
-                .accessibilityAddTraits(chosen ? .isSelected : [])
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .padding(2)
-        .background(.white.opacity(0.07), in: Capsule())
-        .fixedSize()
     }
-
 }
 
-/// Download, upload, and the two together, in the bars' colors: three columns under the switch, or
-/// one line in a short notch, whose type shrinks a little before a number would go.
+/// Download, upload, and the two together: three columns, the first two keyed to the bars' shades.
 private struct Totals: View {
     let traffic: Traffic
-    let compact: Bool
 
     var body: some View {
-        Group {
-            if compact {
-                ViewThatFits(in: .horizontal) {
-                    line(size: 10.5)
-                    line(size: 9.5)
-                }
-            } else {
-                HStack(alignment: .top, spacing: 8) {
-                    column("Download", traffic.down, color: NetworkTint.downLight, dot: NetworkTint.down)
-                    column("Upload", traffic.up, color: NetworkTint.upLight, dot: NetworkTint.up)
-                    column("Total", traffic.total, color: .white, dot: nil)
-                }
-            }
+        HStack(alignment: .top, spacing: Deck.Metric.gap) {
+            column("Download", traffic.down, dot: Deck.text)
+            column("Upload", traffic.up, dot: Deck.tertiary)
+            column("Total", traffic.total, dot: nil)
         }
-        .monospacedDigit()
         .lineLimit(1)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
@@ -314,30 +185,13 @@ private struct Totals: View {
                 + "\(NetworkFeature.bytes(traffic.total)) in all")
     }
 
-    private func line(size: CGFloat) -> some View {
-        HStack(spacing: size * 0.55) {
-            Text("↓ \(NetworkFeature.bytes(traffic.down))").foregroundStyle(NetworkTint.downLight)
-            Text("↑ \(NetworkFeature.bytes(traffic.up))").foregroundStyle(NetworkTint.upLight)
-            Spacer(minLength: 0)
-            HStack(spacing: 3) {
-                Text("Total").foregroundStyle(.white.opacity(0.5))
-                Text(NetworkFeature.bytes(traffic.total))
+    private func column(_ title: String, _ bytes: Int64, dot: Color?) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 5) {
+                if let dot { Circle().fill(dot).frame(width: 7, height: 7) }
+                Text(title).deckText(.caption)
             }
-        }
-        .font(.system(size: size, weight: .semibold, design: .rounded))
-    }
-
-    private func column(_ title: String, _ bytes: Int64, color: Color, dot: Color?) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            HStack(spacing: 3) {
-                if let dot { Circle().fill(dot).frame(width: 5, height: 5) }
-                Text(title).textCase(.uppercase).tracking(0.4)
-            }
-            .font(.system(size: 8.5, weight: .bold))
-            .foregroundStyle(.white.opacity(0.5))
-            Text(NetworkFeature.bytes(bytes))
-                .font(.system(size: 15, weight: .bold, design: .rounded))
-                .foregroundStyle(color)
+            Text(NetworkFeature.bytes(bytes)).deckText(.item)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -358,9 +212,8 @@ private struct Bars: View {
             let width = max(1, (proxy.size.width - gap * (count - 1)) / count)
             HStack(alignment: .bottom, spacing: gap) {
                 ForEach(Array(buckets.enumerated()), id: \.offset) { index, bucket in
-                    Bar(
-                        traffic: bucket.traffic, width: width, scale: proxy.size.height / peak,
-                        lit: picked == nil || picked == index, now: index == buckets.count - 1, order: index)
+                    Bar(traffic: bucket.traffic, width: width, scale: proxy.size.height / peak)
+                        .opacity(picked == nil || picked == index ? 1 : 0.35)
                 }
             }
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .bottomLeading)
@@ -397,46 +250,21 @@ private struct Bars: View {
     }
 }
 
-/// Upload stacked on download, rounded on top, or a sliver while empty so the row keeps its shape. It
-/// rises into place when it appears, a moment after the bar before it, and glows while it's now's.
+/// Upload stacked on download, rounded on top, or a sliver while empty so the row keeps its shape.
 private struct Bar: View {
     let traffic: Traffic
     let width: CGFloat
     /// Points per byte.
     let scale: CGFloat
-    let lit: Bool
-    let now: Bool
-    /// Its place in the row, for the rising wave.
-    let order: Int
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var risen = false
 
     var body: some View {
-        let scale = risen ? scale : 0
         let radius = min(width / 2, 3)
         ZStack(alignment: .bottom) {
-            let empty = traffic.total == 0
-            Rectangle().fill(empty ? AnyShapeStyle(.white.opacity(0.08)) : AnyShapeStyle(NetworkTint.upFill))
-            Rectangle().fill(NetworkTint.downFill).frame(height: CGFloat(traffic.down) * scale)
+            Rectangle().fill(traffic.total == 0 ? Deck.control : Deck.tertiary)
+            Rectangle().fill(Deck.text).frame(height: CGFloat(traffic.down) * scale)
         }
         .frame(width: width, height: max(CGFloat(traffic.total) * scale, 2))
         .clipShape(UnevenRoundedRectangle(topLeadingRadius: radius, topTrailingRadius: radius, style: .continuous))
-        .background {
-            // A glow for now's bar only: a shadow on every bar, even a clear one, costs a pass each.
-            if now, traffic.total > 0 {
-                UnevenRoundedRectangle(topLeadingRadius: radius, topTrailingRadius: radius, style: .continuous)
-                    .fill(NetworkTint.down)
-                    .blur(radius: 4)
-                    .opacity(0.7)
-            }
-        }
-        .opacity(lit ? 1 : 0.35)
-        .onAppear {
-            let rise: Animation? =
-                reduceMotion ? nil : .spring(response: 0.55, dampingFraction: 0.78).delay(Double(order) * 0.012)
-            withAnimation(rise) { risen = true }
-        }
     }
 }
 

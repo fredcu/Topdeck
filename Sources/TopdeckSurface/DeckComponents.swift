@@ -56,23 +56,27 @@ public enum DeckButtonKind: Sendable {
     case outline
 }
 
-/// A text button, 32 high with a 9 point radius; `compact` is the small one inside a row.
+/// A text button, 32 high with a 9 point radius; `compact` is the small one inside a row, and `fill`
+/// stretches it, background and all, across the width it's given (the boards' `flex: 1`).
 public struct DeckButtonStyle: ButtonStyle {
     let kind: DeckButtonKind
     let compact: Bool
+    let fill: Bool
 
-    public init(_ kind: DeckButtonKind = .standard, compact: Bool = false) {
+    public init(_ kind: DeckButtonKind = .standard, compact: Bool = false, fill: Bool = false) {
         self.kind = kind
         self.compact = compact
+        self.fill = fill
     }
 
     public func makeBody(configuration: Configuration) -> some View {
-        Rendered(kind: kind, compact: compact, configuration: configuration)
+        Rendered(kind: kind, compact: compact, fill: fill, configuration: configuration)
     }
 
     private struct Rendered: View {
         let kind: DeckButtonKind
         let compact: Bool
+        let fill: Bool
         let configuration: ButtonStyleConfiguration
         @Environment(\.isEnabled) private var enabled
 
@@ -83,14 +87,15 @@ public struct DeckButtonStyle: ButtonStyle {
                 .foregroundStyle(kind == .primary || kind == .accent ? Deck.onFill : Deck.text)
                 .lineLimit(1)
                 .padding(.horizontal, compact ? 9 : 13)
+                .frame(maxWidth: fill ? .infinity : nil)
                 .frame(height: compact ? 23 : Deck.Metric.buttonHeight)
-                .background(shape.fill(fill))
+                .background(shape.fill(background))
                 .overlay { if kind == .outline { shape.strokeBorder(Deck.hairline, lineWidth: 1) } }
                 .contentShape(shape)
                 .opacity(enabled ? (configuration.isPressed ? 0.75 : 1) : 0.4)
         }
 
-        private var fill: Color {
+        private var background: Color {
             switch kind {
             case .standard: Deck.control
             case .primary: Deck.text
@@ -135,8 +140,10 @@ public struct DeckIconButtonStyle: ButtonStyle {
 
 extension ButtonStyle where Self == DeckButtonStyle {
     /// The deck's text button.
-    public static func deck(_ kind: DeckButtonKind = .standard, compact: Bool = false) -> DeckButtonStyle {
-        DeckButtonStyle(kind, compact: compact)
+    public static func deck(_ kind: DeckButtonKind = .standard, compact: Bool = false, fill: Bool = false)
+        -> DeckButtonStyle
+    {
+        DeckButtonStyle(kind, compact: compact, fill: fill)
     }
 }
 
@@ -166,6 +173,93 @@ public struct DeckIconButton: View {
             .buttonStyle(.deckIcon(on: on))
             .help(label)
             .accessibilityLabel(label)
+    }
+}
+
+// MARK: Chips and fields
+
+/// A small choice in a row of them, 27 high: lit white when picked, an outline when not. A day.
+public struct DeckChip: View {
+    let title: String
+    let selected: Bool
+    let action: () -> Void
+
+    public init(_ title: String, selected: Bool, action: @escaping () -> Void) {
+        self.title = title
+        self.selected = selected
+        self.action = action
+    }
+
+    public var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Deck.Radius.control, style: .continuous)
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(selected ? Deck.onFill : Deck.secondary)
+                .lineLimit(1)
+                .padding(.horizontal, 6)
+                .frame(minWidth: 36, minHeight: Deck.Metric.navHeight)
+                .background(shape.fill(selected ? Deck.text : .clear))
+                .overlay { if !selected { shape.strokeBorder(Deck.hairline, lineWidth: 1) } }
+                .contentShape(shape)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+/// A rounded capsule for one preset: 30 minutes, 1 hour. Lit when `on`.
+public struct DeckPillButtonStyle: ButtonStyle {
+    let on: Bool
+
+    public init(on: Bool = false) { self.on = on }
+
+    public func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(on ? Deck.onFill : Deck.text)
+            .lineLimit(1)
+            .padding(.horizontal, 10)
+            .frame(minWidth: 34, minHeight: 27)
+            .background(Capsule().fill(on ? Deck.text : Deck.control))
+            .contentShape(Capsule())
+            .opacity(configuration.isPressed ? 0.75 : 1)
+    }
+}
+
+extension ButtonStyle where Self == DeckPillButtonStyle {
+    /// The deck's preset capsule.
+    public static func deckPill(on: Bool = false) -> DeckPillButtonStyle { DeckPillButtonStyle(on: on) }
+}
+
+/// A one-line text field in a raised rounded box, 30 high, with an optional icon before the text.
+public struct DeckField: View {
+    let prompt: String
+    let icon: DeckIcon?
+    @Binding var text: String
+    let onSubmit: () -> Void
+
+    public init(_ prompt: String, text: Binding<String>, icon: DeckIcon? = nil, onSubmit: @escaping () -> Void = {}) {
+        self.prompt = prompt
+        self.icon = icon
+        _text = text
+        self.onSubmit = onSubmit
+    }
+
+    public var body: some View {
+        HStack(spacing: 8) {
+            if let icon { DeckIconView(icon, size: 13).foregroundStyle(Deck.tertiary) }
+            TextField("", text: $text, prompt: Text(prompt).foregroundColor(Deck.tertiary))
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+                .foregroundStyle(Deck.text)
+                .onSubmit(onSubmit)
+        }
+        .padding(.horizontal, 10)
+        .frame(height: Deck.Metric.iconButton)
+        .background(RoundedRectangle(cornerRadius: Deck.Radius.control, style: .continuous).fill(Deck.cardRaised))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(prompt)
     }
 }
 
@@ -430,6 +524,199 @@ public struct DeckEmptyLine: View {
     }
 }
 
+// MARK: Controls
+
+/// A sideways slider, as on the Sound board: a 6 point track and a 16 point thumb. Drag or click
+/// anywhere along it; VoiceOver adjusts it in steps of five percent.
+public struct DeckSlider: View {
+    let level: Double
+    let label: String
+    let value: String
+    let enabled: Bool
+    let set: (Double) -> Void
+
+    private static let thumb: CGFloat = 16
+
+    /// `value` is what VoiceOver reads, such as "64%" or "Muted".
+    public init(
+        _ level: Double, label: String, value: String? = nil, enabled: Bool = true,
+        set: @escaping (Double) -> Void
+    ) {
+        self.level = level
+        self.label = label
+        self.value = value ?? "\(Int((min(max(level, 0), 1) * 100).rounded())) percent"
+        self.enabled = enabled
+        self.set = set
+    }
+
+    public var body: some View {
+        GeometryReader { proxy in
+            let travel = max(proxy.size.width - Self.thumb, 1)
+            let x = Self.thumb / 2 + travel * min(max(level, 0), 1)
+            ZStack(alignment: .leading) {
+                Capsule().fill(Deck.control).frame(height: 6)
+                Capsule().fill(Deck.text).frame(width: x, height: 6)
+                Circle()
+                    .fill(Deck.text)
+                    .frame(width: Self.thumb, height: Self.thumb)
+                    .shadow(color: Deck.deck.opacity(0.6), radius: 2, y: 1)
+                    .offset(x: x - Self.thumb / 2)
+            }
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0).onChanged { drag in
+                    set(min(max((drag.location.x - Self.thumb / 2) / travel, 0), 1))
+                },
+                isEnabled: enabled)
+        }
+        .frame(height: 22)
+        .opacity(enabled ? 1 : 0.5)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue(value)
+        .accessibilityAdjustableAction { direction in
+            set(min(max(level + (direction == .increment ? 0.05 : -0.05), 0), 1))
+        }
+    }
+}
+
+/// A slider with what it sets: an optional 24 point lead (an icon, or a button around one), a title in
+/// a 92 point column, the slider, and its value in a 36 point column. At least 38 high. `label` is what
+/// VoiceOver calls the slider when the visible title is short, such as "Volume".
+public struct DeckLevelRow<Lead: View>: View {
+    let title: String
+    let style: DeckTextStyle
+    let level: Double
+    let value: String
+    let spoken: String?
+    let label: String
+    let enabled: Bool
+    let set: (Double) -> Void
+    let lead: Lead?
+
+    public init(
+        _ title: String, style: DeckTextStyle = .body, level: Double, value: String, spoken: String? = nil,
+        label: String? = nil, enabled: Bool = true, set: @escaping (Double) -> Void, @ViewBuilder lead: () -> Lead
+    ) {
+        self.title = title
+        self.style = style
+        self.level = level
+        self.value = value
+        self.spoken = spoken
+        self.label = label ?? title
+        self.enabled = enabled
+        self.set = set
+        self.lead = lead()
+    }
+
+    public var body: some View {
+        HStack(spacing: Deck.Metric.gap) {
+            if let lead { lead.frame(width: 24) }
+            Text(title).deckText(style).lineLimit(1).truncationMode(.tail).frame(width: 92, alignment: .leading)
+            DeckSlider(level, label: label, value: spoken, enabled: enabled, set: set)
+            Text(value).deckText(.detail).lineLimit(1).frame(width: 36, alignment: .leading)
+                .accessibilityHidden(true)
+        }
+        .frame(minHeight: 38)
+    }
+}
+
+extension DeckLevelRow where Lead == EmptyView {
+    /// A row with no lead.
+    public init(
+        _ title: String, style: DeckTextStyle = .body, level: Double, value: String, spoken: String? = nil,
+        label: String? = nil, enabled: Bool = true, set: @escaping (Double) -> Void
+    ) {
+        self.title = title
+        self.style = style
+        self.level = level
+        self.value = value
+        self.spoken = spoken
+        self.label = label ?? title
+        self.enabled = enabled
+        self.set = set
+        self.lead = nil
+    }
+}
+
+/// A tick box for a row in a list you select from.
+public struct DeckCheckbox: View {
+    let ticked: Bool
+    let label: String
+    let toggle: () -> Void
+
+    public init(ticked: Bool, label: String, toggle: @escaping () -> Void) {
+        self.ticked = ticked
+        self.label = label
+        self.toggle = toggle
+    }
+
+    public var body: some View {
+        Button(action: toggle) {
+            let shape = RoundedRectangle(cornerRadius: 5, style: .continuous)
+            DeckIconView(.check, size: 12)
+                .foregroundStyle(Deck.onFill)
+                .opacity(ticked ? 1 : 0)
+                .frame(width: 18, height: 18)
+                .background(shape.fill(ticked ? Deck.text : .clear))
+                .overlay(shape.strokeBorder(ticked ? .clear : Deck.tertiary, lineWidth: 1.5))
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityValue(ticked ? "Selected" : "Not selected")
+    }
+}
+
+/// A search field for the second row: a search icon and a field in a raised, rounded box. `takeFocus`
+/// is raised by whoever wants the keyboard in it (a shortcut that opened the tab); the field lowers it.
+public struct DeckSearchField: View {
+    let prompt: String
+    @Binding var text: String
+    let width: CGFloat
+    let takeFocus: Binding<Bool>?
+    let submit: () -> Void
+    @FocusState private var focused: Bool
+
+    public init(
+        _ prompt: String = "Search", text: Binding<String>, width: CGFloat = 220, takeFocus: Binding<Bool>? = nil,
+        submit: @escaping () -> Void = {}
+    ) {
+        self.prompt = prompt
+        _text = text
+        self.width = width
+        self.takeFocus = takeFocus
+        self.submit = submit
+    }
+
+    public var body: some View {
+        HStack(spacing: 8) {
+            DeckIconView(.search, size: 13)
+            TextField(text: $text, prompt: Text(prompt).foregroundStyle(Deck.tertiary)) { Text(prompt) }
+                .textFieldStyle(.plain)
+                .font(DeckTextStyle.detail.font)
+                .foregroundStyle(Deck.text)
+                .focused($focused)
+                .onSubmit(submit)
+        }
+        .foregroundStyle(Deck.tertiary)
+        .padding(.horizontal, 10)
+        .frame(width: width, height: Deck.Metric.iconButton)
+        .background(RoundedRectangle(cornerRadius: Deck.Radius.control, style: .continuous).fill(Deck.cardRaised))
+        .onAppear(perform: takeIfAsked)
+        .onChange(of: takeFocus?.wrappedValue ?? false) { takeIfAsked() }
+        .accessibilityLabel(prompt)
+    }
+
+    private func takeIfAsked() {
+        guard takeFocus?.wrappedValue == true else { return }
+        takeFocus?.wrappedValue = false
+        focused = true
+    }
+}
+
 // MARK: Layout
 
 /// Lays its children side by side, with the deck's gap between them, sharing the width by `weights`
@@ -454,6 +741,48 @@ public struct DeckWeightedRow: Layout {
                 at: CGPoint(x: x, y: bounds.minY), anchor: .topLeading,
                 proposal: .init(width: width, height: bounds.height))
             x += width + Deck.Metric.gap
+        }
+    }
+}
+
+/// Lays its children out left to right and wraps them onto new lines: a row of options that may not
+/// fit in one. Each child keeps its own size.
+public struct DeckFlow: Layout {
+    let spacing: CGFloat
+
+    public init(spacing: CGFloat = 8) { self.spacing = spacing }
+
+    private func arrange(_ subviews: Subviews, width: CGFloat) -> (origins: [CGPoint], size: CGSize) {
+        var origins: [CGPoint] = []
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var lineHeight: CGFloat = 0
+        var widest: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > width {
+                x = 0
+                y += lineHeight + spacing
+                lineHeight = 0
+            }
+            origins.append(CGPoint(x: x, y: y))
+            x += size.width + spacing
+            lineHeight = max(lineHeight, size.height)
+            widest = max(widest, x - spacing)
+        }
+        return (origins, CGSize(width: widest, height: y + lineHeight))
+    }
+
+    public func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        arrange(subviews, width: proposal.width ?? .infinity).size
+    }
+
+    public func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let origins = arrange(subviews, width: bounds.width).origins
+        for (subview, origin) in zip(subviews, origins) {
+            subview.place(
+                at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y), anchor: .topLeading,
+                proposal: .unspecified)
         }
     }
 }

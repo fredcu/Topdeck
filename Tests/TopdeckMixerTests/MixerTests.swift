@@ -3,7 +3,9 @@ import AppKit
 import CoreAudio
 import SwiftUI
 import Testing
+import TopdeckSurface
 
+@testable import TopdeckFeatures
 @testable import TopdeckMixer
 
 /// An `AudioBufferList` of float buffers for one IO cycle, freed with the test.
@@ -281,85 +283,138 @@ struct MixerModelTests {
     }
 }
 
-/// Renders the Sound tab with sample devices and apps at the default and the smallest open size.
-/// With SNAPSHOT_DIR set, also writes PNGs there.
+/// Renders the Sound tab in the deck's chrome with sample devices and apps, at the default and the
+/// smallest open size. With SNAPSHOT_DIR set, also writes 2x PNGs there.
 @MainActor
 struct MixerSnapshotTests {
-    private static let sizes = [("", CGSize(width: 428, height: 200)), ("-smallest", CGSize(width: 350, height: 102))]
+    private static let sizes = [("", CGSize(width: 700, height: 430)), ("-smallest", CGSize(width: 620, height: 340))]
 
     private static let outputs = [
         SoundDevice(id: 72, name: "MacBook Pro Speakers", symbol: "speaker.wave.2.fill"),
         SoundDevice(id: 80, name: "Niyam's AirPods Pro", symbol: "airpodspro"),
-        SoundDevice(id: 91, name: "LG HDR 4K", symbol: "tv"),
+        SoundDevice(id: 91, name: "Dell U2720Q", symbol: "tv"),
     ]
     private static let inputs = [
         SoundDevice(id: 66, name: "MacBook Pro Microphone", symbol: "mic.fill"),
         SoundDevice(id: 80, name: "Niyam's AirPods Pro", symbol: "airpodspro"),
     ]
 
+    /// A monitor that only has a volume, at 55%.
+    private struct Speakers: DDCChannel {
+        func read(_ control: DDC.Control) -> DDC.Level? {
+            control == .volume ? DDC.Level(current: 55, maximum: 100) : nil
+        }
+
+        func write(_ control: DDC.Control, value: UInt16) -> Bool { true }
+    }
+
     private func sampleMixer() -> Mixer {
         let mixer = Mixer(defaults: UserDefaults(suiteName: "MixerSnapshot-\(UUID())")!, live: false)
         let apps = [
-            ("com.spotify.client", "Spotify", "/Applications/Spotify.app", true),
+            ("com.apple.Music", "Music", "/System/Applications/Music.app", true),
             ("com.apple.Safari", "Safari", "/Applications/Safari.app", true),
-            ("com.google.Chrome", "Google Chrome", "/Applications/Google Chrome.app", false),
-            ("com.apple.Music", "Music", "/System/Applications/Music.app", false),
+            ("com.microsoft.teams2", "Teams", "/Applications/Microsoft Teams.app", false),
+            ("com.tencent.xinWeChat", "WeChat", "/Applications/WeChat.app", false),
         ].map { id, name, path, playing in
             MixerApp(id: id, name: name, url: URL(filePath: path), isPlaying: playing)
         }
-        mixer.setLevel(0.8, of: "com.spotify.client")
-        mixer.setLevel(0.35, of: "com.apple.Safari")
-        mixer.setLevel(0.6, of: "com.google.Chrome")
-        mixer.toggleMute("com.apple.Music")
+        mixer.setLevel(0.42, of: "com.apple.Safari")
+        mixer.setLevel(0.8, of: "com.microsoft.teams2")
+        mixer.toggleMute("com.tencent.xinWeChat")
         let speakers = DeviceLevel(
-            id: 72, name: "MacBook Pro Speakers", level: 0.56, isMuted: false, hasVolume: true, symbol: nil)
+            id: 72, name: "MacBook Pro Speakers", level: 0.64, isMuted: false, hasVolume: true, symbol: nil)
         let microphone = DeviceLevel(
             id: 66, name: "MacBook Pro Microphone", level: 0.7, isMuted: false, hasVolume: true, symbol: nil)
         mixer.preview(apps: apps, output: speakers, input: microphone, outputs: Self.outputs, inputs: Self.inputs)
         return mixer
     }
 
-    @Test func theSoundTabWithAppsAndEmpty() throws {
-        for (suffix, size) in Self.sizes {
-            try render(SoundView(mixer: sampleMixer()), name: "sound" + suffix, size: size)
-            let quiet = Mixer(defaults: UserDefaults(suiteName: "MixerSnapshot-\(UUID())")!, live: false)
-            let airPods = DeviceLevel(
-                id: 80, name: "Niyam's AirPods Pro", level: 0.3, isMuted: false, hasVolume: true, symbol: "airpodspro")
-            let muted = DeviceLevel(
-                id: 80, name: "Niyam's AirPods Pro", level: 0.5, isMuted: true, hasVolume: true, symbol: "airpodspro")
-            quiet.preview(apps: [], output: airPods, input: muted, outputs: Self.outputs, inputs: Self.inputs)
-            try render(SoundView(mixer: quiet), name: "sound-empty" + suffix, size: size)
-        }
+    @Test func theSoundTabWithAppsAndAMonitor() async throws {
+        let monitors = MonitorsFeature(
+            backend: .init(
+                displays: { [(1, "Dell U2720Q")] }, channels: { ids in ids.contains(1) ? [1: Speakers()] : [:] },
+                perform: { $0() }, send: { $0() }, sleepDisplays: { true }))
+        monitors.phase = .foreground
+        for _ in 0..<200 where monitors.monitors.first?.volume == nil { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(monitors.monitors.first?.volume == 0.55)
+        try render(SoundView(mixer: sampleMixer(), monitors: monitors), name: "Sound")
+        monitors.phase = .stopped
+    }
+
+    @Test func theSoundTabEmptyAndAskingForPermission() throws {
+        let quiet = Mixer(defaults: UserDefaults(suiteName: "MixerSnapshot-\(UUID())")!, live: false)
+        let airPods = DeviceLevel(
+            id: 80, name: "Niyam's AirPods Pro", level: 0.3, isMuted: false, hasVolume: true, symbol: "airpodspro")
+        let muted = DeviceLevel(
+            id: 80, name: "Niyam's AirPods Pro", level: 0.5, isMuted: true, hasVolume: true, symbol: "airpodspro")
+        quiet.preview(apps: [], output: airPods, input: muted, outputs: Self.outputs, inputs: Self.inputs)
+        try render(SoundView(mixer: quiet), name: "Sound-empty")
     }
 
     @Test func aDisplayWithoutAVolumeOfItsOwn() throws {
         let mixer = Mixer(defaults: UserDefaults(suiteName: "MixerSnapshot-\(UUID())")!, live: false)
-        let display = DeviceLevel(id: 91, name: "LG HDR 4K", level: 1, isMuted: false, hasVolume: false, symbol: "tv")
+        let display = DeviceLevel(id: 91, name: "Dell U2720Q", level: 1, isMuted: false, hasVolume: false, symbol: "tv")
         mixer.preview(apps: [], output: display, outputs: Self.outputs)
-        try render(SoundView(mixer: mixer), name: "sound-display", size: Self.sizes[0].1)
+        try render(SoundView(mixer: mixer), name: "Sound-display")
     }
 
-    /// Draws the view the way the notch shows a tab, white on black in dark mode, through AppKit,
-    /// once the faders have risen into place (without animation, so at once).
-    private func render(_ view: some View, name: String, size: CGSize) throws {
-        let framed = view.frame(width: size.width, height: size.height).padding(16).background(.black)
-            .foregroundStyle(.white).environment(\.colorScheme, .dark)
+    /// Draws the view in the deck's chrome the way the notch shows it, white on black in dark mode,
+    /// through AppKit at 2x.
+    private func render(_ screen: some View, name: String) throws {
+        for (suffix, size) in Self.sizes {
+            let deck = VStack(spacing: 0) {
+                HStack(spacing: 0) {
+                    HStack(spacing: 4) {
+                        ForEach(["Now", "Stash", "Plan"], id: \.self) { DeckNavItem($0, selected: false) {} }
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                    Color.clear.frame(width: 196)
+                    HStack(spacing: 4) {
+                        ForEach(["Agents", "Mac", "Tools"], id: \.self) { DeckNavItem($0, selected: $0 == "Mac") {} }
+                    }.frame(maxWidth: .infinity, alignment: .trailing)
+                }
+                .padding(.horizontal, 10)
+                .frame(height: 37)
+                HStack {
+                    DeckSubTabs(
+                        ["Performance", "Sound", "Displays", "Network", "Storage", "System"], selection: "Sound",
+                        title: { $0 }
+                    ) { _ in }
+                    Spacer()
+                }
+                .padding(.horizontal, 18)
+                .frame(height: Deck.Metric.subRow)
+                screen
+                    .padding(.horizontal, Deck.Metric.side)
+                    .padding(.bottom, Deck.Metric.side)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .scrollIndicators(.never)
+            }
+            .frame(width: size.width, height: size.height)
+            .background(Deck.deck)
+            .foregroundStyle(Deck.text)
+            .environment(\.colorScheme, .dark)
             .transaction { $0.animation = nil }
-        let host = NSHostingView(rootView: framed)
-        let window = NSWindow(
-            contentRect: CGRect(x: 0, y: 0, width: size.width + 32, height: size.height + 32), styleMask: .borderless,
-            backing: .buffered, defer: false)
-        window.contentView = host
-        host.layoutSubtreeIfNeeded()
-        RunLoop.main.run(until: .now + 0.1)
-        host.layoutSubtreeIfNeeded()
-        let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
-        host.cacheDisplay(in: host.bounds, to: bitmap)
-        #expect(bitmap.pixelsWide > 0)
-        if let directory = ProcessInfo.processInfo.environment["SNAPSHOT_DIR"] {
-            try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
-            try bitmap.representation(using: .png, properties: [:])?.write(
-                to: URL(filePath: directory).appending(path: "\(name).png"))
+            let host = NSHostingView(rootView: deck)
+            let window = NSWindow(
+                contentRect: CGRect(origin: .zero, size: size), styleMask: .borderless, backing: .buffered,
+                defer: false)
+            window.contentView = host
+            host.layoutSubtreeIfNeeded()
+            RunLoop.main.run(until: .now + 0.1)
+            host.layoutSubtreeIfNeeded()
+            let bitmap = try #require(
+                NSBitmapImageRep(
+                    bitmapDataPlanes: nil, pixelsWide: Int(size.width * 2), pixelsHigh: Int(size.height * 2),
+                    bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                    colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+            bitmap.size = size
+            host.cacheDisplay(in: host.bounds, to: bitmap)
+            #expect(bitmap.pixelsWide > 0)
+            if let directory = ProcessInfo.processInfo.environment["SNAPSHOT_DIR"] {
+                try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+                try bitmap.representation(using: .png, properties: [:])?.write(
+                    to: URL(filePath: directory).appending(path: "\(name)\(suffix).png"))
+            }
         }
     }
 }

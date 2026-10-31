@@ -2,6 +2,7 @@
 import AppKit
 import EventKit
 import SwiftUI
+import TopdeckSurface
 
 /// One EventKit store for Calendar and Tasks, created the first time either one needs it, so
 /// enabled-but-unopened tabs cost nothing.
@@ -27,30 +28,25 @@ public enum EventAccess: Equatable, Sendable {
     }
 }
 
-/// The view for a tab that needs EventKit access it doesn't have yet.
+/// What a card says while it lacks EventKit access: one line, and the button that gets it.
 struct EventAccessView: View {
     let access: EventAccess
-    let symbol: String
     let what: String
     let settingsPane: String
     let request: () -> Void
 
     var body: some View {
-        if access == .denied {
-            FeatureUnavailableView(
-                symbol: "lock",
-                title: "\(what.capitalized) access is off",
-                message: "Turn on Topdeck in System Settings › Privacy & Security › \(what.capitalized).",
-                action: (
-                    label: "Open Privacy Settings",
-                    perform: { NSWorkspace.shared.open(.privacySettings(settingsPane)) }
-                ))
-        } else {
-            FeatureUnavailableView(
-                symbol: symbol,
-                title: "Show your \(what) here",
-                message: "Topdeck reads your \(what) on this Mac only. Nothing leaves your Mac.",
-                action: (label: "Continue", perform: request))  // App Review 5.1.1(iv): not "Allow"
+        VStack(spacing: Deck.Metric.gap) {
+            if access == .denied {
+                Text("\(what.capitalized) access is off").deckText(.body)
+                Button("Open Privacy Settings") { NSWorkspace.shared.open(.privacySettings(settingsPane)) }
+                    .buttonStyle(.deck())
+            } else {
+                Text("Topdeck reads your \(what) on this Mac only.").deckText(.detail).multilineTextAlignment(.center)
+                Button("Continue", action: request).buttonStyle(.deck())  // App Review 5.1.1(iv): not "Allow"
+            }
         }
+        .padding(Deck.Metric.cardPadding)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

@@ -85,6 +85,7 @@ struct DeckView: View {
                 }
             } else {
                 Text(space.headline()).deckText(.title).lineLimit(1)
+                content.titleAccessory(space).padding(.leading, 14)
             }
             Spacer(minLength: Deck.Metric.gap)
             HStack(spacing: 2) {
@@ -113,11 +114,13 @@ struct DeckView: View {
         .scrollIndicators(.never)
     }
 
-    /// Now draws its own cards. A sub-tabbed space shows its one tab's view. The rest lay the views of
-    /// the features that are on side by side, until each has its own screen.
+    /// Now draws its own cards, and so do the spaces with a screen of their own. A sub-tabbed space
+    /// shows its one tab's view. The rest lay the views of the features that are on side by side.
     @ViewBuilder private func pageContent(_ page: Page, enabled: Set<FeatureID>) -> some View {
         if space == .now {
             content.now()
+        } else if let screen = content.screen(space, enabled) {
+            screen
         } else if let tab = page.subTab {
             content.feature(tab).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         } else {
