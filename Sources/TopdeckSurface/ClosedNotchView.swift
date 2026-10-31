@@ -151,7 +151,9 @@ struct MusicBarsView: View {
     var body: some View {
         Group {
             if MusicBars.animates(playing: playing, reduceMotion: reduceMotion) {
-                TimelineView(.animation(minimumInterval: 1.0 / 20)) { context in
+                // A fixed 20 a second, not the display's frame rate: SwiftUI's animation schedule has no rate of its own
+                // when no display drives it, and would redraw as fast as the main thread allows.
+                TimelineView(.periodic(from: .now, by: 1.0 / 20)) { context in
                     bars(MusicBars.heights(at: context.date.timeIntervalSinceReferenceDate))
                 }
             } else {
