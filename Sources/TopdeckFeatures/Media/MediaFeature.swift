@@ -146,22 +146,32 @@ public final class MediaFeature: NotchFeature {
         syncedLyrics = defaults.bool(forKey: Self.syncedLyricsKey)
     }
 
-    /// The audio tap runs only while its bars can be seen moving: Media on screen, something playing,
-    /// the setting on, and Reduce Motion off.
-    nonisolated static func listensToAudio(phase: FeaturePhase, enabled: Bool, playing: Bool, reduceMotion: Bool)
-        -> Bool
-    {
-        phase == .foreground && enabled && playing && !reduceMotion
+    /// The audio tap runs only while its bars can be seen moving: the Media view on screen, something
+    /// playing, the setting on, and Reduce Motion off. Now's player and the closed notch's bars draw no
+    /// spectrum, so they never ask for it.
+    nonisolated static func listensToAudio(
+        phase: FeaturePhase, shown: Bool, enabled: Bool, playing: Bool, reduceMotion: Bool
+    ) -> Bool {
+        phase == .foreground && shown && enabled && playing && !reduceMotion
+    }
+
+    /// Whether the Media view is on screen, which only it sets.
+    @ObservationIgnored private var isShown = false {
+        didSet { if isShown != oldValue { updateAudio() } }
     }
 
     private func updateAudio() {
         let listens = Self.listensToAudio(
-            phase: phase, enabled: waveformFollowsAudio, playing: nowPlaying?.isPlaying == true,
+            phase: phase, shown: isShown, enabled: waveformFollowsAudio, playing: nowPlaying?.isPlaying == true,
             reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
         listens ? audio.start() : audio.stop()
     }
 
-    public var view: some View { MediaView(media: self) }
+    public var view: some View {
+        MediaView(media: self)
+            .onAppear { [self] in isShown = true }
+            .onDisappear { [self] in isShown = false }
+    }
 
     /// Shows a track as if it were playing, with working controls. For tests and snapshots only.
     func show(_ now: NowPlaying?, artwork: NSImage? = nil, synced: SyncedLyrics? = nil) {
@@ -565,7 +575,8 @@ public final class MediaFeature: NotchFeature {
             ? nowPlaying.map {
                 Activity(
                     feature: .media, symbol: $0.isPlaying ? "music.note" : "pause.fill", title: $0.title,
-                    duration: .seconds(3), artwork: tinyArtwork)
+                    duration: .seconds(3), artwork: tinyArtwork,
+                    accent: accent.map { ActivityTint(red: $0.red, green: $0.green, blue: $0.blue) })
             } : nil
         if activity != shownOngoing {
             shownOngoing = activity

@@ -80,10 +80,12 @@ public struct Activity: Hashable, Sendable {
     public var artwork: Data?
     /// The video call of a meeting about to start, which the closed notch offers as a Join button.
     public var meetingLink: URL?
+    /// The colour of what's playing, taken from its cover, for the bars beside the camera.
+    public var accent: ActivityTint?
 
     public init(
         feature: FeatureID?, symbol: String, title: String, level: Double? = nil, duration: Duration,
-        countdown: Date? = nil, artwork: Data? = nil, meetingLink: URL? = nil
+        countdown: Date? = nil, artwork: Data? = nil, meetingLink: URL? = nil, accent: ActivityTint? = nil
     ) {
         self.feature = feature
         self.symbol = symbol
@@ -93,6 +95,7 @@ public struct Activity: Hashable, Sendable {
         self.countdown = countdown
         self.artwork = artwork
         self.meetingLink = meetingLink
+        self.accent = accent
     }
 }
 

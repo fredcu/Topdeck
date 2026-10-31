@@ -333,10 +333,16 @@ struct SpectrumAnalyzerTests {
     }
 
     @Test func theTapOnlyRunsWhileItsBarsCanBeSeen() {
-        #expect(MediaFeature.listensToAudio(phase: .foreground, enabled: true, playing: true, reduceMotion: false))
-        #expect(!MediaFeature.listensToAudio(phase: .background, enabled: true, playing: true, reduceMotion: false))
-        #expect(!MediaFeature.listensToAudio(phase: .foreground, enabled: false, playing: true, reduceMotion: false))
-        #expect(!MediaFeature.listensToAudio(phase: .foreground, enabled: true, playing: false, reduceMotion: false))
-        #expect(!MediaFeature.listensToAudio(phase: .foreground, enabled: true, playing: true, reduceMotion: true))
+        func listens(
+            _ phase: FeaturePhase = .foreground, shown: Bool = true, enabled: Bool = true, playing: Bool = true,
+            reduceMotion: Bool = false
+        ) -> Bool {
+            MediaFeature.listensToAudio(
+                phase: phase, shown: shown, enabled: enabled, playing: playing, reduceMotion: reduceMotion)
+        }
+        #expect(listens())
+        #expect(!listens(.background) && !listens(enabled: false) && !listens(playing: false))
+        #expect(!listens(reduceMotion: true))
+        #expect(!listens(shown: false), "Now and the closed notch draw no spectrum: they never start the tap")
     }
 }

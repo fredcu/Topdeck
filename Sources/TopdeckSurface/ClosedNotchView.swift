@@ -97,8 +97,8 @@ struct ClosedNotchView: View {
             } else {
                 countdown(end)
             }
-        case .equalizer:
-            Equalizer()
+        case .equalizer(let playing, let accent):
+            MusicBarsView(playing: playing, tint: accent.map { Color(red: $0.red, green: $0.green, blue: $0.blue) })
         case .icon(let icon):
             DeckIconView(icon).foregroundStyle(Deck.secondary)
         case .text(let text):
@@ -138,19 +138,38 @@ struct ClosedNotchView: View {
     }
 }
 
-/// Four gold bars, as the board draws what's playing. Still: nothing redraws while a song plays.
-private struct Equalizer: View {
-    private static let gold = Color(hex: 0xF2C14E)
+/// Four thin bars in the track's colour, as the Closed board draws what's playing: they move to a made-up
+/// pattern (`MusicBars`) at about 20 frames a second while the music plays and the notch is on screen, and
+/// stand still, low, when it's paused. With Reduce Motion on they stand still in the middle of the range.
+/// Only the moving case has a timeline: a still one has nothing that wakes up.
+struct MusicBarsView: View {
+    let playing: Bool
+    /// The track's colour; the Now accent when it has none.
+    let tint: Color?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: 2) {
-            ForEach([9, 17, 12, 15], id: \.self) { height in
-                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                    .fill(Self.gold)
-                    .frame(width: 3, height: CGFloat(height))
+        Group {
+            if MusicBars.animates(playing: playing, reduceMotion: reduceMotion) {
+                TimelineView(.animation(minimumInterval: 1.0 / 20)) { context in
+                    bars(MusicBars.heights(at: context.date.timeIntervalSinceReferenceDate))
+                }
+            } else {
+                bars(playing ? MusicBars.still : MusicBars.resting)
             }
         }
-        .frame(height: 18)
+        .frame(height: CGFloat(MusicBars.maxHeight))
+        .accessibilityHidden(true)
+    }
+
+    private func bars(_ heights: [Double]) -> some View {
+        HStack(alignment: .bottom, spacing: CGFloat(MusicBars.gap)) {
+            ForEach(heights.indices, id: \.self) { index in
+                Capsule()
+                    .fill(tint ?? Deck.Accent.now)
+                    .frame(width: CGFloat(MusicBars.barWidth), height: CGFloat(heights[index]))
+            }
+        }
     }
 }
 

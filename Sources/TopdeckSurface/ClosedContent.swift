@@ -21,8 +21,9 @@ struct ClosedContent: Equatable {
         case meter(Double)
         /// The time left until this moment.
         case countdown(Date)
-        /// Four bars: something is playing.
-        case equalizer
+        /// Four bars: moving while something plays, low and still while it's paused. The colour is the
+        /// track's, nil for the Now accent.
+        case equalizer(playing: Bool, accent: ActivityTint?)
         case icon(DeckIcon)
         case text(String)
         /// A count of what needs you.
@@ -70,7 +71,7 @@ struct ClosedContent: Equatable {
                 join = activity.meetingLink
             }
         } else if activity.artwork != nil {
-            trailing = symbol == "pause.fill" ? .icon(.pause) : .equalizer
+            trailing = .equalizer(playing: symbol != "pause.fill", accent: activity.accent)
         } else {
             label = activity.title
         }
@@ -125,7 +126,7 @@ struct ClosedContent: Equatable {
                 // Room for its longest reading, so the notch doesn't breathe as digits change.
                 Self.width(end.timeIntervalSinceNow >= 3600 ? "0:00:00" : "00:00", Self.countdownFont)
             }
-        case .equalizer: 18
+        case .equalizer: CGFloat(MusicBars.width)
         case .icon: Self.iconSide
         case .text(let text): Self.width(text, Self.labelFont)
         case .badge(let count): count > 9 ? 22 : 16
