@@ -112,11 +112,8 @@ struct UsageSnapshotTests {
 
     /// The tab as the deck shows it, at the default size and the smallest; with SNAPSHOT_DIR set, also PNGs.
     private func render(_ usage: UsageFeature, name: String) throws {
-        let tabs = ["Sessions", "Usage"]
+        try DeckScreen.render(UsageView(usage: usage), name: name, actions: usage.actions)
         try DeckScreen.render(
-            UsageView(usage: usage), name: name, tabs: tabs, selected: "Usage", actions: usage.actions)
-        try DeckScreen.render(
-            UsageView(usage: usage), name: name + "-smallest", size: DeckScreen.smallest, tabs: tabs,
-            selected: "Usage", actions: usage.actions)
+            UsageView(usage: usage), name: name + "-smallest", size: DeckScreen.smallest, actions: usage.actions)
     }
 }

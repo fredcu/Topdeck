@@ -240,10 +240,8 @@ struct AgentsFeatureTests {
 
     /// The tab as the deck shows it, at the default size and the smallest; with SNAPSHOT_DIR set, also PNGs.
     private func renderTab(_ view: some View, name: String) throws {
-        let tabs = ["Sessions", "Usage"]
-        try DeckScreen.render(view, name: name, tabs: tabs, selected: "Sessions")
-        try DeckScreen.render(
-            view, name: name + "-smallest", size: DeckScreen.smallest, tabs: tabs, selected: "Sessions")
+        try DeckScreen.render(view, name: name)
+        try DeckScreen.render(view, name: name + "-smallest", size: DeckScreen.smallest)
     }
 
     @Test func sessionFilesAreReadLineByLine() throws {

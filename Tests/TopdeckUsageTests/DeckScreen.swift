@@ -5,7 +5,7 @@ import Testing
 import TopdeckCore
 import TopdeckSurface
 
-/// A screen drawn the way the deck draws it: a black panel with the second row (its sub-tabs and
+/// A screen drawn the way the deck draws it: a black panel with the second row (its title and
 /// actions) over the body. Always checks that it draws; with SNAPSHOT_DIR set, also writes a 2x PNG there.
 @MainActor
 enum DeckScreen {
@@ -13,11 +13,11 @@ enum DeckScreen {
     nonisolated static let normal = CGSize(width: 700, height: 430)
     nonisolated static let smallest = CGSize(width: 620, height: 340)
 
-    /// `space` is the open one: its accent, and the label lit in the wings. Without `tabs` the second row
-    /// shows the space's name, as it does for a space without sub-tabs.
+    /// `space` is the open one: its accent, and the label lit in the wings. Without `leading` the second row
+    /// shows the space's name.
     static func render(
-        _ body: some View, name: String, size: CGSize = normal, space: SpaceID = .agents, tabs: [String] = [],
-        selected: String = "", leading: AnyView? = nil, settle: TimeInterval = 0,
+        _ body: some View, name: String, size: CGSize = normal, space: SpaceID = .agents,
+        leading: AnyView? = nil, settle: TimeInterval = 0,
         actions: some View = EmptyView()
     ) throws {
         func wing(_ spaces: [SpaceID]) -> some View {
@@ -40,10 +40,8 @@ enum DeckScreen {
             HStack(spacing: 0) {
                 if let leading {
                     leading
-                } else if tabs.isEmpty {
-                    Text(space.title).deckText(.title)
                 } else {
-                    DeckSubTabs(tabs, selection: selected, title: { $0 }, select: { _ in })
+                    Text(space.title).deckText(.title)
                 }
                 Spacer(minLength: Deck.Metric.gap)
                 HStack(spacing: 2) {

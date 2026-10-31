@@ -40,14 +40,17 @@ struct FeatureHostTests {
         #expect(media.history == [.background, .foreground, .background, .stopped])
     }
 
-    @Test func aSubTabSwitchMovesTheForeground() {
-        let agents = RecordingFeature(.agents)
-        let usage = RecordingFeature(.usage)
-        let host = FeatureHost([agents, usage])
-        host.update(notches: [notch(.show, .showFeature(.agents))], enabled: all)
-        #expect(agents.phase == .foreground && usage.phase == .background)
-        host.update(notches: [notch(.show, .showFeature(.agents), .selectSubTab(.usage))], enabled: all)
-        #expect(agents.phase == .background && usage.phase == .foreground)
+    @Test func aDetailScreenMovesTheForeground() {
+        let performance = RecordingFeature(.performance)
+        let storage = RecordingFeature(.storage)
+        let host = FeatureHost([performance, storage])
+        host.update(notches: [notch(.show, .showFeature(.performance))], enabled: all)
+        #expect(performance.phase == .foreground && storage.phase == .background)
+        host.update(notches: [notch(.show, .showFeature(.performance), .openDetail(.storage))], enabled: all)
+        #expect(performance.phase == .foreground && storage.phase == .foreground)
+        host.update(
+            notches: [notch(.show, .showFeature(.performance), .openDetail(.storage), .openDetail(nil))], enabled: all)
+        #expect(storage.phase == .background, "back to the page stops the screen's work")
     }
 
     @Test func aFeatureRunsAtTheHighestPhaseAnyDisplayAsks() {

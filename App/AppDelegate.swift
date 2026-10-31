@@ -264,7 +264,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 switch (space, feature) {
                 case (.shelf, _): return AnyView(shelf.headerActions)
                 case (.clipboard, _): return AnyView(clipboard.headerActions)
-                case (_, .usage): return AnyView(usage.actions)
                 default: return AnyView(EmptyView())
                 }
             },

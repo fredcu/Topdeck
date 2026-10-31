@@ -16,15 +16,15 @@ struct NotchEngineTests {
         #expect(changes == [.compact, .expanded(space: .now)])
     }
 
-    @Test func aSubTabSwitchIsReportedSoFeaturesCanFollowIt() {
+    @Test func aDetailScreenIsReportedSoFeaturesCanFollowIt() {
         let engine = NotchEngine()
         var reports = 0
         engine.send(.show)
-        engine.send(.showFeature(.agents))
+        engine.send(.showFeature(.performance))
         engine.onPresentationChange = { _, _ in reports += 1 }
-        engine.send(.selectSubTab(.usage))
-        engine.send(.selectSubTab(.usage))  // already there
-        #expect(reports == 1 && engine.state.onScreen == [.usage])
+        engine.send(.openDetail(.storage))
+        engine.send(.openDetail(.storage))  // already there
+        #expect(reports == 1 && engine.state.onScreen == [.performance, .storage])
     }
 
     @Test func timersFireThroughTheReducer() async throws {

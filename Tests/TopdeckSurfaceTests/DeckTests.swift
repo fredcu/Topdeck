@@ -41,6 +41,17 @@ struct DeckTokenTests {
         for (space, rgb) in accents { #expect(Array(rgba(space.accent).prefix(3)) == rgb, "\(space)") }
     }
 
+    @Test func theProviderAndTintColoursAreTheBoards() {
+        #expect(Array(rgba(Deck.Provider.claude).prefix(3)) == [0xF2, 0xA7, 0x73])
+        #expect(Array(rgba(Deck.Provider.codex).prefix(3)) == [0x8F, 0xD6, 0xA4])
+        #expect(Array(rgba(Deck.Provider.antigravity).prefix(3)) == [0x8F, 0xB8, 0xFF])
+        #expect(Array(rgba(Deck.Provider.cline).prefix(3)) == [0xE7, 0xA6, 0xF0])
+        #expect(Array(rgba(Deck.Provider.grok).prefix(3)) == [0xC9, 0xD0, 0xDE])
+        #expect(rgba(Deck.Provider.color("somethingelse")) == rgba(Deck.Provider.neutral), "others are neutral")
+        #expect(Array(rgba(Deck.Tint.magenta).prefix(3)) == [0xF0, 0x7B, 0xD0])
+        #expect(Array(rgba(Deck.Tint.yellow).prefix(3)) == [0xFF, 0xD1, 0x66])
+    }
+
     @Test func theShapeAndSpacingAreTheSpecs() {
         #expect(Deck.Radius.deck == 30 && Deck.Radius.card == 16 && Deck.Radius.control == 9)
         #expect(Deck.Metric.cardPadding == 14 && Deck.Metric.gap == 10 && Deck.Metric.side == 14)
@@ -63,7 +74,11 @@ struct DeckTokenTests {
             let (a, b) = (luminance(foreground), luminance(background))
             return (max(a, b) + 0.05) / (min(a, b) + 0.05)
         }
-        for text in [Deck.text, Deck.secondary, Deck.tertiary, Deck.signal, Deck.go, Deck.stop] {
+        for text in [
+            Deck.text, Deck.secondary, Deck.tertiary, Deck.signal, Deck.go, Deck.stop, Deck.Provider.claude,
+            Deck.Provider.codex, Deck.Provider.antigravity, Deck.Provider.cline, Deck.Provider.grok,
+            Deck.Provider.neutral,
+        ] {
             for surface in [Deck.deck, Deck.body, Deck.card, Deck.cardRaised] {
                 #expect(ratio(text, on: surface) >= 4.5, "\(rgba(text)) on \(rgba(surface))")
             }
@@ -162,7 +177,7 @@ struct ClosedContentTests {
 }
 
 struct SpaceHeadlineTests {
-    @Test func aSpaceWithoutSubTabsIsTitledByName() {
+    @Test func aSpaceIsTitledByName() {
         #expect(SpaceID.tools.headline() == "Tools")
     }
 }
@@ -178,7 +193,6 @@ struct DeckComponentSnapshotTests {
                 DeckNavItem("Shelf", accent: SpaceID.shelf.accent, selected: false) {}
                 DeckNavItem("Agents", accent: SpaceID.agents.accent, selected: false, badge: 2) {}
             }
-            DeckSubTabs(["Sessions", "Usage"], selection: "Usage", title: { $0 }, select: { _ in })
             HStack {
                 Button("Allow") {}.buttonStyle(.deck(.primary))
                 Button("Deny") {}.buttonStyle(.deck())

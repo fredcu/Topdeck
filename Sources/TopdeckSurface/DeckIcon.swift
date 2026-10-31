@@ -8,9 +8,11 @@ import SwiftUI
 public enum DeckIcon: String, CaseIterable, Sendable {
     case play, pause, next, previous, pin, gear, search, plus, close, check, file, image, link, copy, trash, share,
         calendar, clock, hand, terminal, cpu, volume, microphone, display, disk, network, capture, qrCode,
-        recognizeText, colorPicker, scrollingCapture, moon, bolt, chevronRight, chevronDown, note, arrowUpRight, grid,
+        recognizeText, colorPicker, scrollingCapture, moon, bolt, chevronRight, chevronLeft, chevronDown, note,
+        arrowUpRight, grid,
         battery, thermometer, shield, stack, list, app, markupArrow, markupRectangle, markupOval, markupPen,
-        markupHighlighter, markupMosaic, undo, markupNumber, cursor, onTop, star, more, airDrop, upload, openWith
+        markupHighlighter, markupMosaic, undo, markupNumber, cursor, onTop, star, more, airDrop, upload, openWith,
+        area, window, film, coffee, keyboard, gpu, globe, memory, sun
 
     /// The icon's shapes, on a 24 by 24 grid.
     var shapes: String {
@@ -59,6 +61,7 @@ public enum DeckIcon: String, CaseIterable, Sendable {
         case .moon: #"<path d='M20 14A8 8 0 0 1 10 4a8 8 0 1 0 10 10z'/>"#
         case .bolt: #"<path d='M13 3L5 14h6l-1 7 8-11h-6z'/>"#
         case .chevronRight: #"<path d='M9 6l6 6-6 6'/>"#
+        case .chevronLeft: #"<path d='M15 6l-6 6 6 6'/>"#
         case .chevronDown: #"<path d='M6 9l6 6 6-6'/>"#
         case .note: #"<path d='M6 3h12v18H6zM9 8h6M9 12h6M9 16h3'/>"#
         case .arrowUpRight: #"<path d='M7 17L17 7M9 7h8v8'/>"#
@@ -89,6 +92,24 @@ public enum DeckIcon: String, CaseIterable, Sendable {
         case .upload:
             #"<path d='M7 18a4.500 4.500 0 0 1-.5-9A6 6 0 0 1 18 9.500 4 4 0 0 1 17.500 18M12 20v-8M9 14.500l3-3 3 3'/>"#
         case .openWith: #"<rect x='4' y='4' width='16' height='16' rx='4'/><path d='M9 15l6-6M10 9h5v5'/>"#
+        case .area:
+            #"<path d='M4.500 8.250V4.500h3.750M15.750 4.500h3.750v3.750M19.500 15.750v3.750h-3.750M8.250 19.500H4.500v-3.750'/>"#
+        case .window:
+            #"<rect x='3.750' y='5.250' width='16.500' height='13.500' rx='2.250'/><path d='M3.750 9.750h16.500'/>"#
+        case .film:
+            #"<rect x='3.750' y='4.500' width='16.500' height='15' rx='2.250'/><path d='M8.250 4.500v15M15.750 4.500v15M3.750 12h16.500'/>"#
+        case .coffee:
+            #"<path d='M6 9h10.500v5.250a4.500 4.500 0 0 1-4.500 4.500h-1.500A4.500 4.500 0 0 1 6 14.250ZM16.500 10.500h1.800a2.250 2.250 0 0 1 0 4.500h-1.800M8.250 3.750v2.250M12 3.750v2.250'/>"#
+        case .keyboard:
+            #"<rect x='3' y='6.750' width='18' height='10.500' rx='2.250'/><path d='M6.750 10.500h.010M10.500 10.500h.010M14.250 10.500h.010M18 10.500h.010M7.500 14.250h9'/>"#
+        case .gpu:
+            #"<rect x='3' y='6.750' width='18' height='10.500' rx='1.800'/><circle cx='9' cy='12' r='2.250'/><path d='M14.250 10.500h3M14.250 13.500h3'/>"#
+        case .globe:
+            #"<circle cx='12' cy='12' r='8.250'/><path d='M3.750 12h16.500M12 3.750c-4.500 4.500-4.500 12 0 16.500M12 3.750c4.500 4.500 4.500 12 0 16.500'/>"#
+        case .memory:
+            #"<rect x='3' y='7.500' width='18' height='9' rx='1.500'/><path d='M7.500 7.500v9M12 7.500v9M16.500 7.500v9'/>"#
+        case .sun:
+            #"<circle cx='12' cy='12' r='4.500'/><path d='M12 2.250V4.500M12 19.500v2.250M2.250 12H4.500M19.500 12h2.250M5.100 5.100l1.500 1.500M17.400 17.400l1.500 1.500M5.100 18.900l1.500-1.500M17.400 6.600l1.500-1.500'/>"#
         }
     }
 }

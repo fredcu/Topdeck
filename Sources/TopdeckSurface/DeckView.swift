@@ -4,7 +4,7 @@ import SwiftUI
 import TopdeckCore
 
 /// The open deck's contents: the top row with the spaces in two wings around the camera, the second
-/// row with the space's sub-tabs or title and its actions, and the body. The panel and its black shape
+/// row with the space's title and its actions, and the body. The panel and its black shape
 /// are the notch view's; the deck never changes size when the space does.
 struct DeckView: View {
     let engine: NotchEngine
@@ -21,16 +21,16 @@ struct DeckView: View {
     /// What the body shows, so a change of either fades.
     private struct Page: Hashable {
         var space: SpaceID
-        var subTab: FeatureID?
+        var detail: FeatureID?
     }
 
     var body: some View {
         let state = engine.state
-        let subTab = state.subTab(in: space)
+        let detail = state.detail
         VStack(spacing: 0) {
             wings(state.spaceSet)
-            secondRow(state.spaceSet, subTab: subTab)
-            pageBody(Page(space: space, subTab: subTab), enabled: state.spaceSet.enabled)
+            secondRow(detail: detail)
+            pageBody(Page(space: space, detail: detail), enabled: state.spaceSet.enabled)
         }
         // Inside the shoulders, which are the shape's concave top corners.
         .padding(.horizontal, metrics.notch == nil ? 0 : NotchMetrics.shoulder)
@@ -42,6 +42,8 @@ struct DeckView: View {
         }
         .foregroundStyle(Deck.text)
         .environment(\.deckAccent, space.accent)
+        .environment(\.deckDetail, detail)
+        .environment(\.openDeckDetail, DeckDetailOpener { [engine] in engine.send(.openDetail($0)) })
     }
 
     // MARK: Top row
@@ -81,12 +83,15 @@ struct DeckView: View {
 
     // MARK: Second row
 
-    private func secondRow(_ set: SpaceSet, subTab: FeatureID?) -> some View {
+    private func secondRow(detail: FeatureID?) -> some View {
         HStack(alignment: space == .now ? .top : .center, spacing: 0) {
-            if space.hasSubTabs {
-                DeckSubTabs(set.subTabs(of: space), selection: subTab, title: space.subTabTitle) {
-                    engine.send(.selectSubTab($0))
+            if let detail {
+                // A screen over the body: back to the page, and its name.
+                HStack(spacing: 4) {
+                    DeckIconButton(.chevronLeft, label: "Back") { engine.send(.openDetail(nil)) }
+                    Text(space.detailTitle(detail)).deckText(.title).lineLimit(1)
                 }
+                .padding(.leading, -6)
             } else if space == .now {
                 DeckClock()
             } else if let leading = content.leading(space) {
@@ -108,7 +113,7 @@ struct DeckView: View {
                 Spacer(minLength: Deck.Metric.gap)
             }
             HStack(spacing: 2) {
-                content.actions(space, subTab)
+                content.actions(space, detail)
                 DeckIconButton(.pin, label: pinned ? "Unpin" : "Keep open", on: pinned) { engine.send(.togglePin) }
                 DeckIconButton(.gear, label: "Settings") { content.openSettings() }
             }
@@ -135,15 +140,13 @@ struct DeckView: View {
         .scrollIndicators(.never)
     }
 
-    /// Now draws its own columns, and so do the spaces with a screen of their own. A sub-tabbed space
-    /// shows its one tab's view. The rest lay the views of the features that are on side by side.
+    /// Now draws its own columns, and so do the spaces with a screen of their own. The rest lay the
+    /// views of the features that are on side by side.
     @ViewBuilder private func pageContent(_ page: Page, enabled: Set<FeatureID>) -> some View {
         if space == .now {
             content.now()
         } else if let screen = content.screen(space, enabled) {
             screen
-        } else if let tab = page.subTab {
-            content.feature(tab).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         } else {
             HStack(alignment: .top, spacing: Deck.Metric.gap) {
                 ForEach(space.features.filter(enabled.contains), id: \.self) { feature in
@@ -193,7 +196,7 @@ struct DeckView: View {
 }
 
 extension SpaceID {
-    /// The title at the left of the second row for a space without sub-tabs.
+    /// The title at the left of the second row.
     func headline() -> String { title }
 }
 

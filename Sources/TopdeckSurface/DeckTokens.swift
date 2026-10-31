@@ -90,6 +90,36 @@ public enum Deck {
         public static let pink = Color(hex: 0xF5BFD8)
     }
 
+    /// The icon tints the Tools and Mac boards add to the accents: Keep Awake and memory, the network and
+    /// disk cards, and recording.
+    public enum Tint {
+        public static let yellow = Color(hex: 0xFFD166)
+        public static let magenta = Color(hex: 0xF07BD0)
+        public static let record = Color(hex: 0xFF6B6B)
+    }
+
+    /// The colour of each AI tool's dot, bar and name in Agents. A tool without one is neutral.
+    public enum Provider {
+        public static let claude = Color(hex: 0xF2A773)
+        public static let codex = Color(hex: 0x8FD6A4)
+        public static let antigravity = Color(hex: 0x8FB8FF)
+        public static let cline = Color(hex: 0xE7A6F0)
+        public static let grok = Color(hex: 0xC9D0DE)
+        public static let neutral = Color(hex: 0xA4AEC2)
+
+        /// The colour for a tool by its id; neutral for any other.
+        public static func color(_ id: String) -> Color {
+            switch id {
+            case "claude": claude
+            case "codex": codex
+            case "antigravity": antigravity
+            case "cline": cline
+            case "grok": grok
+            default: neutral
+            }
+        }
+    }
+
     /// The tints of a file's tile on the Shelf, by kind. A tile runs from the colour to a darker mix of it.
     public enum Kind {
         public static let document = Color(hex: 0x2E6CB8)
@@ -241,6 +271,19 @@ extension EnvironmentValues {
     /// The open space's accent. The deck sets it, so selected states, chips and primary buttons take the
     /// colour of the space they are in without naming it.
     @Entry public var deckAccent: Color = Deck.Accent.now
+    /// The detail screen over the open space's body (Mac's Sound, Storage and so on), if one is.
+    @Entry public var deckDetail: FeatureID?
+    /// Slides a detail screen over the body, or (nil) takes it away. The deck sets it.
+    @Entry public var openDeckDetail = DeckDetailOpener { _ in }
+}
+
+/// Opens a detail screen over the open space's body, or takes it away. Call it like a function.
+public struct DeckDetailOpener {
+    let open: (FeatureID?) -> Void
+
+    public init(_ open: @escaping (FeatureID?) -> Void) { self.open = open }
+
+    public func callAsFunction(_ feature: FeatureID?) { open(feature) }
 }
 
 extension SpaceID {

@@ -6,7 +6,7 @@ import TopdeckCore
 /// change, and relays sleep, display sleep, and screen lock to all of them.
 @MainActor
 public final class PanelCoordinator {
-    /// Called whenever any notch's presentation or sub-tab, or the set of notches, changes.
+    /// Called whenever any notch's presentation or detail screen, or the set of notches, changes.
     public var onNotchesChange: (([NotchState]) -> Void)?
 
     /// Asked before Esc closes the deck: true when something inside took it.
@@ -60,7 +60,7 @@ public final class PanelCoordinator {
         broadcast(.selectSpace(space))
     }
 
-    /// Opens the space that shows `feature` on every notch, on its sub-tab if it has one.
+    /// Opens the space that shows `feature` on every notch, on its detail screen if it has one.
     public func show(_ feature: FeatureID) {
         broadcast(.showFeature(feature))
     }
@@ -83,7 +83,7 @@ public final class PanelCoordinator {
         return controller.engine.state.presentation.openSpace != nil
     }
 
-    /// A feature's own shortcut: opens its space on the display under the pointer, on its sub-tab, and
+    /// A feature's own shortcut: opens its space on the display under the pointer, on its detail screen, and
     /// gives it the keyboard, or closes it when it's already on screen there. Returns whether it opened.
     @discardableResult
     public func toggle(_ feature: FeatureID) -> Bool {

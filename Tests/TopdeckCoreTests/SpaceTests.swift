@@ -16,15 +16,12 @@ struct SpaceTests {
         #expect(SpaceID(rawValue: "stash") == nil, "there is no Stash space any more")
     }
 
-    @Test func subTabsAreAgentsAndMacOnly() {
-        #expect(SpaceID.allCases.filter(\.hasSubTabs) == [.agents, .mac])
-        #expect(SpaceSet.all.subTabs(of: .shelf).isEmpty && SpaceSet.all.subTabs(of: .clipboard).isEmpty)
-        #expect(SpaceSet.all.subTabs(of: .agents) == [.agents, .usage])
-        #expect(SpaceSet.all.subTabs(of: .mac) == [.performance, .sound, .monitors, .network, .storage, .admin])
-        #expect(SpaceSet.all.subTabs(of: .now).isEmpty && SpaceSet.all.subTabs(of: .tools).isEmpty)
-        let titles = SpaceSet.all.subTabs(of: .mac).map { SpaceID.mac.subTabTitle($0) }
-        #expect(titles == ["Performance", "Sound", "Displays", "Network", "Storage", "System"])
-        #expect(SpaceID.agents.subTabTitle(.agents) == "Sessions" && SpaceID.agents.subTabTitle(.usage) == "Usage")
+    @Test func macHasFiveDetailScreensAndNoOtherSpaceHasAny() {
+        #expect(SpaceID.mac.details == [.sound, .monitors, .network, .storage, .admin])
+        #expect(SpaceID.allCases.filter { !$0.details.isEmpty } == [.mac])
+        let titles = SpaceID.mac.details.map { SpaceID.mac.detailTitle($0) }
+        #expect(titles == ["Sound", "Displays", "Network", "Storage", "System"])
+        #expect(FeatureID.storage.detailSpace == .mac && FeatureID.performance.detailSpace == nil)
     }
 
     @Test func eachFeatureHasOneHomeAmongTheSpacesThatHoldIt() {
@@ -35,30 +32,36 @@ struct SpaceTests {
             FeatureID.allCases.allSatisfy { feature in
                 SpaceID.allCases.contains { $0.features.contains(feature) }
             }, "no feature is left without a screen")
-        #expect(FeatureID.clipboard.subTabSpace == nil && FeatureID.timer.subTabSpace == nil)
+        #expect(FeatureID.clipboard.detailSpace == nil && FeatureID.timer.detailSpace == nil)
         #expect(
             FeatureID.notes.home == .now && FeatureID.shelf.home == .shelf && FeatureID.clipboard.home == .clipboard)
     }
 
-    @Test func aSubTabbedSpaceShowsOnlyTheChosenFeature() {
-        #expect(SpaceSet.all.visibleFeatures(in: .agents, subTab: .usage) == [.usage])
-        #expect(SpaceSet.all.visibleFeatures(in: .agents, subTab: nil).isEmpty)
-        #expect(SpaceSet.all.visibleFeatures(in: .shelf, subTab: nil) == [.shelf], "no sub-tabs: the one view")
+    @Test func aSpaceShowsAllItsFeaturesOnOnePage() {
+        #expect(SpaceSet.all.visibleFeatures(in: .agents, detail: nil) == [.agents, .usage])
+        #expect(SpaceSet.all.visibleFeatures(in: .shelf, detail: nil) == [.shelf])
+        #expect(SpaceSet.all.visibleFeatures(in: .tools, detail: nil) == [.capture, .timer, .shortcuts])
         #expect(
-            SpaceSet.all.visibleFeatures(in: .now, subTab: nil) == [
+            SpaceSet.all.visibleFeatures(in: .now, detail: nil) == [
                 .media, .agents, .calendar, .notes, .weather, .timer,
             ],
             "everything Now shows")
+    }
+
+    @Test func macRunsItsPageAndOnlyTheDetailScreenThatIsOver() {
+        #expect(SpaceSet.all.visibleFeatures(in: .mac, detail: nil) == [.performance])
+        #expect(SpaceSet.all.visibleFeatures(in: .mac, detail: .storage) == [.performance, .storage])
         #expect(
-            SpaceSet.all.visibleFeatures(in: .mac, subTab: .sound) == [.sound, .monitors],
+            SpaceSet.all.visibleFeatures(in: .mac, detail: .sound) == [.performance, .sound, .monitors],
             "Sound shows the monitors' volume")
-        #expect(SpaceSet(enabled: [.sound]).visibleFeatures(in: .mac, subTab: .sound) == [.sound])
+        #expect(SpaceSet(enabled: [.sound]).visibleFeatures(in: .mac, detail: .sound) == [.sound])
+        #expect(SpaceSet.all.visibleFeatures(in: .mac, detail: .capture) == [.performance], "not a Mac detail")
+        #expect(SpaceSet(enabled: [.performance]).visibleFeatures(in: .mac, detail: .storage) == [.performance])
     }
 
     @Test func aSpaceWithNothingOnIsHidden() {
         let set = SpaceSet(enabled: [.shelf, .performance])
         #expect(set.spaces == [.now, .shelf, .mac], "Now stays; clipboard, agents and tools have nothing on")
-        #expect(set.subTabs(of: .mac) == [.performance])
     }
 
     @Test func hiddenSpacesLeaveAndTheRestKeepTheirOrder() {

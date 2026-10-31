@@ -12,7 +12,7 @@ public struct NotchContent {
     public var now: () -> AnyView
     /// The count on a space's label in its wing: agents waiting. Zero shows none.
     public var badge: (SpaceID) -> Int
-    /// A space's own actions in the second row, before pin and Settings. The feature is the open sub-tab.
+    /// A space's own actions in the second row, before pin and Settings. The feature is the open detail screen, if any.
     public var actions: (SpaceID, FeatureID?) -> AnyView
     /// Files dropped on the notch; returns whether they were accepted.
     public var dropFiles: ([URL]) -> Bool
@@ -20,12 +20,12 @@ public struct NotchContent {
     /// A space that draws its whole body itself, from the features that are on: Tools. Nil for the
     /// others, which show their feature's view (or Now's columns).
     public var screen: (SpaceID, Set<FeatureID>) -> AnyView?
-    /// What fills the middle of the second row of a space without sub-tabs: on Now, the one slot between
+    /// What fills the middle of the second row of a space: on Now, the one slot between
     /// the clock and the actions.
     public var slot: (SpaceID) -> AnyView
     /// Joins a meeting from the closed notch's Join button.
     public var join: (URL) -> Void
-    /// What stands at the left of the second row of a space without sub-tabs, in place of its name: the
+    /// What stands at the left of the second row of a space, in place of its name: the
     /// Clipboard's filters, the Shelf's count. Nil keeps the name.
     public var leading: (SpaceID) -> AnyView?
 

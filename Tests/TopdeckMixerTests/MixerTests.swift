@@ -380,10 +380,8 @@ struct MixerSnapshotTests {
                 .padding(.horizontal, 10)
                 .frame(height: 37)
                 HStack {
-                    DeckSubTabs(
-                        ["Performance", "Sound", "Displays", "Network", "Storage", "System"], selection: "Sound",
-                        title: { $0 }
-                    ) { _ in }
+                    DeckIconButton(.chevronLeft, label: "Back") {}
+                    Text("Sound").deckText(.title)
                     Spacer()
                 }
                 .padding(.horizontal, 18)

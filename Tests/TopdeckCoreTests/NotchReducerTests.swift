@@ -138,37 +138,48 @@ struct NotchReducerTests {
         #expect(after(.show).lastSpace == .now, "Now is the default")
     }
 
-    @Test func eachSpaceRemembersItsLastSubTab() {
-        var state = after(.show, .clicked, .selectSpace(.agents))
-        #expect(state.subTab(in: .agents) == .agents, "the first tab to begin with")
-        _ = state.handle(.selectSubTab(.usage))
+    @Test func aDetailScreenSlidesOverMacAndGoesWhenTheSpaceOrTheNotchChanges() {
+        var state = after(.show, .clicked, .selectSpace(.mac))
+        #expect(state.detail == nil)
+        _ = state.handle(.openDetail(.network))
+        #expect(state.detail == .network && state.presentation == .expanded(space: .mac))
+        _ = state.handle(.openDetail(.capture))
+        #expect(state.detail == .network, "a feature that is not a Mac screen is ignored")
+        _ = state.handle(.togglePin)
+        #expect(state.detail == .network, "pinning keeps it")
         _ = state.handle(.selectSpace(.mac))
-        _ = state.handle(.selectSubTab(.network))
+        #expect(state.detail == nil, "choosing the space again goes back to its page")
+        _ = state.handle(.openDetail(.storage))
         _ = state.handle(.selectSpace(.agents))
-        #expect(state.subTab(in: .agents) == .usage && state.subTab(in: .mac) == .network)
+        _ = state.handle(.selectSpace(.mac))
+        #expect(state.detail == nil)
+        _ = state.handle(.openDetail(.storage))
+        _ = state.handle(.openDetail(nil))
+        #expect(state.detail == nil)
+        _ = state.handle(.openDetail(.storage))
         _ = state.handle(.dismiss)
         _ = state.handle(.clicked)
-        #expect(state.presentation == .expanded(space: .agents) && state.subTab(in: .agents) == .usage)
-        #expect(state.subTab(in: .now) == nil && state.subTab(in: .tools) == nil, "no sub-tabs, nothing to remember")
+        #expect(state.presentation == .expanded(space: .mac) && state.detail == nil, "a closed notch forgets it")
     }
 
-    @Test func aSubTabForAFeatureThatIsOffIsNotChosenOrKept() {
-        var state = after(.show, .setSpaces(only(.agents, .usage)), .clicked, .selectSpace(.agents))
-        _ = state.handle(.selectSubTab(.performance))
-        #expect(state.subTab(in: .agents) == .agents, "performance is not a tab of Agents")
-        _ = state.handle(.selectSubTab(.usage))
-        #expect(state.subTab(in: .agents) == .usage)
-        _ = state.handle(.setSpaces(only(.agents)))
-        #expect(state.subTab(in: .agents) == .agents, "usage went off, so the first tab left shows")
-        _ = state.handle(.setSpaces(only(.agents, .usage)))
-        #expect(state.subTab(in: .agents) == .usage, "and it comes back when usage does")
+    @Test func aDetailForAFeatureThatIsOffIsNotOpened() {
+        var state = after(.show, .setSpaces(only(.performance, .sound)), .clicked, .selectSpace(.mac))
+        _ = state.handle(.openDetail(.storage))
+        #expect(state.detail == nil)
+        _ = state.handle(.openDetail(.sound))
+        #expect(state.detail == .sound)
+        _ = state.handle(.setSpaces(only(.performance)))
+        #expect(state.onScreen == [.performance], "its feature went off, so it no longer runs")
     }
 
-    @Test func showingAFeatureOpensItsSpaceOnItsSubTab() {
+    @Test func showingAFeatureOpensItsSpaceOnItsDetailScreenIfItIsOne() {
         let clipboard = after(.show, .showFeature(.clipboard))
         #expect(clipboard.presentation == .expanded(space: .clipboard))
         let usage = after(.show, .showFeature(.usage))
-        #expect(usage.presentation == .expanded(space: .agents) && usage.subTab(in: .agents) == .usage)
+        #expect(usage.presentation == .expanded(space: .agents) && usage.detail == nil)
+        let storage = after(.show, .showFeature(.storage))
+        #expect(storage.presentation == .expanded(space: .mac) && storage.detail == .storage)
+        #expect(after(.show, .showFeature(.performance)).detail == nil)
         #expect(after(.show, .showFeature(.timer)).presentation == .expanded(space: .tools))
         #expect(after(.show, .clicked, .togglePin, .showFeature(.sound)).presentation == .pinned(space: .mac))
         let hidden = after(.show, .setSpaces(SpaceSet(hidden: [.tools], enabled: Set(FeatureID.allCases))))
@@ -331,14 +342,15 @@ struct NotchReducerTests {
         #expect(after(.show, .setSpaces(only()), .clicked).presentation == .expanded(space: .now), "Now always opens")
     }
 
-    @Test func whatIsOnScreenFollowsTheSpaceAndItsSubTab() {
+    @Test func whatIsOnScreenFollowsTheSpaceAndItsDetail() {
         func features(_ events: NotchEvent...) -> Set<FeatureID> { after(events).onScreen }
         #expect(features(.show).isEmpty)
         #expect(
             features(.show, .clicked) == [.media, .agents, .calendar, .notes, .weather, .timer], "everything Now shows")
-        #expect(features(.show, .showFeature(.usage)) == [.usage], "one tab at a time")
-        #expect(features(.show, .showFeature(.usage), .selectSubTab(.agents)) == [.agents])
-        #expect(features(.show, .showFeature(.clipboard)) == [.clipboard], "no tabs: the one view")
+        #expect(features(.show, .showFeature(.usage)) == [.agents, .usage], "one page")
+        #expect(features(.show, .selectSpace(.mac)) == [.performance], "Mac's page runs only the performance reading")
+        #expect(features(.show, .showFeature(.sound)) == [.performance, .sound, .monitors])
+        #expect(features(.show, .showFeature(.clipboard)) == [.clipboard], "the one view")
         #expect(features(.show, .selectSpace(.tools)) == [.capture, .timer, .shortcuts])
         #expect(features(.show, .setSpaces(only(.media, .agents)), .selectSpace(.now)) == [.media, .agents])
     }
@@ -355,8 +367,11 @@ struct NotchReducerTests {
         let clipboard = phases(after(.show, .showFeature(.clipboard)))
         #expect(Set(clipboard.filter { $0.value == .foreground }.keys) == [.clipboard])
         #expect(clipboard[.shelf] == .background && clipboard[.media] == .background)
-        let usage = phases(after(.show, .showFeature(.usage), .selectSubTab(.agents)))
-        #expect(Set(usage.filter { $0.value == .foreground }.keys) == [.agents], "the sessions tab, not usage")
+        let usage = phases(after(.show, .showFeature(.usage)))
+        #expect(Set(usage.filter { $0.value == .foreground }.keys) == [.agents, .usage], "both on one page")
+        let storage = phases(after(.show, .showFeature(.storage)))
+        #expect(Set(storage.filter { $0.value == .foreground }.keys) == [.performance, .storage])
+        #expect(storage[.network] == .background && storage[.admin] == .background)
         let suspended = phases(after(.show, .clicked, .suspend(.screenLocked)))
         #expect(suspended.values.allSatisfy { $0 == .stopped })
         let activity = phases(after(.show, .activity(drop)))
@@ -387,7 +402,8 @@ struct NotchReducerTests {
                 .activity(drop), .activity(volume), .setSpaces(.all), .setSpaces(only(.notes, .shelf)),
                 .setSpaces(only()), .setSpaces(SpaceSet(hidden: [.now, .shelf], enabled: Set(FeatureID.allCases))),
                 .setOngoing(meeting), .setOngoing(nil),
-            ] + FeatureID.allCases.map(NotchEvent.showFeature) + FeatureID.allCases.map(NotchEvent.selectSubTab)
+            ] + FeatureID.allCases.map(NotchEvent.showFeature) + FeatureID.allCases.map { NotchEvent.openDetail($0) }
+            + [.openDetail(nil)]
             + SpaceID.allCases.map(NotchEvent.selectSpace) + reasons.map(NotchEvent.suspend)
             + reasons.map(NotchEvent.resume)
         var state = NotchState()
@@ -416,9 +432,11 @@ struct NotchReducerTests {
             if let space = presentation.openSpace {
                 try #require(space == state.lastSpace)
                 try #require(state.spaceSet.spaces.contains(space), "\(event) opened hidden \(space)")
-                if let tab = state.subTab(in: space) {
-                    try #require(state.spaceSet.enabled.contains(tab), "\(event) showed the sub-tab of an off feature")
-                    try #require(state.onScreen == [tab] || (tab == .sound && state.onScreen.isSuperset(of: [tab])))
+                if let detail = state.detail {
+                    try #require(space.details.contains(detail), "\(event) showed \(detail) over \(space)")
+                    try #require(
+                        state.spaceSet.enabled.contains(detail), "\(event) showed the screen of an off feature")
+                    try #require(state.onScreen.contains(detail))
                 }
             }
             try #require(state.spaceSet.spaces.contains(state.lastSpace), "\(event) left a hidden space as the last")

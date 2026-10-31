@@ -327,39 +327,6 @@ public struct DeckNavItem: View {
     }
 }
 
-/// The text tabs of the second row: lit when selected, 42 high, 18 apart.
-public struct DeckSubTabs<ID: Hashable>: View {
-    let items: [ID]
-    let selection: ID?
-    let title: (ID) -> String
-    let select: (ID) -> Void
-
-    public init(_ items: [ID], selection: ID?, title: @escaping (ID) -> String, select: @escaping (ID) -> Void) {
-        self.items = items
-        self.selection = selection
-        self.title = title
-        self.select = select
-    }
-
-    public var body: some View {
-        HStack(spacing: 18) {
-            ForEach(items, id: \.self) { item in
-                Button {
-                    select(item)
-                } label: {
-                    Text(title(item))
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(item == selection ? Deck.text : Deck.tertiary)
-                        .frame(height: Deck.Metric.subRow)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(item == selection ? .isSelected : [])
-            }
-        }
-    }
-}
-
 /// A small group of options in a tray, one selected: where a note shows, which provider. `compact` is
 /// the 26 point tray that sits inside a field, on a black `tray`.
 public struct DeckSegmented<ID: Hashable>: View {

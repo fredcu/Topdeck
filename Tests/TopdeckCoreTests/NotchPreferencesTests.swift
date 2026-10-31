@@ -63,14 +63,13 @@ struct NotchPreferencesTests {
         #expect(preferences.spaceSet.spaces == [.tools, .now, .agents, .mac])
     }
 
-    @Test func aSubTabChosenForAStashThatIsGoneChangesNothing() {
+    @Test func aDetailChosenOutsideItsSpaceChangesNothing() {
         var state = NotchState()
         _ = state.handle(.show)
         _ = state.handle(.clicked)
         let before = state
-        _ = state.handle(.selectSubTab(.notes))  // Notes was a sub-tab of Stash; no space has it now
-        #expect(state.subTabs == before.subTabs && state.presentation == before.presentation)
-        #expect(state.subTab(in: .shelf) == nil && state.subTab(in: .clipboard) == nil)
+        _ = state.handle(.openDetail(.storage))  // Storage is a screen over Mac; Now is open
+        #expect(state.detail == before.detail && state.presentation == before.presentation)
     }
 
     @Test func aStoredFeatureListWithTasksLoadsCleanly() {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 /// A screen of the deck. Six of them replace the old tab row: three in each wing. Each holds one or
-/// more features' views; a space with sub-tabs shows one feature at a time.
+/// more features' views on one page.
 public enum SpaceID: String, CaseIterable, Codable, Hashable, Identifiable, Sendable {
     case now, shelf, clipboard, tools, agents, mac
 
@@ -28,8 +28,7 @@ public enum SpaceID: String, CaseIterable, Codable, Hashable, Identifiable, Send
         name == "stash" ? [.shelf, .clipboard] : SpaceID(rawValue: name).map { [$0] } ?? []
     }
 
-    /// The features whose views the space shows. With sub-tabs, one tab each, in tab order; without,
-    /// all of them on one screen.
+    /// The features whose views the space shows, on its page or in the screens that slide over it.
     public var features: [FeatureID] {
         switch self {
         case .now: [.media, .agents, .calendar, .notes, .weather, .timer]
@@ -41,19 +40,15 @@ public enum SpaceID: String, CaseIterable, Codable, Hashable, Identifiable, Send
         }
     }
 
-    /// Whether the space shows one feature at a time under sub-tabs.
-    public var hasSubTabs: Bool {
-        switch self {
-        case .agents, .mac: true
-        case .now, .shelf, .clipboard, .tools: false
-        }
+    /// The screens that slide over the whole body of the space, each from a row on its page: Mac's
+    /// Sound, Displays, Network, Storage and System. The others have none.
+    public var details: [FeatureID] {
+        self == .mac ? [.sound, .monitors, .network, .storage, .admin] : []
     }
 
-    /// A sub-tab's label, which can differ from its feature's name (Agents' tab is Sessions).
-    public func subTabTitle(_ feature: FeatureID) -> String {
+    /// A detail screen's title, which can differ from its feature's name.
+    public func detailTitle(_ feature: FeatureID) -> String {
         switch (self, feature) {
-        case (.agents, .agents): "Sessions"
-        case (.agents, .usage): "Usage"
         case (.mac, .monitors): "Displays"
         case (.mac, .admin): "System"
         default: feature.title
@@ -75,15 +70,14 @@ extension FeatureID {
         }
     }
 
-    /// The sub-tabbed space this feature is a tab of, if it is one.
-    public var subTabSpace: SpaceID? {
-        SpaceID.allCases.first { $0.hasSubTabs && $0.features.contains(self) }
+    /// The space whose detail screen this feature is, if it is one.
+    public var detailSpace: SpaceID? {
+        SpaceID.allCases.first { $0.details.contains(self) }
     }
 }
 
 /// What the deck offers right now: which spaces are on show, in order, and which features are on.
-/// Pure, so the rules (a space with nothing on is hidden, a sub-tab for a feature that is off is
-/// hidden) are tested without any UI.
+/// Pure, so the rules (a space with nothing on is hidden) are tested without any UI.
 public struct SpaceSet: Hashable, Sendable {
     /// The spaces on show, in order. Never empty.
     public let spaces: [SpaceID]
@@ -104,19 +98,17 @@ public struct SpaceSet: Hashable, Sendable {
     /// Every space, every feature on.
     public static let all = SpaceSet(enabled: Set(FeatureID.allCases))
 
-    /// A sub-tabbed space's tabs: its features that are on, in tab order. Empty for a space without sub-tabs.
-    public func subTabs(of space: SpaceID) -> [FeatureID] {
-        space.hasSubTabs ? space.features.filter(enabled.contains) : []
-    }
-
-    /// The features a space shows on screen at once when `subTab` is chosen.
-    public func visibleFeatures(in space: SpaceID, subTab: FeatureID?) -> Set<FeatureID> {
-        if space.hasSubTabs {
-            guard let subTab else { return [] }
+    /// The features a space shows on screen at once. Mac shows its page's, with the detail screen's over it
+    /// when one is open; the others show all of theirs.
+    public func visibleFeatures(in space: SpaceID, detail: FeatureID?) -> Set<FeatureID> {
+        guard space == .mac else { return Set(space.features.filter(enabled.contains)) }
+        var shown: Set<FeatureID> = enabled.contains(.performance) ? [.performance] : []
+        if let detail, enabled.contains(detail), space.details.contains(detail) {
+            shown.insert(detail)
             // Sound also shows the external monitors' volume, so Displays runs while it's on screen.
-            return subTab == .sound && enabled.contains(.monitors) ? [.sound, .monitors] : [subTab]
+            if detail == .sound, enabled.contains(.monitors) { shown.insert(.monitors) }
         }
-        return Set(space.features.filter(enabled.contains))
+        return shown
     }
 
     /// The space to open for `feature`: its home, else another space on show that holds it, else nil.

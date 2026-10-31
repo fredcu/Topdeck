@@ -11,7 +11,7 @@ public enum FeaturePhase: Comparable, Hashable, Sendable {
     case foreground
 }
 
-/// A notch feature module. `FeatureHost` sets `phase` whenever any notch's presentation or sub-tab changes,
+/// A notch feature module. `FeatureHost` sets `phase` whenever any notch's presentation or detail screen changes,
 /// and only when the value actually changes; a module starts and stops its work in `didSet`.
 @MainActor
 public protocol NotchFeature: AnyObject {

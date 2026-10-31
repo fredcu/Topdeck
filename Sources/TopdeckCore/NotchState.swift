@@ -171,10 +171,10 @@ public enum NotchEvent: Hashable, Sendable {
     /// Escape or a close control.
     case dismiss
     case selectSpace(SpaceID)
-    /// Chooses a sub-tab of the open space (and remembers it for next time). Only a feature that is
-    /// on, and a tab of some space, counts.
-    case selectSubTab(FeatureID)
-    /// Opens the space that shows `feature`, on its sub-tab if it is one: a shortcut, a command.
+    /// Slides a detail screen over the open space's body, or (nil) takes it away. Only a feature that is
+    /// on, and a detail of the open space, counts.
+    case openDetail(FeatureID?)
+    /// Opens the space that shows `feature`, on its detail screen if it is one: a shortcut, a command.
     case showFeature(FeatureID)
     case togglePin
     case beginTextInput
@@ -225,8 +225,8 @@ public struct NotchState: Hashable, Sendable {
     /// What the deck offers: the spaces on show, in order, and the features that are on. The notch
     /// never opens a space missing from it.
     public private(set) var spaceSet = SpaceSet.all
-    /// Each space's last sub-tab.
-    public private(set) var subTabs: [SpaceID: FeatureID] = [:]
+    /// The detail screen over the open space's body, if one is. Not kept past the space or the notch closing.
+    public private(set) var detail: FeatureID?
     /// Every reason the notch is currently suspended.
     public private(set) var suspensions: Set<SuspendReason> = []
     /// Kept in every state so a late collapse deadline can't close a notch the pointer is on.
@@ -245,18 +245,10 @@ public struct NotchState: Hashable, Sendable {
         return ongoing
     }
 
-    /// The sub-tab on screen in `space`: the remembered one while its feature is on, else the first
-    /// that is. Nil for a space without sub-tabs, or with none of them on.
-    public func subTab(in space: SpaceID) -> FeatureID? {
-        let offered = spaceSet.subTabs(of: space)
-        if let remembered = subTabs[space], offered.contains(remembered) { return remembered }
-        return offered.first
-    }
-
     /// The features the open space is showing right now.
     public var onScreen: Set<FeatureID> {
         guard let space = presentation.openSpace else { return [] }
-        return spaceSet.visibleFeatures(in: space, subTab: subTab(in: space))
+        return spaceSet.visibleFeatures(in: space, detail: detail)
     }
 
     /// Activation policy: what is on screen runs fully, the others keep only cheap observers, and
@@ -278,6 +270,7 @@ public struct NotchState: Hashable, Sendable {
         }
         let before = presentation
         var effects = transition(on: event)
+        if before.openSpace != nil, presentation.openSpace == nil { detail = nil }
         // Leaving a state cancels the deadline it owned, so at most one deadline is ever pending.
         if let owned = before.deadline, owned != presentation.deadline, event != .deadline(owned) {
             effects.insert(.cancel(owned), at: 0)
@@ -418,19 +411,24 @@ public struct NotchState: Hashable, Sendable {
         // Choosing a space or a feature opens it and keeps a pin. While the notch has the keyboard,
         // switching keeps focus too: text entry ends only when the panel loses the keyboard or is dismissed.
         case (.focused(_, let pinned), .selectSpace(let space)) where spaceSet.spaces.contains(space):
+            detail = nil
             lastSpace = space
             presentation = .focused(space: space, pinned: pinned)
         case (.focused(_, let pinned), .showFeature(let feature)) where spaceSet.target(for: feature) != nil:
             aim(at: feature)
             presentation = .focused(space: lastSpace, pinned: pinned)
         case (_, .selectSpace(let space)):
+            detail = nil
             open(space, pinned: presentation.isPinned)
         case (_, .showFeature(let feature)):
             aim(at: feature)
             open(lastSpace, pinned: presentation.isPinned)
-        case (_, .selectSubTab(let feature)):
-            if let space = feature.subTabSpace, spaceSet.subTabs(of: space).contains(feature) {
-                subTabs[space] = feature
+        case (_, .openDetail(let feature)):
+            guard let space = presentation.openSpace else { break }
+            if let feature, space.details.contains(feature), spaceSet.enabled.contains(feature) {
+                detail = feature
+            } else if feature == nil {
+                detail = nil
             }
 
         default:
@@ -444,12 +442,13 @@ public struct NotchState: Hashable, Sendable {
         activity.feature.map(spaceSet.enabled.contains) ?? true
     }
 
-    /// Makes `feature`'s space the one to open next, and its sub-tab the one that space shows. A
+    /// Makes `feature`'s space the one to open next, on its detail screen if the feature is one. A
     /// feature on no space on show, or none, leaves the last space as it was.
     private mutating func aim(at feature: FeatureID?) {
+        detail = nil
         guard let feature, spaceSet.enabled.contains(feature), let space = spaceSet.target(for: feature) else { return }
         lastSpace = space
-        if space.hasSubTabs, spaceSet.subTabs(of: space).contains(feature) { subTabs[space] = feature }
+        detail = space.details.contains(feature) ? feature : nil
     }
 
     /// Opens `space`, or the first space on show if it isn't one.
