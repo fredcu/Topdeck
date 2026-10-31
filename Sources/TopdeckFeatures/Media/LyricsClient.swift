@@ -30,7 +30,7 @@ struct LyricsClient: Sendable {
     /// How long "not found" is believed.
     static let notFoundLifetime: TimeInterval = 7 * 24 * 3600
     static let keptFiles = 500
-    /// Seconds to wait before the first and second retry.
+    /// Seconds to wait before each retry.
     static let retryDelays: [TimeInterval] = [1, 3, 8]
     static let maxRetryAfter: TimeInterval = 30
 

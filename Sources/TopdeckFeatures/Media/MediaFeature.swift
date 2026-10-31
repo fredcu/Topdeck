@@ -106,12 +106,12 @@ public final class MediaFeature: NotchFeature {
     @ObservationIgnored var lyricsSource: @Sendable (LyricsTrack) async throws -> SyncedLyrics? = {
         try await LyricsClient().lyrics(for: $0)
     }
-    /// The track `synced` is for or is being looked up for, and the lookup.
     /// Seconds to wait before each new try while a lookup keeps failing; the sleep is injectable for tests.
     @ObservationIgnored var syncedRetryDelays: [TimeInterval] = [30, 60, 120, 240]
     @ObservationIgnored var syncedSleep: @Sendable (TimeInterval) async throws -> Void = {
         try await Task.sleep(for: .seconds($0))
     }
+    /// The track `synced` is for or is being looked up for, and the lookup.
     @ObservationIgnored private var syncedTrack: LyricsTrack?
     @ObservationIgnored private var syncedLookup: Task<Void, Never>?
     @ObservationIgnored private var syncedGeneration = 0
