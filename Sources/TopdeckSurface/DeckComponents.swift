@@ -948,16 +948,18 @@ public enum DeckPopovers {
 }
 
 extension View {
-    /// A popover below the view, dark like the deck, that keeps the deck open while it shows.
+    /// A popover below the view, dark like the deck, that keeps the deck open while it shows. Returns
+    /// `AnyView`: SwiftUI's opaque popover type doesn't link from another module when built for macOS 14.
     public func deckPopover<Content: View>(
         isPresented: Binding<Bool>, @ViewBuilder content: @escaping () -> Content
-    ) -> some View {
-        popover(isPresented: isPresented, arrowEdge: .bottom) {
-            content()
-                .environment(\.colorScheme, .dark)
-                .onAppear { DeckPopovers.opened() }
-                .onDisappear { DeckPopovers.closed() }
-        }
+    ) -> AnyView {
+        AnyView(
+            popover(isPresented: isPresented, arrowEdge: .bottom) {
+                content()
+                    .environment(\.colorScheme, .dark)
+                    .onAppear { DeckPopovers.opened() }
+                    .onDisappear { DeckPopovers.closed() }
+            })
     }
 }
 
