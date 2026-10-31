@@ -176,9 +176,11 @@ final class ClaudeProvider: ProviderRuntime {
                 mapped: ClaudeMappedUsage(plan: nil, lines: []),
                 warning: error.localizedDescription
             )
+            // Only the days the spend tiles show count: older history is kept for the Agents space's "All".
+            let window = UsageHistoryWindow.dayKeys(through: now())
             guard let history = snapshot.usageHistory,
                   history.series.daily.contains(where: {
-                      $0.totalTokens > 0 || ($0.costUSD ?? 0) > 0
+                      window.contains(String($0.date.prefix(10))) && ($0.totalTokens > 0 || ($0.costUSD ?? 0) > 0)
                   })
             else {
                 return ProviderSnapshot.error(provider: provider, error: error)
