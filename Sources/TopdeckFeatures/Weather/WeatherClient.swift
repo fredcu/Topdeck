@@ -1,66 +1,76 @@
 // SPDX-License-Identifier: MIT
+import CoreLocation
 import Foundation
+import WeatherKit
 
-/// Open-Meteo's forecast and air quality calls (open-meteo.com, CC BY 4.0): no key, and only a place
-/// rounded to two decimals goes out. The network is a closure, so tests answer without one.
+/// Apple's mark and legal page, which must show wherever the data does.
+public struct WeatherAttribution: Equatable, Sendable {
+    public var mark: URL
+    public var legal: URL
+
+    public init(mark: URL, legal: URL) {
+        self.mark = mark
+        self.legal = legal
+    }
+}
+
+/// WeatherKit, behind two closures so tests answer without the framework or the network. Only a place
+/// rounded to two decimals is passed in. A build without the WeatherKit entitlement gets an error from
+/// the framework, which reads as any other failed fetch.
 public struct WeatherClient: Sendable {
-    /// Gets a URL's body; throws for anything but a success.
-    public var fetch: @Sendable (URL) async throws -> Data
+    /// The forecast for a place.
+    public var forecast: @Sendable (_ latitude: Double, _ longitude: Double) async throws -> WeatherSnapshot.Forecast
+    public var attribution: @Sendable () async throws -> WeatherAttribution
 
-    public init(fetch: @escaping @Sendable (URL) async throws -> Data) { self.fetch = fetch }
+    public init(
+        forecast:
+            @escaping @Sendable (_ latitude: Double, _ longitude: Double) async throws -> WeatherSnapshot.Forecast,
+        attribution: @escaping @Sendable () async throws -> WeatherAttribution
+    ) {
+        self.forecast = forecast
+        self.attribution = attribution
+    }
 
-    public struct Failure: Error, Equatable { public var status: Int }
+    /// How many hours and days are kept: the view shows five of each, after today.
+    private static let keptHours = 8
+    private static let keptDays = 7
 
-    /// The real thing, with a plain `Topdeck/<version>` User-Agent.
-    public static func live(version: String = Self.appVersion) -> WeatherClient {
-        let session = URLSession(configuration: .ephemeral)
-        return WeatherClient { url in
-            var request = URLRequest(url: url, timeoutInterval: 15)
-            request.setValue("Topdeck/\(version)", forHTTPHeaderField: "User-Agent")
-            let (data, response) = try await session.data(for: request)
-            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            guard (200..<300).contains(status) else { throw Failure(status: status) }
-            return data
+    public static func live() -> WeatherClient {
+        WeatherClient(
+            forecast: { latitude, longitude in
+                let weather = try await WeatherService.shared.weather(
+                    for: CLLocation(latitude: latitude, longitude: longitude))
+                return Self.forecast(from: weather, now: .now)
+            },
+            attribution: {
+                let attribution = try await WeatherService.shared.attribution
+                return WeatherAttribution(mark: attribution.combinedMarkDarkURL, legal: attribution.legalPageURL)
+            })
+    }
+
+    private static func celsius(_ measurement: Measurement<UnitTemperature>) -> Double {
+        measurement.converted(to: .celsius).value
+    }
+
+    static func forecast(from weather: Weather, now: Date) -> WeatherSnapshot.Forecast {
+        let current = weather.currentWeather
+        let hours = weather.hourlyForecast.forecast.filter { $0.date > now }.prefix(keptHours).map {
+            WeatherSnapshot.Hour(
+                time: $0.date, temperature: celsius($0.temperature), condition: $0.condition.description,
+                symbol: $0.symbolName)
         }
-    }
-
-    public static var appVersion: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
-    }
-
-    public static func forecastURL(latitude: Double, longitude: Double) -> URL {
-        url(
-            "https://api.open-meteo.com/v1/forecast",
-            [
-                ("latitude", "\(latitude)"), ("longitude", "\(longitude)"),
-                ("current", "temperature_2m,apparent_temperature,relative_humidity_2m,weather_code"),
-                ("hourly", "temperature_2m,weather_code"),
-                (
-                    "daily",
-                    "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,uv_index_max"
-                ),
-                ("forecast_days", "6"), ("timezone", "auto"),
-            ])
-    }
-
-    public static func airQualityURL(latitude: Double, longitude: Double) -> URL {
-        url(
-            "https://air-quality-api.open-meteo.com/v1/air-quality",
-            [("latitude", "\(latitude)"), ("longitude", "\(longitude)"), ("current", "us_aqi")])
-    }
-
-    private static func url(_ base: String, _ items: [(String, String)]) -> URL {
-        var parts = URLComponents(string: base)!
-        parts.queryItems = items.map { URLQueryItem(name: $0.0, value: $0.1) }
-        return parts.url!
-    }
-
-    public func forecast(latitude: Double, longitude: Double) async throws -> WeatherSnapshot.Forecast {
-        try WeatherDecoding.forecast(from: await fetch(Self.forecastURL(latitude: latitude, longitude: longitude)))
-    }
-
-    /// The US air quality index; nil when Open-Meteo has none for the place.
-    public func airQuality(latitude: Double, longitude: Double) async throws -> Int? {
-        try WeatherDecoding.airQuality(from: await fetch(Self.airQualityURL(latitude: latitude, longitude: longitude)))
+        let days = weather.dailyForecast.forecast.prefix(keptDays).map {
+            WeatherSnapshot.Day(
+                // Noon, so any time zone's weekday is the right one.
+                date: $0.date.addingTimeInterval(12 * 3600), condition: $0.condition.description,
+                symbol: $0.symbolName, high: celsius($0.highTemperature), low: celsius($0.lowTemperature),
+                rainChance: $0.precipitationChance * 100, uv: Double($0.uvIndex.value))
+        }
+        return WeatherSnapshot.Forecast(
+            current: .init(
+                temperature: celsius(current.temperature), apparent: celsius(current.apparentTemperature),
+                humidity: current.humidity * 100, condition: current.condition.description,
+                symbol: current.symbolName),
+            hours: Array(hours), days: Array(days))
     }
 }

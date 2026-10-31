@@ -13,7 +13,8 @@
 ### Now
 
 - [ ] 第一次打开 Now 时系统询问位置权限，允许后天气出现；拒绝后只显示 Weather unavailable 和 Open Settings
-- [ ] Open-Meteo 链接能打开网站
+- [ ] 右栏底部的 Apple Weather 标志能打开 Apple 的法律页面；标志没加载出来时显示文字 Weather，同样是链接
+- [ ] 用带 WeatherKit 描述文件签名的构建（`make install`）天气能出来；没有描述文件的构建显示 Weather unavailable，不崩溃
 - [ ] 正在播放（含浏览器里的音频）时右栏出现播放器；拖动进度条时时间和歌词跟着变，松手才跳转
 - [ ] 加号能打开输入框；Return 保存，Tab 切换 Event / Note，⌘Return 把便签钉到桌面，Esc 只关输入框（丢弃文字，面板不关），点别处也会关闭
 - [ ] 点月历里的日期出现圆环并列出当天事件，再点一次回到未来 7 天；右键自己的事件能编辑、删除，编辑弹出框能输入

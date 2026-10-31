@@ -29,6 +29,8 @@ build: project ## Build the app; CONFIGURATION=Debug|Release
 	xcodebuild -project Topdeck.xcodeproj -scheme Topdeck -configuration $(CONFIGURATION) \
 		-destination 'platform=macOS,arch=$(ARCH)' -derivedDataPath $(DERIVED_DATA) \
 		TOPDECK_COMMIT='$(COMMIT)' $(SIGNING) $(XCODEBUILD_ARGS) -quiet build
+	@# WeatherKit needs a provisioning profile; scripts/sign-weather.sh adds it when you have one.
+	$(if $(SIGNING_IDENTITY),scripts/sign-weather.sh '$(APP)' '$(SIGNING_IDENTITY)')
 
 run: build ## Build and relaunch the app
 	-osascript -e 'quit app "Topdeck"'
@@ -54,6 +56,7 @@ test: ## Run unit and performance tests (warnings are errors in Topdeck's own ta
 
 lint: ## Fail on formatting drift (config: .swift-format)
 	swift format lint --strict --recursive $(SWIFT_SOURCES)
+	scripts/check-entitlements.sh
 
 format: ## Apply formatting in place
 	swift format --in-place --recursive $(SWIFT_SOURCES)

@@ -136,5 +136,7 @@ The window switcher defaults to Option-Tab because Command-Tab needs an event ta
 Now is rebuilt to the NowToday, NowPlaying, NowAlert, NowAdd, NowFree and NowMin boards. The Plan space and
 the Reminders feature (Tasks, due alerts, time blocking, the Reminders permission) are removed; the
 owner's Apple Reminders data is untouched. Calendar lives in Now, and Weather is new: Core Location
-once (reduced accuracy), Apple's geocoder for the place name, and Open-Meteo for the forecast and air
-quality, with coordinates rounded to two decimals. Wings: Now, Stash, Tools and Agents, Mac.
+once (reduced accuracy), Apple's geocoder for the place name, and Apple's WeatherKit for the forecast
+(no air quality), with coordinates rounded to two decimals. WeatherKit is a restricted entitlement, so
+`scripts/sign-weather.sh` embeds a provisioning profile and signs with `App/Topdeck.weather.entitlements`
+when one is installed; to get weather in your own build, make a profile with WeatherKit for your own App ID. Wings: Now, Stash, Tools and Agents, Mac.

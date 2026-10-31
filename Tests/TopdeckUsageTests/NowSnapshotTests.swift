@@ -10,7 +10,7 @@ import TopdeckCore
 
 /// Now in the real deck, with sample data and invented lyric text, in each state the boards show and
 /// at both sizes. Always checks that each draws; with SNAPSHOT_DIR set, also writes 2x PNGs there as
-/// `Now2-<Board>.png`, to compare with docs/design/<Board>.dc.html.
+/// `Now3-<Board>.png`, to compare with docs/design/<Board>.dc.html.
 @MainActor
 struct NowSnapshotTests {
     /// A notch 196 wide and 37 high, as the boards draw it.
@@ -103,7 +103,12 @@ struct NowSnapshotTests {
                     return note
                 })
 
-            weather = WeatherFeature(locator: NoLocator(), cache: nil)
+            weather = WeatherFeature(
+                locator: NoLocator(),
+                client: WeatherClient(
+                    forecast: { _, _ in throw WeatherLocationError.unavailable },
+                    attribution: { throw WeatherLocationError.unavailable }),
+                cache: nil)
             weather.show(sample.weather ? Self.forecast(now: now) : nil)
 
             media = MediaFeature(defaults: defaults())
@@ -140,27 +145,35 @@ struct NowSnapshotTests {
         deinit { try? FileManager.default.removeItem(at: folder) }
 
         static func forecast(now: Date) -> WeatherSnapshot {
+            typealias Sky = (name: String, symbol: String)
+            let clear: Sky = ("Clear", "sun.max")
+            let partly: Sky = ("Partly Cloudy", "cloud.sun")
+            let cloudy: Sky = ("Cloudy", "cloud")
+            let rain: Sky = ("Rain", "cloud.rain")
             let calendar = Calendar.current
             let hour = calendar.dateInterval(of: .hour, for: now)!.end
-            let codes = [2, 3, 61, 61, 3, 3]
+            let codes = [partly, cloudy, rain, rain, cloudy, cloudy]
             let hours = (0..<6).map {
                 WeatherSnapshot.Hour(
                     time: hour.addingTimeInterval(TimeInterval($0) * 3600), temperature: 16 - Double($0),
-                    code: codes[$0])
+                    condition: codes[$0].name, symbol: codes[$0].symbol)
             }
             let highs: [Double] = [19, 17, 20, 23, 22, 18]
             let lows: [Double] = [9, 8, 9, 11, 10, 9]
-            let dayCodes = [2, 3, 2, 0, 61, 3]
+            let dayCodes = [partly, cloudy, partly, clear, rain, cloudy]
             let days = (0..<6).map { offset -> WeatherSnapshot.Day in
                 let date = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now))!
                 return .init(
-                    date: date.addingTimeInterval(12 * 3600), code: dayCodes[offset], high: highs[offset],
+                    date: date.addingTimeInterval(12 * 3600), condition: dayCodes[offset].name,
+                    symbol: dayCodes[offset].symbol, high: highs[offset],
                     low: lows[offset], rainChance: 20, uv: 3.2)
             }
-            let current = WeatherSnapshot.Current(temperature: 17.1, apparent: 15, humidity: 62, code: 2)
+            let current = WeatherSnapshot.Current(
+                temperature: 17.1, apparent: 15, humidity: 62, condition: "Partly Cloudy",
+                symbol: "cloud.sun")
             return WeatherSnapshot(
                 place: "Hobart", latitude: -42.88, longitude: 147.33,
-                forecast: .init(current: current, hours: hours, days: days), aqi: 24, fetched: now)
+                forecast: .init(current: current, hours: hours, days: days), fetched: now)
         }
 
         static func cover() -> NSImage {
@@ -244,7 +257,7 @@ struct NowSnapshotTests {
         if let directory = ProcessInfo.processInfo.environment["SNAPSHOT_DIR"] {
             try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
             try bitmap.representation(using: .png, properties: [:])?.write(
-                to: URL(filePath: directory).appending(path: "Now2-\(name).png"))
+                to: URL(filePath: directory).appending(path: "Now3-\(name).png"))
         }
     }
 

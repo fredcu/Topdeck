@@ -3,9 +3,10 @@ import AppKit
 import SwiftUI
 import TopdeckSurface
 
-/// The right column. Nothing playing: the place, the condition and a large temperature, six figures,
-/// the next five hours and the next five days. Something playing: the place with a smaller temperature
-/// and the same figures, and under a hairline the player. Open-Meteo's link sits beside its data.
+/// The right column. Nothing playing: the place and a large temperature, the condition with today's low
+/// and high, four figures, the next five hours and the next five days. Something playing: the same top
+/// block with a smaller temperature, and under a hairline the player. Apple's mark and link close the
+/// column in both states, wherever the data shows.
 struct NowWeatherColumn: View {
     let weather: WeatherFeature?
     let media: MediaFeature?
@@ -29,8 +30,12 @@ struct NowWeatherColumn: View {
                 DeckSeparator().padding(.vertical, 9)
                 NowPlayer(media: media, now: playing, metrics: metrics)
             }
+            if let weather, weather.status == .ready {
+                WeatherAttributionLink(attribution: weather.attribution).padding(.top, 4)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .task { await weather?.loadAttribution() }
     }
 
     @ViewBuilder private func unavailable(_ denied: Bool, centered: Bool) -> some View {
@@ -49,6 +54,36 @@ struct NowWeatherColumn: View {
     }
 }
 
+/// Apple's combined mark, tertiary-looking, linking to its legal page. Until the mark has loaded, the
+/// words stand in as the same link.
+struct WeatherAttributionLink: View {
+    let attribution: WeatherAttribution?
+
+    private static let legal = URL(string: "https://weatherkit.apple.com/legal-attribution.html")!
+    private static let label = "Apple Weather, other data sources"
+
+    var body: some View {
+        Link(destination: attribution?.legal ?? Self.legal) {
+            if let mark = attribution?.mark {
+                AsyncImage(url: mark) { image in
+                    image.resizable().scaledToFit().opacity(0.55)
+                } placeholder: {
+                    text
+                }
+                .frame(height: 11)
+            } else {
+                text
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Self.label)
+        .help(Self.label)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var text: some View { Text("\u{F8FF} Weather").deckText(.caption).lineLimit(1) }
+}
+
 /// The weather itself: place, temperature, figures, and the forecasts.
 struct NowWeatherBlock: View {
     let snapshot: WeatherSnapshot
@@ -58,7 +93,6 @@ struct NowWeatherBlock: View {
     let playing: Bool
 
     private let units = WeatherUnits()
-    private static let site = URL(string: "https://open-meteo.com/")!
 
     var body: some View {
         if let forecast = snapshot.forecast {
@@ -71,23 +105,15 @@ struct NowWeatherBlock: View {
     }
 
     private func content(_ forecast: WeatherSnapshot.Forecast, daily showsDaily: Bool) -> some View {
-        let condition = WeatherCondition(code: forecast.current.code)
-        return VStack(alignment: .leading, spacing: 0) {
-            placeRow(forecast.current, condition: condition)
-            if playing {
-                Color.clear.frame(height: 8)
-            } else {
-                DeckSeparator().padding(.vertical, 10)
-            }
+        VStack(alignment: .leading, spacing: 0) {
+            placeBlock(forecast.current)
+            DeckSeparator().padding(.vertical, playing ? 8 : 10)
             figures(forecast)
-            if playing {
-                attribution.frame(maxWidth: .infinity, alignment: .trailing).padding(.top, 4)
-            } else {
+            if !playing {
                 DeckSeparator().padding(.vertical, 10)
                 hours
                 if showsDaily { daily }
                 Spacer(minLength: 0)
-                attribution.frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
@@ -107,61 +133,77 @@ struct NowWeatherBlock: View {
         }
     }
 
-    private func placeRow(_ current: WeatherSnapshot.Current, condition: WeatherCondition) -> some View {
-        HStack(alignment: .center, spacing: 8) {
-            VStack(alignment: .leading, spacing: 0) {
-                if let place = snapshot.place { Text(place).deckText(.item).lineLimit(1) }
-                if !playing { Text(condition.name).deckText(.caption).lineLimit(1) }
+    /// Line 1: the place, and the icon with the temperature. Line 2: the condition, and low and high.
+    private func placeBlock(_ current: WeatherSnapshot.Current) -> some View {
+        let today = snapshot.today(at: now)
+        return VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .center, spacing: 8) {
+                Text(snapshot.place ?? "").deckText(.item).lineLimit(1).truncationMode(.tail)
+                Spacer(minLength: 0)
+                HStack(spacing: 6) {
+                    Image(systemName: current.symbol)
+                        .font(.system(size: iconSize, weight: .regular))
+                        .symbolRenderingMode(.monochrome)
+                        .foregroundStyle(Deck.text)
+                        .accessibilityHidden(true)
+                    Text(units.text(current.temperature)).deckText(temperatureStyle).lineLimit(1).fixedSize()
+                }
+                .fixedSize()
             }
-            Spacer(minLength: 0)
-            HStack(spacing: 6) {
-                Image(systemName: condition.symbol)
-                    .font(.system(size: iconSize, weight: .regular))
-                    .symbolRenderingMode(.monochrome)
-                    .foregroundStyle(Deck.text)
-                    .accessibilityHidden(true)
-                Text(units.text(current.temperature)).deckText(temperatureStyle).lineLimit(1).fixedSize()
+            HStack(alignment: .center, spacing: 8) {
+                Text(current.condition).deckText(.caption).lineLimit(1).truncationMode(.tail)
+                Spacer(minLength: 0)
+                if let today { lowHigh(today) }
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            "\(snapshot.place ?? "Weather"), \(condition.name), \(units.text(current.temperature))")
+        .accessibilityLabel("\(snapshot.place ?? "Weather"), \(current.condition), \(units.text(current.temperature))")
+    }
+
+    /// "↓9° ↑19°": the arrows quiet, the numbers semibold.
+    private func lowHigh(_ day: WeatherSnapshot.Day) -> some View {
+        HStack(spacing: 3) {
+            arrow("arrow.down")
+            Text(units.text(day.low)).deckText(.figure).lineLimit(1)
+            arrow("arrow.up").padding(.leading, 4)
+            Text(units.text(day.high)).deckText(.figure).lineLimit(1)
+        }
+        .fixedSize()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Low and high")
+        .accessibilityValue("\(units.text(day.low)) \(units.text(day.high))")
+    }
+
+    private func arrow(_ name: String) -> some View {
+        Image(systemName: name).font(.system(size: 9, weight: .medium)).foregroundStyle(Deck.tertiary)
     }
 
     // MARK: Figures
 
+    /// Feels like, humidity, rain chance and UV in one row, spread edge to edge.
     private func figures(_ forecast: WeatherSnapshot.Forecast) -> some View {
         let today = snapshot.today(at: now)
         var cells: [(symbol: String, value: String, label: String)] = [
-            ("thermometer.medium", units.text(forecast.current.apparent), "Feels like")
+            ("thermometer.medium", units.text(forecast.current.apparent), "Feels like"),
+            ("drop", "\(Int(forecast.current.humidity.rounded()))%", "Humidity"),
         ]
-        if let today {
-            cells.append(("arrow.up.arrow.down", "\(units.text(today.low)) \(units.text(today.high))", "Low and high"))
-        }
-        cells.append(("drop", "\(Int(forecast.current.humidity.rounded()))%", "Humidity"))
         if let rain = today?.rainChance { cells.append(("umbrella", "\(Int(rain.rounded()))%", "Chance of rain")) }
         if let uv = today?.uv { cells.append(("sun.max", "\(Int(uv.rounded()))", "UV index")) }
-        if let aqi = snapshot.aqi {
-            cells.append(("aqi.medium", "\(aqi)", "Air quality index"))
-        }
-        return LazyVGrid(
-            columns: Array(repeating: GridItem(.flexible(), spacing: 6, alignment: .leading), count: 3),
-            alignment: .leading, spacing: 6
-        ) {
-            ForEach(Array(cells.enumerated()), id: \.offset) { _, cell in
+        return HStack(spacing: 0) {
+            ForEach(Array(cells.enumerated()), id: \.offset) { index, cell in
+                if index > 0 { Spacer(minLength: 4) }
                 DeckMetricCell(symbol: cell.symbol, value: cell.value, label: cell.label)
             }
         }
     }
 
     // MARK: Forecasts
-
     private var hours: some View {
         HStack(alignment: .top, spacing: 0) {
             ForEach(snapshot.upcomingHours(after: now), id: \.time) { hour in
                 VStack(spacing: 3) {
                     Text(hour.time.formatted(.dateTime.hour())).deckText(.caption).lineLimit(1)
-                    Image(systemName: WeatherCondition(code: hour.code).symbol)
+                    Image(systemName: hour.symbol)
                         .font(.system(size: 14))
                         .foregroundStyle(Deck.secondary)
                         .frame(height: 16)
@@ -171,7 +213,7 @@ struct NowWeatherBlock: View {
                 .frame(maxWidth: .infinity)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(
-                    "\(hour.time.formatted(.dateTime.hour())), \(WeatherCondition(code: hour.code).name), \(units.text(hour.temperature))"
+                    "\(hour.time.formatted(.dateTime.hour())), \(hour.condition), \(units.text(hour.temperature))"
                 )
             }
         }
@@ -183,11 +225,10 @@ struct NowWeatherBlock: View {
         return VStack(alignment: .leading, spacing: 0) {
             DeckSeparator().padding(.top, 10).padding(.bottom, 4)
             ForEach(Array(days.enumerated()), id: \.offset) { index, day in
-                let condition = WeatherCondition(code: day.code)
                 HStack(spacing: 6) {
                     Text(day.date.formatted(.dateTime.weekday(.abbreviated))).deckText(.caption).lineLimit(1)
                         .frame(width: 30, alignment: .leading)
-                    Image(systemName: condition.symbol)
+                    Image(systemName: day.symbol)
                         .font(.system(size: 12))
                         .foregroundStyle(Deck.secondary)
                         .frame(width: 16)
@@ -200,7 +241,7 @@ struct NowWeatherBlock: View {
                 .frame(height: metrics.forecastRow)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(
-                    "\(day.date.formatted(.dateTime.weekday(.wide))), \(condition.name), low \(units.text(day.low)), high \(units.text(day.high))"
+                    "\(day.date.formatted(.dateTime.weekday(.wide))), \(day.condition), low \(units.text(day.low)), high \(units.text(day.high))"
                 )
             }
         }
@@ -216,11 +257,5 @@ struct NowWeatherBlock: View {
                 }
             }
             .accessibilityHidden(true)
-    }
-
-    private var attribution: some View {
-        Link(destination: Self.site) { Text("Open-Meteo").deckText(.caption) }
-            .buttonStyle(.plain)
-            .help("Weather data by Open-Meteo.com")
     }
 }

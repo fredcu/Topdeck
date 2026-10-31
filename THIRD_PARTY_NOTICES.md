@@ -330,14 +330,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Open-Meteo (CC BY 4.0)
-
-https://open-meteo.com/. Weather data in Now comes from Open-Meteo's forecast
-and air quality APIs, which are free for non-commercial use without a key. The
-data is licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) and
-Now links to Open-Meteo beside it. Only the Mac's approximate location, rounded
-to two decimals, is sent. No code from Open-Meteo is included.
-
 ## KeyboardShortcuts (MIT)
 
 https://github.com/sindresorhus/KeyboardShortcuts, 3.1.0, a Swift package. It

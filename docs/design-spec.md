@@ -72,10 +72,13 @@ Awake as chips, then add, pin and settings. Between them one slot, in priority o
   mark for notes on the desktop. With nothing left today, Notes moves up; with nothing at all, "Nothing today".
 - Middle: month grid (six weeks, system first weekday, dots, today filled white), then the events from
   tomorrow for a week; a picked day is ringed and lists that day.
-- Right: weather (place, condition, temperature, six figures, five hours, five days); while something plays,
-  the place and figures, then the player with a thin scrubber and the lyric lines. Open-Meteo is linked beside
-  its data, as its licence requires.
-- At 620×340: no month title, two event rows, hours but no days, one lyric block, artwork 36.
+- Right: weather from Apple's WeatherKit. Top block: the place with the icon and temperature, then the
+  condition with today's low and high ("↓9° ↑19°"), a hairline, and one row of four figures (feels like,
+  humidity, rain chance, UV) spread edge to edge; then the next five hours and five days. While something
+  plays, the same top block with a smaller temperature, then the player with a thin scrubber and the lyric
+  lines. Apple's mark, linking to its legal page, closes the column in both states, as WeatherKit requires.
+  No air quality.
+- At 620×340: no month title, two event rows, hours but no days, one lyric block of two lines, artwork 36.
 
 Add field: Return saves; an Event/Note control chooses itself from the text (a date or time is an Event) until
 picked; Tab switches; ⌘Return pins a note to the desktop; Esc closes only the field.

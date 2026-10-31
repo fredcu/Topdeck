@@ -111,7 +111,7 @@ struct NowPlayer: View {
     static func clock(_ seconds: TimeInterval) -> String { formatTime(seconds, roundingUp: false) }
 }
 
-/// The line being sung, bold and wrapping to three lines, and the next one under it in one. It keeps
+/// The line being sung, bold and wrapping to three lines (two in the smallest deck, which must leave room for Apple's mark), and the next one under it in one. It keeps
 /// its place through gaps, so nothing moves when the words stop, and has its own clock so the player's
 /// controls keep their one-second tick. While the scrubber is dragged it shows that moment instead.
 struct NowLyrics: View {
@@ -130,7 +130,7 @@ struct NowLyrics: View {
                 Text(cursor.current ?? " ")
                     .deckText(small ? .lyricSmall : .lyric)
                     .lineSpacing(2)
-                    .lineLimit(3)
+                    .lineLimit(small ? 2 : 3)
                     .fixedSize(horizontal: false, vertical: true)
                     .contentTransition(.opacity)
                 if showsNext, let next = cursor.next {
