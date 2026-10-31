@@ -77,8 +77,7 @@ struct TimerView: View {
                 Button(countdown.isRunning ? "Pause" : "Resume") {
                     countdown.isRunning ? timer.pause() : timer.resume()
                 }
-                .buttonStyle(.deck(.primary))
-                .frame(maxWidth: .infinity)
+                .buttonStyle(.deck(.primary, fill: true))
                 Button("+1", action: timer.addMinute).buttonStyle(.deck())
             }
         } else {
