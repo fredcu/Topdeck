@@ -117,6 +117,25 @@ public final class UsageFeature: NotchFeature {
     /// Enabled providers in order, for the tab.
     var enabledProviders: [UsageProvider] { providers.filter { enabled.contains($0.id) } }
 
+    /// The provider the tab shows, picked in the second row. Not kept between launches.
+    public var selectedProvider: String?
+
+    /// The picked provider when it's still on, else the first one that is.
+    var currentProvider: UsageProvider? {
+        let on = enabledProviders
+        return on.first { $0.id == selectedProvider } ?? on.first
+    }
+
+    /// Turns a provider on and shows it; one that needs an API key it doesn't have opens Settings for it.
+    func add(_ providerID: String) {
+        if takesAPIKey(providerID), !detected.contains(providerID) {
+            openSettings?()
+            return
+        }
+        setEnabled(providerID, true)
+        selectedProvider = providerID
+    }
+
     // MARK: API keys
 
     /// Providers with no sign-in of their own to reuse, and the variable each reads its API key from.

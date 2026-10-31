@@ -3,6 +3,7 @@ import AppKit
 import SwiftUI
 import Testing
 import TopdeckCore
+import TopdeckSurface
 
 @testable import TopdeckUsage
 
@@ -208,45 +209,41 @@ struct AgentsFeatureTests {
         agents.phase = .stopped
     }
 
-    @Test func theTabOffersToConnectThenListsSessions() throws {
+    @Test func theTabOffersToConnectThenListsSessionsAndRequests() throws {
         let sandbox = try Sandbox()
         let agents = AgentsFeature(hooks: sandbox.hooks, defaults: defaults)
         agents.phase = .foreground
-        try render(agents.view, name: "agents-setup")
+        try renderTab(agents.view, name: "agents-setup")
         agents.connect(.claude)
         try sandbox.record("claude-a", "waiting", project: "/Users/me/Code/nook", process: getpid())
         try sandbox.record("claude-b", "working", project: "/Users/me/Code/api", process: getpid())
         try sandbox.record("codex-c", "done", project: "/Users/me/Code/site", process: getpid())
         agents.reload(announcing: false)
         #expect(agents.sessions.count == 3)
-        try render(agents.view, name: "agents")
+        try renderTab(agents.view, name: "agents-sessions")
+        let bash = #"""
+            {"session_id":"abc-123","hook_event_name":"PermissionRequest","cwd":"/Users/me/Code/nook",
+             "tool_name":"Bash","tool_input":{"command":"git push origin main"},
+             "permission_suggestions":[{"type":"addRules","rules":[{"toolName":"Bash","ruleContent":"git push:*"}],
+              "behavior":"allow","destination":"localSettings"}]}
+            """#
+        let ask = #"""
+            {"session_id":"q-1","hook_event_name":"PermissionRequest","cwd":"/work/forge","tool_name":"AskUserQuestion",
+             "tool_input":{"questions":[{"question":"Which database should the sync layer use?","header":"DB",
+              "multiSelect":false,"options":[{"label":"SQLite"},{"label":"Postgres"},{"label":"Files"}]}]}}
+            """#
+        agents.received(try AgentRequest.parse(Data(bash.utf8), tool: .claude))
+        agents.received(try AgentRequest.parse(Data(ask.utf8), tool: .claude))
+        try renderTab(agents.view, name: "agents")
         agents.phase = .stopped
     }
 
-    /// The tab as the notch shows it, at the default size and the smallest; with SNAPSHOT_DIR set,
-    /// also PNGs there.
-    private func render(_ view: some View, name: String) throws {
-        try render(view, name: name, size: CGSize(width: 396, height: 192))
-        try render(view, name: name + "-smallest", size: CGSize(width: 350, height: 102))
-    }
-
-    private func render(_ view: some View, name: String, size: CGSize) throws {
-        let framed = view.frame(width: size.width, height: size.height).padding(16).background(.black)
-            .foregroundStyle(.white).environment(\.colorScheme, .dark)
-        let host = NSHostingView(rootView: framed)
-        let window = NSWindow(
-            contentRect: CGRect(origin: .zero, size: CGSize(width: size.width + 32, height: size.height + 32)),
-            styleMask: .borderless, backing: .buffered, defer: false)
-        window.contentView = host
-        host.layoutSubtreeIfNeeded()
-        let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
-        host.cacheDisplay(in: host.bounds, to: bitmap)
-        #expect(bitmap.pixelsWide > 0)
-        if let directory = ProcessInfo.processInfo.environment["SNAPSHOT_DIR"] {
-            try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
-            try bitmap.representation(using: .png, properties: [:])?.write(
-                to: URL(filePath: directory).appending(path: "\(name).png"))
-        }
+    /// The tab as the deck shows it, at the default size and the smallest; with SNAPSHOT_DIR set, also PNGs.
+    private func renderTab(_ view: some View, name: String) throws {
+        let tabs = ["Sessions", "Usage"]
+        try DeckScreen.render(view, name: name, tabs: tabs, selected: "Sessions")
+        try DeckScreen.render(
+            view, name: name + "-smallest", size: DeckScreen.smallest, tabs: tabs, selected: "Sessions")
     }
 
     @Test func sessionFilesAreReadLineByLine() throws {

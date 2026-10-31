@@ -235,6 +235,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 case .shelf: AnyView(shelf.headerActions)
                 case .clipboard: AnyView(clipboard.headerActions)
                 case .notes: AnyView(notes.headerActions)
+                case .usage: AnyView(usage.actions)
                 default: AnyView(EmptyView())
                 }
             },
