@@ -77,6 +77,8 @@ public final class ClipboardFeature: NotchFeature {
     }
     /// Set when the Clipboard tab opens from its shortcut, so the search field takes the keyboard.
     public var wantsSearch = false
+    /// What the search field in the deck's second row asks for.
+    public var query = ""
     /// Raised when an item goes back on the clipboard.
     @ObservationIgnored public var onActivity: ((Activity) -> Void)?
     /// Called after the user picks an item, to close the notch.
@@ -147,6 +149,12 @@ public final class ClipboardFeature: NotchFeature {
     }
 
     public var view: some View { ClipboardView(clipboard: self) }
+
+    /// The second row's search field, once there is a history to search.
+    public var headerActions: some View { ClipboardSearch(clipboard: self) }
+
+    /// Whether the tab shows the history, rather than asking to turn it on or to be allowed.
+    var showsHistory: Bool { isRecording && access != .asks && access != .denied }
 
     /// Whether the change count is being checked.
     var isPolling: Bool { poll != nil }

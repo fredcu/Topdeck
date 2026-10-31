@@ -249,12 +249,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         open: { [weak self] in self?.coordinator?.open($0) }))
             },
             badge: { [unowned self] in $0 == .agents ? waitingAgents : 0 },
-            actions: { [unowned self] space, _ in
-                guard space == .plan else { return AnyView(EmptyView()) }
-                return AnyView(
-                    PlanAddField(
-                        calendar: preferences.isEnabled(.calendar) ? calendar : nil,
-                        tasks: preferences.isEnabled(.tasks) ? tasks : nil))
+            actions: { [unowned self] space, feature in
+                if space == .plan {
+                    return AnyView(
+                        PlanAddField(
+                            calendar: preferences.isEnabled(.calendar) ? calendar : nil,
+                            tasks: preferences.isEnabled(.tasks) ? tasks : nil))
+                }
+                switch feature {
+                case .shelf: return AnyView(shelf.headerActions)
+                case .clipboard: return AnyView(clipboard.headerActions)
+                case .notes: return AnyView(notes.headerActions)
+                case .usage: return AnyView(usage.actions)
+                default: return AnyView(EmptyView())
+                }
             },
             dropFiles: { [preferences, shelf] urls in preferences.isEnabled(.shelf) && shelf.add(urls) },
             openSettings: { [weak self] in self?.settings.show() },
