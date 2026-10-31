@@ -226,7 +226,7 @@ struct LyricsClientTests {
         }
     }
 
-    private let track = LyricsTrack(title: "Made Up", artist: "Artist", album: "Album", duration: 200.4)
+    private let track = LyricsTrack(title: "Made Up", artist: "Artist", duration: 200.4)
     private let lrc = "[00:01.00]made up line\n[00:05.00]another made up line"
 
     private func makeClient(
@@ -254,9 +254,19 @@ struct LyricsClientTests {
         #expect(request.url?.host == "lrclib.net" && request.url?.path == "/api/get")
         #expect(
             Dictionary(uniqueKeysWithValues: items.map { ($0.name, $0.value ?? "") })
-                == ["track_name": "Made Up", "artist_name": "Artist", "album_name": "Album", "duration": "200"])
+                == ["track_name": "Made Up", "artist_name": "Artist", "duration": "200"])
         #expect(request.value(forHTTPHeaderField: "User-Agent") == "Topdeck/1.2.3 (https://github.com/fredcu/Topdeck)")
         #expect(request.timeoutInterval == 10)
+    }
+
+    @Test func noAlbumIsSentEvenWhenKnown() async throws {
+        let network = Network([.status(404), .list([])])
+        let (client, directory) = makeClient(network)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        _ = try await client.lyrics(for: track)
+        for request in network.requests {
+            #expect(request.url?.query?.contains("album") == false)
+        }
     }
 
     @Test func a404GoesToSearchAndAGoodResultWins() async throws {
@@ -294,13 +304,13 @@ struct LyricsClientTests {
         #expect(network.requests.isEmpty)
     }
 
-    @Test func a503IsRetriedWaitingOneThenThreeSecondsAndNotCached() async throws {
-        let network = Network([.status(503), .status(503), .status(503)])
+    @Test func a503IsRetriedWaitingOneThreeThenEightSecondsAndNotCached() async throws {
+        let network = Network([.status(503), .status(503), .status(503), .status(503)])
         let (client, directory) = makeClient(network)
         defer { try? FileManager.default.removeItem(at: directory) }
         await #expect(throws: LyricsClient.Failure.self) { try await client.lyrics(for: track) }
-        #expect(network.requests.count == 3, "the first try and two retries")
-        #expect(network.waits == [1, 3])
+        #expect(network.requests.count == 4, "the first try and three retries")
+        #expect(network.waits == [1, 3, 8])
         #expect(files(directory).isEmpty, "a failure is not remembered")
         // The next lookup asks again and succeeds after one retry.
         let again = Network([.status(503), .lyrics(lrc)])
@@ -326,11 +336,11 @@ struct LyricsClientTests {
     }
 
     @Test func theRetriesAreSharedByTheWholeLookup() async throws {
-        let network = Network([.status(503), .status(404), .status(503), .status(503)])
+        let network = Network([.status(503), .status(404), .status(503), .status(503), .status(503)])
         let (client, directory) = makeClient(network)
         defer { try? FileManager.default.removeItem(at: directory) }
         await #expect(throws: LyricsClient.Failure.self) { try await client.lyrics(for: track) }
-        #expect(network.paths == ["/api/get", "/api/get", "/api/search", "/api/search"])
+        #expect(network.paths == ["/api/get", "/api/get", "/api/search", "/api/search", "/api/search"])
     }
 
     @Test func aNotFoundIsCachedForAWeekAndThenAsksAgain() async throws {
@@ -369,7 +379,7 @@ struct LyricsClientTests {
 
     @Test func theKeyIgnoresCaseAccentsAndSubSecondLength() {
         let one = LyricsCache.key(for: LyricsTrack(title: "Made Úp", artist: "ARTIST", duration: 200.2))
-        let two = LyricsCache.key(for: LyricsTrack(title: "made up", artist: "artist", album: "Other", duration: 199.8))
+        let two = LyricsCache.key(for: LyricsTrack(title: "made up", artist: "artist", duration: 199.8))
         #expect(one == two && one.count == 64)
     }
 
@@ -383,6 +393,13 @@ struct LyricsClientTests {
 @MainActor
 struct MediaSyncedLyricsTests {
     private final class Marker {}
+
+    private final class SleepLog: @unchecked Sendable {
+        private let lock = NSLock()
+        private var _all: [TimeInterval] = []
+        var all: [TimeInterval] { lock.withLock { _all } }
+        func add(_ seconds: TimeInterval) { lock.withLock { _all.append(seconds) } }
+    }
 
     /// Counts asks and can hold an answer back.
     private final class Source: @unchecked Sendable {
@@ -405,6 +422,27 @@ struct MediaSyncedLyricsTests {
         }
 
         func release(_ title: String) { lock.withLock { held.removeValue(forKey: title) }?.resume() }
+    }
+
+    /// Fails with a 503 a set number of times, then answers; counts every try.
+    private final class Flaky: @unchecked Sendable {
+        private let lock = NSLock()
+        private var _tries = 0
+        let failures: Int
+        let answer: SyncedLyrics?
+        init(failures: Int, answer: SyncedLyrics?) {
+            self.failures = failures
+            self.answer = answer
+        }
+        var tries: Int { lock.withLock { _tries } }
+        func ask() throws -> SyncedLyrics? {
+            let n = lock.withLock { () -> Int in
+                _tries += 1
+                return _tries
+            }
+            if n <= failures { throw LyricsClient.Failure(reason: "HTTP 503") }
+            return answer
+        }
     }
 
     private func feature(_ source: Source, enabled: Bool = true) -> MediaFeature {
@@ -483,6 +521,64 @@ struct MediaSyncedLyricsTests {
         #expect(await eventually { media.synced != nil })
         media.syncedLyrics = false
         #expect(media.synced == nil)
+        media.phase = .stopped
+    }
+
+    @Test func aFailedLookupIsTriedAgainWhileTheTrackStaysAndThenLands() async {
+        let flaky = Flaky(failures: 2, answer: SyncedLyrics(lrc: "[00:01.00]made up"))
+        let media = feature(Source())
+        let slept = SleepLog()
+        media.lyricsSource = { _ in try flaky.ask() }
+        media.syncedSleep = { slept.add($0) }
+        media.phase = .foreground
+        media.receive(track("A"))
+        #expect(await eventually { media.synced != nil })
+        #expect(flaky.tries == 3 && slept.all == [30, 60])
+        media.phase = .stopped
+    }
+
+    @Test func nothingFoundIsAnAnswerAndIsNotRetried() async {
+        let flaky = Flaky(failures: 0, answer: nil)
+        let media = feature(Source())
+        let slept = SleepLog()
+        media.lyricsSource = { _ in try flaky.ask() }
+        media.syncedSleep = { slept.add($0) }
+        media.phase = .foreground
+        media.receive(track("A"))
+        try? await Task.sleep(for: .milliseconds(100))
+        #expect(flaky.tries == 1 && slept.all.isEmpty && media.synced == nil)
+        media.phase = .stopped
+    }
+
+    @Test func givingUpAfterTheLastDelayStops() async {
+        let flaky = Flaky(failures: 100, answer: nil)
+        let media = feature(Source())
+        media.lyricsSource = { _ in try flaky.ask() }
+        media.syncedSleep = { _ in }
+        media.phase = .foreground
+        media.receive(track("A"))
+        #expect(await eventually { flaky.tries == 5 })
+        try? await Task.sleep(for: .milliseconds(100))
+        #expect(flaky.tries == 5, "the first try and four retries")
+        media.phase = .stopped
+    }
+
+    @Test func cancellationStopsTheRetriesAtOnce() async {
+        let flaky = Flaky(failures: 100, answer: nil)
+        let media = feature(Source())
+        media.lyricsSource = { _ in try flaky.ask() }
+        media.syncedSleep = { _ in try await Task.sleep(for: .seconds(1000)) }
+        media.phase = .foreground
+        media.receive(track("A"))
+        #expect(await eventually { flaky.tries == 1 })
+        media.phase = .background  // closing the notch
+        try? await Task.sleep(for: .milliseconds(100))
+        #expect(flaky.tries == 1)
+        media.phase = .foreground  // opening it looks up again
+        #expect(await eventually { flaky.tries == 2 })
+        media.syncedLyrics = false  // turning the setting off
+        try? await Task.sleep(for: .milliseconds(100))
+        #expect(flaky.tries == 2)
         media.phase = .stopped
     }
 

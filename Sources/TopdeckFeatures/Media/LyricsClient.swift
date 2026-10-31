@@ -6,14 +6,12 @@ import Foundation
 public struct LyricsTrack: Hashable, Sendable {
     public var title: String
     public var artist: String?
-    public var album: String?
     /// Seconds.
     public var duration: TimeInterval
 
-    public init(title: String, artist: String? = nil, album: String? = nil, duration: TimeInterval) {
+    public init(title: String, artist: String? = nil, duration: TimeInterval) {
         self.title = title
         self.artist = artist
-        self.album = album
         self.duration = duration
     }
 }
@@ -24,13 +22,16 @@ public struct LyricsTrack: Hashable, Sendable {
 struct LyricsClient: Sendable {
     typealias Fetch = @Sendable (URLRequest) async throws -> (Data, HTTPURLResponse)
 
-    struct Failure: Error {}
+    /// The service couldn't be asked or answered badly; `reason` is the HTTP status or kind, for the log.
+    struct Failure: Error {
+        var reason: String
+    }
 
     /// How long "not found" is believed.
     static let notFoundLifetime: TimeInterval = 7 * 24 * 3600
     static let keptFiles = 500
     /// Seconds to wait before the first and second retry.
-    static let retryDelays: [TimeInterval] = [1, 3]
+    static let retryDelays: [TimeInterval] = [1, 3, 8]
     static let maxRetryAfter: TimeInterval = 30
 
     private let cache: LyricsCache
@@ -82,7 +83,7 @@ struct LyricsClient: Sendable {
 
     /// A 200 that isn't the JSON we expect is a failure, not "no lyrics".
     private func decode<T: Decodable>(_ type: T.Type, _ data: Data) throws -> T {
-        guard let value = try? JSONDecoder().decode(type, from: data) else { throw Failure() }
+        guard let value = try? JSONDecoder().decode(type, from: data) else { throw Failure(reason: "bad response") }
         return value
     }
 
@@ -92,7 +93,7 @@ struct LyricsClient: Sendable {
         var query = [
             URLQueryItem(name: "track_name", value: track.title), URLQueryItem(name: "artist_name", value: artist),
         ]
-        if let album = track.album, !album.isEmpty { query.append(URLQueryItem(name: "album_name", value: album)) }
+        // No album_name: Apple's album names carry suffixes such as "- EP" that LRCLIB doesn't have.
         query.append(URLQueryItem(name: "duration", value: String(Int(track.duration.rounded()))))
         if let data = try await get("get", query, &retries) {
             if let found = try decode(Record.self, data).synced { return found }
@@ -111,7 +112,7 @@ struct LyricsClient: Sendable {
         return nil
     }
 
-    /// The body of a 200, nil for a 404. Retries 503, 429 and network errors, twice per track in all.
+    /// The body of a 200, nil for a 404. Retries 503, 429 and network errors, three times per track in all.
     private func get(_ path: String, _ query: [URLQueryItem], _ retries: inout Int) async throws -> Data? {
         var components = URLComponents(string: "https://lrclib.net/api/\(path)")!
         components.queryItems = query
@@ -119,6 +120,7 @@ struct LyricsClient: Sendable {
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
         while true {
             var wait: TimeInterval = 0
+            var reason = "HTTP 503"
             do {
                 let (data, response) = try await fetch(request)
                 switch response.statusCode {
@@ -126,15 +128,17 @@ struct LyricsClient: Sendable {
                 case 404: return nil
                 case 429:
                     wait = response.value(forHTTPHeaderField: "Retry-After").flatMap(TimeInterval.init) ?? 0
+                    reason = "HTTP 429"
                 case 503: break
-                default: throw Failure()
+                default: throw Failure(reason: "HTTP \(response.statusCode)")
                 }
-            } catch is Failure {
-                throw Failure()
+            } catch let failure as Failure {
+                throw failure
             } catch {
                 try Task.checkCancellation()  // a network error, which is retried like a 503
+                reason = "network \((error as? URLError)?.code.rawValue ?? 0)"
             }
-            guard retries < Self.retryDelays.count else { throw Failure() }
+            guard retries < Self.retryDelays.count else { throw Failure(reason: reason) }
             try await sleep(min(max(wait, Self.retryDelays[retries]), Self.maxRetryAfter))
             retries += 1
         }

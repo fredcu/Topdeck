@@ -107,6 +107,11 @@ public final class MediaFeature: NotchFeature {
         try await LyricsClient().lyrics(for: $0)
     }
     /// The track `synced` is for or is being looked up for, and the lookup.
+    /// Seconds to wait before each new try while a lookup keeps failing; the sleep is injectable for tests.
+    @ObservationIgnored var syncedRetryDelays: [TimeInterval] = [30, 60, 120, 240]
+    @ObservationIgnored var syncedSleep: @Sendable (TimeInterval) async throws -> Void = {
+        try await Task.sleep(for: .seconds($0))
+    }
     @ObservationIgnored private var syncedTrack: LyricsTrack?
     @ObservationIgnored private var syncedLookup: Task<Void, Never>?
     @ObservationIgnored private var syncedGeneration = 0
@@ -351,17 +356,38 @@ public final class MediaFeature: NotchFeature {
         guard syncedLyrics, phase == .foreground, let now = nowPlaying, !now.title.isEmpty,
             let duration = now.duration?.rounded(), duration > 0  // whole seconds: jitter isn't a new track
         else { return endSynced() }
-        let track = LyricsTrack(title: now.title, artist: now.artist, album: now.album, duration: duration)
+        let track = LyricsTrack(title: now.title, artist: now.artist, duration: duration)
         guard track != syncedTrack else { return }
         endSynced()
         syncedTrack = track
         let generation = syncedGeneration
         let source = lyricsSource
+        let delays = syncedRetryDelays
+        let sleep = syncedSleep
+        // Tries again while the same track stays on screen. An answer, even "none found", ends it,
+        // and so does a cancellation: a track change, a closed notch or the setting turned off.
         syncedLookup = Task { [weak self] in
-            let found = try? await source(track)
-            // A late answer for a track that is gone must not land on the new one.
-            guard !Task.isCancelled, let self, syncedGeneration == generation else { return }
-            synced = found
+            var failures = 0
+            while true {
+                do {
+                    let found = try await source(track)
+                    // A late answer for a track that is gone must not land on the new one.
+                    guard !Task.isCancelled, let self, syncedGeneration == generation else { return }
+                    synced = found
+                    return
+                } catch {
+                    guard !(error is CancellationError), !Task.isCancelled else { return }
+                    let reason = (error as? LyricsClient.Failure)?.reason ?? "error"
+                    guard failures < delays.count else {
+                        Log.features.error("Lyrics lookup gave up: \(reason, privacy: .public)")
+                        return
+                    }
+                    Log.features.error("Lyrics lookup failed: \(reason, privacy: .public)")
+                    do { try await sleep(delays[failures]) } catch { return }
+                    failures += 1
+                    guard !Task.isCancelled, let self, syncedGeneration == generation else { return }
+                }
+            }
         }
     }
 

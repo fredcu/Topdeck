@@ -9,7 +9,7 @@ Topdeck is local-first.
   provider on, no upload started, Synced lyrics off, and no Homebrew action
   run, none of them touches the network.
 - Synced lyrics (Settings › Now) is off until you turn it on. Then, while the
-  notch shows what's playing, the title, artist, album, and length of the
+  notch shows what's playing, the title, artist, and length of the
   track go to lrclib.net, a free third-party service, to find its lyrics, and
   nothing else is sent. Found lyrics are cached on this Mac in
   `~/Library/Caches/net.icuai.topdeck/lyrics`, so a track is asked for once;
