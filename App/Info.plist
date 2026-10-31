@@ -7,7 +7,7 @@
 	<key>TopdeckCommit</key>
 	<string>$(TOPDECK_COMMIT)</string>
 	<key>NSAudioCaptureUsageDescription</key>
-	<string>Topdeck listens to what's playing so the media waveform moves with the music, and so you can set each app's volume. Audio is processed on this Mac as it plays and is never recorded.</string>
+	<string>Topdeck listens to what's playing so you can set each app's volume. Audio is processed on this Mac as it plays and is never recorded.</string>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>Topdeck works Music and Spotify from the notch: shuffle and repeat, what plays next, and playing a track again. It only talks to the app that's playing.</string>
 	<!-- Quick Share with Android phones: announcing the Mac and finding phones on the local network. -->

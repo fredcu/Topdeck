@@ -25,6 +25,9 @@ public struct NotchContent {
     public var slot: (SpaceID) -> AnyView
     /// Joins a meeting from the closed notch's Join button.
     public var join: (URL) -> Void
+    /// What stands at the left of the second row of a space without sub-tabs, in place of its name: the
+    /// Clipboard's filters, the Shelf's count. Nil keeps the name.
+    public var leading: (SpaceID) -> AnyView?
 
     public init(
         feature: @escaping (FeatureID) -> AnyView,
@@ -35,7 +38,8 @@ public struct NotchContent {
         openSettings: @escaping () -> Void,
         screen: @escaping (SpaceID, Set<FeatureID>) -> AnyView? = { _, _ in nil },
         slot: @escaping (SpaceID) -> AnyView = { _ in AnyView(EmptyView()) },
-        join: @escaping (URL) -> Void = { NSWorkspace.shared.open($0) }
+        join: @escaping (URL) -> Void = { NSWorkspace.shared.open($0) },
+        leading: @escaping (SpaceID) -> AnyView? = { _ in nil }
     ) {
         self.feature = feature
         self.now = now
@@ -46,6 +50,7 @@ public struct NotchContent {
         self.screen = screen
         self.slot = slot
         self.join = join
+        self.leading = leading
     }
 }
 

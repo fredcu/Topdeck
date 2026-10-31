@@ -143,8 +143,10 @@ when one is installed; to get weather in your own build, make a profile with Wea
 ## Round 3
 
 New colours (the black deck fades to `#10131B`, each space has an accent), a new app icon, and six spaces:
-Now, Shelf and Clipboard in the left wing, Tools, Agents and Mac in the right. Stash is gone: Shelf and
-Clipboard show their existing views full height until their own batches. There is no Notes tab: notes are in
+Now, Shelf and Clipboard in the left wing, Tools, Agents and Mac in the right. Stash is gone. Shelf (large thumbnail tiles and four
+drop targets) and Clipboard (filters, search, list and a large preview) follow the `Shelf3` and `Clipboard3`
+boards; every screenshot Topdeck takes goes into Clipboard's history. The old Media tab is gone, and with it
+the waveform that listened to the system audio: the Sound tab keeps the audio permission for per-app volumes. There is no Notes tab: notes are in
 Now (add field with colour and window, a list with a click-to-open window and a context menu), the folder and
 sort order are in Settings, and search is in the Command Bar. The menu bar hider is removed along with its
 Settings page. Settings gets one page, Shortcuts & Windows, for Windows, Window Switcher, Command Bar and

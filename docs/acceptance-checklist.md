@@ -81,6 +81,18 @@
 - [ ] 侧栏里空间页面按 Now、Shelf、Clipboard、Tools、Agents、Mac 排列，其后是 Shortcuts & Windows
 - [ ] Shortcuts & Windows 的每一节（Windows、Window Switcher、Command Bar、Input Sources）都以开关和触发方式开头
 
+### Shelf 与 Clipboard
+
+- [ ] Shelf：文件显示为 3 列大缩略图（图片、PDF 有真实预览，其余是类型色加扩展名），名称下是“类型, 大小”
+- [ ] Shelf：单击选中，Command 单击多选，双击打开，空格预览；整块拖出去是文件；右键菜单仍有显示、AirDrop、上传
+- [ ] Shelf：把图块或 Finder 里的文件拖到 AirDrop、Upload to R2、Add to Note、Open With 上都能执行；未配置 R2 时上传项是灰的
+- [ ] Shelf：Add to Note 新建一条笔记（文本文件放内容，其他放路径）；Open With 弹出可用 App 列表
+- [ ] Shelf：空货架只有一行字，拖文件靠近时有投放高亮；700×430 与 620×340 都不挤
+- [ ] Clipboard：筛选 All、Text、Images、Links、Files 正确；图片行是真缩略图，右侧大图按比例显示
+- [ ] Clipboard：上下键换选中项，回车粘贴，直接打字进入搜索；右上菜单里有选择、清空、纯文本粘贴、去跟踪、关闭历史
+- [ ] Clipboard：从 Finder、浏览器、预览、截图复制图片都进历史并有缩略图（含整屏 Retina 大图）
+- [ ] 每次截图都自动进 Clipboard 历史，来源是 Topdeck，系统剪贴板不被改；截图又被复制时不出现两条；历史关闭时不记；录屏不记
+
 ## 一般验收
 
 ### 窗口管理
@@ -100,7 +112,7 @@
 
 ### 剪贴板
 
-- [ ] 纯文本粘贴、点选后直接粘贴可用
+- [ ] 纯文本粘贴、点选后直接粘贴可用（菜单里的开关，或行上右键）
 - [ ] 链接的跟踪参数被去掉
 - [ ] 忽略名单里的 App 和密码管理器不进历史
 

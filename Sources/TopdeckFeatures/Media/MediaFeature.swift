@@ -36,7 +36,6 @@ public final class MediaFeature: NotchFeature {
     public var phase: FeaturePhase = .stopped {
         didSet {
             phase == .stopped ? stop() : start()
-            updateAudio()
             if phase == .foreground { refreshScripted() }
             updateOngoing()
             updateSynced()
@@ -50,13 +49,6 @@ public final class MediaFeature: NotchFeature {
     /// Per-feature setting: raise a live activity when the track changes.
     public var announcesTracks: Bool {
         didSet { defaults.set(announcesTracks, forKey: Self.announceKey) }
-    }
-    /// Per-feature setting: the waveform follows what's playing, which asks to capture system audio.
-    public var waveformFollowsAudio: Bool {
-        didSet {
-            defaults.set(waveformFollowsAudio, forKey: Self.followsAudioKey)
-            updateAudio()
-        }
     }
     /// Per-feature setting: what's playing stays beside the camera while the notch is closed, and
     /// for a minute after it pauses.
@@ -81,18 +73,12 @@ public final class MediaFeature: NotchFeature {
     public private(set) var queue: PlayerQueue?
     /// Lyrics saved with the track in Music.
     public private(set) var lyrics: String?
-    /// The app's output picker (the Sound tab's devices and volumes) for the app playing, by bundle
-    /// identifier; nil where there's none.
-    public var outputControl: ((String?) -> AnyView)?
     /// Raised when the track changes while the notch shows something else.
     @ObservationIgnored public var onActivity: ((Activity) -> Void)?
     /// Keeps what's playing beside the closed notch; nil clears it.
     @ObservationIgnored public var onOngoing: ((Activity?) -> Void)?
-    /// What the waveform hears, while Media is on screen and playing.
-    let audio = AudioSpectrum()
 
     private static let announceKey = "media.announcesTracks"
-    private static let followsAudioKey = "media.waveformFollowsAudio"
     private static let closedNotchKey = "media.showsInClosedNotch"
     private static let syncedLyricsKey = "media.syncedLyrics"
     /// How long a paused track stays in the closed notch.
@@ -141,36 +127,8 @@ public final class MediaFeature: NotchFeature {
         adapter = MediaAdapter.bundled(in: bundle)
         source = adapter == nil ? .fallback : .adapter
         announcesTracks = defaults.object(forKey: Self.announceKey) as? Bool ?? true
-        waveformFollowsAudio = defaults.object(forKey: Self.followsAudioKey) as? Bool ?? true
         showsInClosedNotch = defaults.object(forKey: Self.closedNotchKey) as? Bool ?? true
         syncedLyrics = defaults.bool(forKey: Self.syncedLyricsKey)
-    }
-
-    /// The audio tap runs only while its bars can be seen moving: the Media view on screen, something
-    /// playing, the setting on, and Reduce Motion off. Now's player and the closed notch's bars draw no
-    /// spectrum, so they never ask for it.
-    nonisolated static func listensToAudio(
-        phase: FeaturePhase, shown: Bool, enabled: Bool, playing: Bool, reduceMotion: Bool
-    ) -> Bool {
-        phase == .foreground && shown && enabled && playing && !reduceMotion
-    }
-
-    /// Whether the Media view is on screen, which only it sets.
-    @ObservationIgnored private var isShown = false {
-        didSet { if isShown != oldValue { updateAudio() } }
-    }
-
-    private func updateAudio() {
-        let listens = Self.listensToAudio(
-            phase: phase, shown: isShown, enabled: waveformFollowsAudio, playing: nowPlaying?.isPlaying == true,
-            reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
-        listens ? audio.start() : audio.stop()
-    }
-
-    public var view: some View {
-        MediaView(media: self)
-            .onAppear { [self] in isShown = true }
-            .onDisappear { [self] in isShown = false }
     }
 
     /// Shows a track as if it were playing, with working controls. For tests and snapshots only.
@@ -522,7 +480,6 @@ public final class MediaFeature: NotchFeature {
         guard now != nowPlaying else { return }
         let previous = nowPlaying
         nowPlaying = now
-        if now?.isPlaying != previous?.isPlaying { updateAudio() }
         if now?.isPlaying == true {
             pausedAt = nil
         } else if previous?.isPlaying == true {

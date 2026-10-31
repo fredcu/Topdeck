@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 import AppKit
+import CryptoKit
 import ImageIO
 import Observation
 import SwiftUI
@@ -20,9 +21,36 @@ public struct ClipItem: Codable, Identifiable, Hashable, Sendable {
     public var copied: Date
     /// Favorites stay, whatever the history's length, until removed.
     public var favorite = false
+    /// For an image, a fingerprint of the stored picture, so the same picture is kept once.
+    public var digest: String?
 
     /// A file's paths, for `.files`.
     var paths: [String] { kind == .files ? text.split(separator: "\n").map(String.init) : [] }
+}
+
+/// Which kind of item the list shows.
+public enum ClipFilter: CaseIterable, Sendable {
+    case all, text, images, links, files
+
+    public var title: String {
+        switch self {
+        case .all: "All"
+        case .text: "Text"
+        case .images: "Images"
+        case .links: "Links"
+        case .files: "Files"
+        }
+    }
+
+    func matches(_ kind: ClipItem.Kind) -> Bool {
+        switch self {
+        case .all: true
+        case .text: kind == .text
+        case .images: kind == .image
+        case .links: kind == .link
+        case .files: kind == .files
+        }
+    }
 }
 
 /// Whether macOS lets Topdeck read what's copied. Since macOS 15.4 an app that reads the
@@ -77,8 +105,17 @@ public final class ClipboardFeature: NotchFeature {
     }
     /// Set when the Clipboard tab opens from its shortcut, so the search field takes the keyboard.
     public var wantsSearch = false
-    /// What the search field in the deck's second row asks for.
+    /// What the search field asks for.
     public var query = ""
+    /// Which kind the list shows.
+    public var filter = ClipFilter.all
+    /// The item the preview shows; the first match until one is picked.
+    public var chosen: ClipItem.ID?
+    /// Select mode: a click ticks a row instead of choosing it.
+    public var isSelecting = false
+    public var ticked: Set<ClipItem.ID> = []
+    /// Clear is waiting for a second go-ahead.
+    public var isConfirmingClear = false
     /// Raised when an item goes back on the clipboard.
     @ObservationIgnored public var onActivity: ((Activity) -> Void)?
     /// Called after the user picks an item, to close the notch.
@@ -111,7 +148,7 @@ public final class ClipboardFeature: NotchFeature {
     @ObservationIgnored private var lastChange = 0
     @ObservationIgnored private let thumbnails: NSCache<NSString, NSImage> = {
         let cache = NSCache<NSString, NSImage>()
-        cache.countLimit = 60
+        cache.countLimit = 120
         return cache
     }()
 
@@ -150,11 +187,14 @@ public final class ClipboardFeature: NotchFeature {
 
     public var view: some View { ClipboardView(clipboard: self) }
 
-    /// The second row's search field, once there is a history to search.
-    public var headerActions: some View { ClipboardSearch(clipboard: self) }
+    /// The second row's filters, at its left, once there is a history to filter.
+    public func headerLeading() -> AnyView? { showsHistory ? AnyView(ClipboardFilters(clipboard: self)) : nil }
+
+    /// The second row's menu for what the board has no place for.
+    public var headerActions: some View { ClipboardMenu(clipboard: self) }
 
     /// Whether the tab shows the history, rather than asking to turn it on or to be allowed.
-    var showsHistory: Bool { isRecording && access != .asks && access != .denied }
+    public var showsHistory: Bool { isRecording && access != .asks && access != .denied }
 
     /// Whether the change count is being checked.
     var isPolling: Bool { poll != nil }
@@ -207,14 +247,12 @@ public final class ClipboardFeature: NotchFeature {
 
     // MARK: History
 
-    /// Items whose text, file names, or source app contain `query`, favorites first.
-    public func search(_ query: String) -> [ClipItem] {
+    /// Items of the kind `filter` shows whose text, file names, or source app contain `query`, favorites first.
+    public func search(_ query: String, filter: ClipFilter = .all) -> [ClipItem] {
         let query = query.trimmingCharacters(in: .whitespaces)
         let found =
-            query.isEmpty
-            ? items
-            : items.filter {
-                $0.text.localizedCaseInsensitiveContains(query)
+            items.filter { filter.matches($0.kind) }.filter {
+                query.isEmpty || $0.text.localizedCaseInsensitiveContains(query)
                     || $0.source?.localizedCaseInsensitiveContains(query) == true
             }
         return found.filter(\.favorite) + found.filter { !$0.favorite }
@@ -250,6 +288,18 @@ public final class ClipboardFeature: NotchFeature {
         }
     }
 
+    /// Deletes the ticked items and leaves select mode when nothing is left.
+    public func removeTicked() {
+        remove(ticked)
+        ticked = []
+        if items.isEmpty { isSelecting = false }
+    }
+
+    public func finishSelecting() {
+        isSelecting = false
+        ticked = []
+    }
+
     public func toggleFavorite(_ item: ClipItem) {
         guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
         items[index].favorite.toggle()
@@ -277,13 +327,15 @@ public final class ClipboardFeature: NotchFeature {
         item.kind == .image ? NSImage(contentsOf: imageFile(item.id)) : nil
     }
 
-    /// A small copy of an image item for the list, made once from its file rather than on every draw.
-    public func thumbnail(for item: ClipItem) -> NSImage? {
+    /// A copy of an image item no larger than `side` pixels, for the list and the preview, made once from
+    /// its file rather than on every draw.
+    public func thumbnail(for item: ClipItem, side: Int = 64) -> NSImage? {
         guard item.kind == .image else { return nil }
-        let key = item.id.uuidString as NSString
+        let key = "\(item.id.uuidString)-\(side)" as NSString
         if let cached = thumbnails.object(forKey: key) { return cached }
         let options: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceThumbnailMaxPixelSize: 64,
+            kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: side,
         ]
         guard let source = CGImageSourceCreateWithURL(imageFile(item.id) as CFURL, nil),
             let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
@@ -346,45 +398,63 @@ public final class ClipboardFeature: NotchFeature {
         guard let types = pasteboard.types?.map(\.rawValue), !types.isEmpty else { return }
         let source = pasteboard.string(forType: .init(ClipboardRules.sourceType))
         guard !rules.ignores(types: types, apps: [app.id, source]), var item = read(types) else { return }
-        item.source = app.name
-        if item.kind == .link, cleansLinks {
-            let cleaned = LinkCleaner.clean(item.text)
-            if cleaned != item.text {
-                item.text = cleaned
-                item.rich = nil  // it would paste the old link back
+        if let same = items.first(where: { $0.id == item.id }) {
+            item = same  // a picture already kept: it only moves to the top
+            item.copied = .now
+        } else {
+            item.source = app.name
+            if item.kind == .link, cleansLinks {
+                let cleaned = LinkCleaner.clean(item.text)
+                if cleaned != item.text {
+                    item.text = cleaned
+                    item.rich = nil  // it would paste the old link back
+                }
+            }
+            if let same = items.first(where: { $0.kind == item.kind && $0.text == item.text && $0.kind != .image }) {
+                item.id = same.id  // copied again: it moves to the top
+                item.favorite = same.favorite
             }
         }
-        if let same = items.first(where: { $0.kind == item.kind && $0.text == item.text && $0.kind != .image }) {
-            item.id = same.id  // copied again: it moves to the top
-            item.favorite = same.favorite
-            items.removeAll { $0.id == same.id }
-        }
+        items.removeAll { $0.id == item.id }
         items.insert(item, at: 0)
         trim()
         save()
     }
 
-    /// Files, then images, then text: a copied file also carries its name as text, and an image
-    /// from a browser carries its link.
+    /// Keeps a screenshot Topdeck took, as an image from "Topdeck", without touching the clipboard. It
+    /// follows the same limits as a copy, does nothing while the history is off, and a screenshot the
+    /// user also copies stays one item.
+    public func addScreenshot(png: Data) {
+        guard isRecording else { return }
+        if items.isEmpty { load() }  // the history isn't in memory while the feature is stopped
+        guard var item = imageItem(from: png) else { return }
+        if let same = items.first(where: { $0.id == item.id }) {
+            item = same
+        } else {
+            item.source = "Topdeck"
+        }
+        item.copied = .now
+        items.removeAll { $0.id == item.id }
+        items.insert(item, at: 0)
+        trim()
+        save()
+    }
+
+    /// The pasteboard's picture in the first of these it offers: a screenshot's PNG, a copied image's
+    /// TIFF, a photo's JPEG or HEIC, a GIF.
+    static let imageTypes: [NSPasteboard.PasteboardType] = [
+        .png, .tiff, .init("public.jpeg"), .init("public.heic"), .init("com.compuserve.gif"),
+    ]
+
+    /// Images first, then files, then text. A copied file also carries its name as text, and an image from
+    /// a browser carries its link. An image beats a file link, which some apps add to a copied picture; a
+    /// copy of several files stays files.
     private func read(_ types: [String]) -> ClipItem? {
         let files = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true])
-        if let urls = files as? [URL], !urls.isEmpty {
+        let urls = (files as? [URL]) ?? []
+        if urls.count <= 1, let item = imageItem(from: types) { return item }
+        if !urls.isEmpty {
             return ClipItem(kind: .files, text: urls.map(\.path).joined(separator: "\n"), copied: .now)
-        }
-        let isImage = [NSPasteboard.PasteboardType.png, .tiff].contains { types.contains($0.rawValue) }
-        if isImage, let data = pasteboard.data(forType: .png) ?? pasteboard.data(forType: .tiff),
-            data.count <= Self.largestImage, let bitmap = NSBitmapImageRep(data: data),
-            let png = bitmap.representation(using: .png, properties: [:])
-        {
-            let item = ClipItem(kind: .image, text: "Image \(bitmap.pixelsWide) × \(bitmap.pixelsHigh)", copied: .now)
-            do {
-                try FileManager.default.createDirectory(at: imagesURL, withIntermediateDirectories: true)
-                try png.write(to: imageFile(item.id), options: .atomic)
-                return item
-            } catch {
-                Log.features.error("Couldn't keep a copied image: \(error.localizedDescription, privacy: .public)")
-                return nil
-            }
         }
         guard let text = pasteboard.string(forType: .string), text.utf8.count <= Self.largestText,
             !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -396,6 +466,34 @@ public final class ClipboardFeature: NotchFeature {
             if let data = pasteboard.data(forType: type), data.count <= Self.largestRich { rich[type.rawValue] = data }
         }
         return ClipItem(kind: isLink ? .link : .text, text: text, rich: rich.isEmpty ? nil : rich, copied: .now)
+    }
+
+    private func imageItem(from types: [String]) -> ClipItem? {
+        for type in Self.imageTypes where types.contains(type.rawValue) {
+            if let data = pasteboard.data(forType: type), let item = imageItem(from: data) { return item }
+        }
+        return nil
+    }
+
+    /// An image item for these picture bytes, whatever format they are in, kept as a PNG. The item already in the
+    /// history comes back instead when it holds the same picture. The raw bytes may be larger than the PNG,
+    /// as a Retina TIFF is; the limit is on what is kept.
+    private func imageItem(from data: Data) -> ClipItem? {
+        guard data.count <= Self.largestImage * 4, let bitmap = NSBitmapImageRep(data: data),
+            let png = bitmap.representation(using: .png, properties: [:]), png.count <= Self.largestImage
+        else { return nil }
+        let digest = SHA256.hash(data: png).map { String(format: "%02x", $0) }.joined()
+        if let same = items.first(where: { $0.digest == digest }) { return same }
+        var item = ClipItem(kind: .image, text: "Image \(bitmap.pixelsWide) × \(bitmap.pixelsHigh)", copied: .now)
+        item.digest = digest
+        do {
+            try FileManager.default.createDirectory(at: imagesURL, withIntermediateDirectories: true)
+            try png.write(to: imageFile(item.id), options: .atomic)
+            return item
+        } catch {
+            Log.features.error("Couldn't keep a copied image: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
     }
 
     /// Keeps the history to `capacity`, dropping the oldest items that aren't favorites.

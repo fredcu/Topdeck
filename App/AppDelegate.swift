@@ -164,7 +164,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func featureView(for feature: FeatureID) -> AnyView {
         switch feature {
-        case .media: return AnyView(media.view)
+        case .media: return AnyView(EmptyView())  // Now draws it
         case .sound:
             return AnyView(SoundView(mixer: mixer, monitors: monitors))
         case .shelf:
@@ -284,7 +284,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         agent: agent, calendar: preferences.isEnabled(.calendar) ? calendar : nil,
                         notes: preferences.isEnabled(.notes) ? notes : nil, model: nowModel))
             },
-            join: { [calendar] url in calendar.join(url: url) })
+            join: { [calendar] url in calendar.join(url: url) },
+            leading: { [unowned self] space in
+                switch space {
+                case .shelf: shelf.headerLeading()
+                case .clipboard: clipboard.headerLeading()
+                default: nil
+                }
+            })
         let coordinator = PanelCoordinator(preferences: preferences, content: content)
         // Esc closes an open add field first, and the deck only when there is none.
         coordinator.takesEscape = { [nowModel] in nowModel.escape() }
@@ -308,8 +315,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         media.onOngoing = { [weak coordinator] in coordinator?.setOngoing($0, for: .media) }
         shelf.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         shelf.uploads = r2
+        shelf.addToNote = { [notes] text in notes.add(text) }
         r2.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         capture.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
+        capture.onScreenshot = { [preferences, clipboard] png in
+            if preferences.isEnabled(.clipboard) { clipboard.addScreenshot(png: png) }
+        }
         capture.onBegin = { [weak coordinator] in coordinator?.dismissAll() }
         capture.isEnabled = { [preferences] in preferences.isEnabled(.capture) }
         capture.addToShelf = { [preferences, shelf] urls in preferences.isEnabled(.shelf) && shelf.add(urls) }
@@ -434,11 +445,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !preferences.isEnabled(.timer) { timer.allowSleep() }
         // What moves while the Network tab is off isn't counted when it comes back.
         network.isEnabled = preferences.isEnabled(.network)
-        // Apps keep the volumes set in the Sound tab only while it's on, and Media borrows its
-        // outputs and faders for the app that's playing.
+        // Apps keep the volumes set in the Sound tab only while it's on.
         mixer.isEnabled = preferences.isEnabled(.sound)
-        media.outputControl =
-            preferences.isEnabled(.sound) ? { [mixer] in AnyView(MediaOutputView(mixer: mixer, appID: $0)) } : nil
         preferences.showsVolume ? volume.start() : volume.stop()
         preferences.showsBattery ? battery.start() : battery.stop()
         preferences.showsAccessoryBattery ? accessories.start() : accessories.stop()

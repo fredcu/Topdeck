@@ -90,6 +90,18 @@ public enum Deck {
         public static let pink = Color(hex: 0xF5BFD8)
     }
 
+    /// The tints of a file's tile on the Shelf, by kind. A tile runs from the colour to a darker mix of it.
+    public enum Kind {
+        public static let document = Color(hex: 0x2E6CB8)
+        public static let image = Color(hex: 0x7A4FCF)
+        public static let sheet = Color(hex: 0x1E8E7E)
+        public static let video = Color(hex: 0xB5562B)
+        public static let archive = Color(hex: 0x3B4660)
+        public static let audio = Color(hex: 0xA8325E)
+        public static let code = Color(hex: 0x4F7A2F)
+        public static let other = Color(hex: 0x4A5470)
+    }
+
     // MARK: Shape
 
     /// Corner radii, in points. A pill is a `Capsule`.

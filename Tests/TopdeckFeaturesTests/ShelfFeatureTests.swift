@@ -82,4 +82,45 @@ struct ShelfFeatureTests {
         #expect(shelf.items.count == ShelfFeature.capacity)
         #expect(shelf.items.last?.name == "\(ShelfFeature.capacity + 4).txt", "the newest files are kept")
     }
+
+    @Test func clickingTicksOneAndSelectModeTicksMany() throws {
+        let shelf = ShelfFeature(storeURL: store)
+        shelf.add([try file("a.txt"), try file("b.txt")])
+        let (a, b) = (shelf.items[0], shelf.items[1])
+        shelf.select(a)
+        shelf.select(b)
+        #expect(shelf.selected == [b.id], "a plain click replaces the tick")
+        shelf.isSelecting = true
+        shelf.select(a)
+        #expect(shelf.selected == [a.id, b.id])
+        shelf.select(a)
+        #expect(shelf.selected == [b.id])
+        #expect(shelf.actionURLs.count == 1, "targets act on the ticked tiles")
+        shelf.finishSelecting()
+        #expect(shelf.actionURLs.count == 2, "and on all of them when none is ticked")
+    }
+
+    @Test func theTotalSizeIsWhatTheFilesWeigh() throws {
+        let shelf = ShelfFeature(storeURL: store)
+        shelf.add([try file("a.txt"), try file("bb.txt")])
+        #expect(shelf.sizes.values.reduce(0, +) == "a.txt".utf8.count + "bb.txt".utf8.count)
+    }
+
+    @Test func addToNoteSendsATextFilesContentAndOtherFilesTheirPath() throws {
+        let text = try file("memo.txt")
+        let picture = folder.appending(path: "shot.png")
+        try Data([0x89, 0x50, 0x4E, 0x47]).write(to: picture)
+        #expect(ShelfFeature.noteText(for: [text, picture]) == "memo.txt\n\n\(picture.path)")
+
+        let shelf = ShelfFeature(storeURL: store)
+        var notes: [String] = []
+        shelf.addToNote = { notes.append($0) }
+        shelf.perform(.note, on: [text])
+        #expect(notes == ["memo.txt"])
+    }
+
+    @Test func uploadNeedsR2ToBeSetUp() throws {
+        let shelf = ShelfFeature(storeURL: store)
+        #expect(!shelf.isAvailable(.upload) && shelf.isAvailable(.airDrop) && shelf.isAvailable(.note))
+    }
 }

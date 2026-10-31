@@ -213,123 +213,6 @@ private struct DeviceRow: View {
     }
 }
 
-/// The Media tab's output panel: where sound plays, to switch as in the Sound tab, beside the Mac's
-/// volume and the volume of the app that's playing.
-public struct MediaOutputView: View {
-    let mixer: Mixer
-    /// The app playing, by bundle identifier.
-    let appID: String?
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Namespace private var selection
-
-    public init(mixer: Mixer, appID: String?) {
-        self.mixer = mixer
-        self.appID = appID
-    }
-
-    public var body: some View {
-        let current = mixer.output?.id
-        HStack(alignment: .top, spacing: 12) {
-            ScrollView(.vertical) {
-                VStack(spacing: 2) {
-                    ForEach(mixer.outputs) { device in
-                        DeviceRow(device: device, current: device.id == current, selection: selection) {
-                            mixer.choose(device, for: .output)
-                        }
-                    }
-                }
-            }
-            .scrollIndicators(.never)
-            .fadingEdges(.vertical, length: 6)
-            VStack(spacing: 10) {
-                if let output = mixer.output {
-                    LevelSlider(
-                        symbol: output.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill",
-                        title: SoundView.shortName(output.name), level: output.isMuted ? 0 : output.level,
-                        tint: Deck.text,
-                        enabled: output.hasVolume
-                    ) { mixer.setDeviceLevel($0, for: .output) }
-                }
-                if let app = mixer.apps.first(where: { $0.id == appID }) {
-                    LevelSlider(
-                        image: mixer.icon(for: app), title: app.name,
-                        level: mixer.isMuted(app.id) ? 0 : mixer.level(of: app.id), tint: mixer.tint(for: app),
-                        enabled: true
-                    ) { mixer.setLevel($0, of: app.id) }
-                }
-            }
-            .frame(width: 128)
-        }
-        .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.8), value: current)
-        .onAppear { mixer.appeared() }
-        .onDisappear { mixer.disappeared() }
-    }
-}
-
-/// A slim sideways fader with what it controls and its level above it. Drag or click along it.
-private struct LevelSlider: View {
-    var symbol: String?
-    var image: NSImage?
-    let title: String
-    let level: Double
-    let tint: Color
-    let enabled: Bool
-    let set: (Double) -> Void
-
-    init(
-        symbol: String? = nil, image: NSImage? = nil, title: String, level: Double, tint: Color, enabled: Bool,
-        set: @escaping (Double) -> Void
-    ) {
-        self.symbol = symbol
-        self.image = image
-        self.title = title
-        self.level = level
-        self.tint = tint
-        self.enabled = enabled
-        self.set = set
-    }
-
-    private var percent: Int { Int((min(max(level, 0), 1) * 100).rounded()) }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 5) {
-                if let image {
-                    Image(nsImage: image).resizable().frame(width: 13, height: 13)
-                } else if let symbol {
-                    Image(systemName: symbol).font(.system(size: 10, weight: .semibold)).frame(width: 13)
-                }
-                Text(title).lineLimit(1)
-                Spacer(minLength: 0)
-                Text("\(percent)%").monospacedDigit().foregroundStyle(Deck.tertiary)
-            }
-            .font(.system(size: 10.5, weight: .medium))
-            GeometryReader { proxy in
-                Capsule()
-                    .fill(Deck.control)
-                    .overlay(alignment: .leading) {
-                        Capsule().fill(tint).frame(width: max(6, proxy.size.width * min(max(level, 0), 1)))
-                    }
-                    .contentShape(Capsule())
-                    .gesture(
-                        DragGesture(minimumDistance: 0).onChanged { drag in
-                            set(min(max(drag.location.x / max(proxy.size.width, 1), 0), 1))
-                        },
-                        isEnabled: enabled)
-            }
-            .frame(height: 6)
-        }
-        .opacity(enabled ? 1 : 0.5)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(title)
-        .accessibilityValue("\(percent)%")
-        .accessibilityAdjustableAction { direction in
-            set(min(max(level + (direction == .increment ? 0.05 : -0.05), 0), 1))
-        }
-    }
-}
-
 extension Mixer {
     /// For the Sound tab's settings: what it does, and a way back to every app's own volume.
     public var settingsView: some View { MixerSettings(mixer: self) }
@@ -345,7 +228,7 @@ private struct MixerSettings: View {
         } label: {
             Text("App volumes")
             Text(
-                "Turn each app up, down, or off in the Sound tab. It uses the waveform's system audio permission, "
+                "Turn each app up, down, or off in the Sound tab. It needs the system audio permission, "
                     + "and nothing is recorded.")
         }
     }

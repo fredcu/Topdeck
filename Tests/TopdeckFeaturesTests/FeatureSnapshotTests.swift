@@ -14,21 +14,6 @@ struct FeatureSnapshotTests {
     /// The content area of the smallest open notch.
     private static let smallest = CGSize(width: 350, height: 102)
 
-    @Test func mediaWithATrack() throws {
-        let media = MediaFeature(bundle: Bundle(for: SnapshotMarker.self))
-        media.receive(
-            NowPlaying(
-                title: "Midnight City", artist: "M83", album: "Hurry Up, We're Dreaming", isPlaying: true,
-                duration: 243, elapsed: 61, timestamp: Date(), artwork: Self.sampleArtwork(),
-                appBundleID: "com.apple.Music", shuffle: true, repeatMode: .all))
-        #expect(media.artwork != nil, "artwork is decoded into a thumbnail")
-        try render(media.view, name: "media-playing")
-    }
-
-    @Test func mediaWithNothingPlaying() throws {
-        try render(MediaFeature(bundle: Bundle(for: SnapshotMarker.self)).view, name: "media-idle")
-    }
-
     @Test func shelfWithFiles() throws {
         let folder = FileManager.default.temporaryDirectory.appending(path: "ShelfSnapshot-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -188,16 +173,4 @@ struct FeatureSnapshotTests {
                 to: URL(filePath: directory).appending(path: "\(name).png"))
         }
     }
-
-    /// A made-up album cover: a diagonal gradient, PNG-encoded like real artwork data.
-    private static func sampleArtwork() -> Data? {
-        let image = NSImage(size: CGSize(width: 600, height: 600), flipped: false) { rect in
-            NSGradient(colors: [.systemPurple, .systemOrange])?.draw(in: rect, angle: 45)
-            return true
-        }
-        guard let tiff = image.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiff) else { return nil }
-        return bitmap.representation(using: .png, properties: [:])
-    }
 }
-
-private final class SnapshotMarker {}

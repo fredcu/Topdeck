@@ -13,12 +13,6 @@ extension MediaFeature {
                 Text("The cover and title stay beside the camera while music plays, and for a minute after it pauses.")
             }
             Toggle("Synced lyrics", isOn: $media.syncedLyrics)
-            Toggle(isOn: $media.waveformFollowsAudio) {
-                Text("Waveform follows the music")
-                Text(
-                    "Listens to your Mac's audio output while Media is open and playing. It's analyzed on this "
-                        + "Mac as it plays and never recorded. macOS asks for permission the first time.")
-            }
         }
     }
 }

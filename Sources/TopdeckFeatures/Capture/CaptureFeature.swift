@@ -51,6 +51,8 @@ public final class CaptureFeature: NotchFeature {
     @ObservationIgnored public var onActivity: ((Activity) -> Void)?
     /// Puts files on the Shelf; false when the Shelf is off.
     @ObservationIgnored public var addToShelf: (([URL]) -> Bool)?
+    /// Raised with the PNG of every screenshot taken, for the Clipboard's history. Not for recordings.
+    @ObservationIgnored public var onScreenshot: ((Data) -> Void)?
     /// Called as a tool starts, so the notch gets out of the way.
     @ObservationIgnored public var onBegin: (() -> Void)?
     /// Whether the tab is on; the shortcuts do nothing while it's off.
@@ -119,7 +121,10 @@ public final class CaptureFeature: NotchFeature {
         if tool == .scrolling {
             let session = ScrollingSession(area: area, rect: rect, screen: screen) { [weak self] image in
                 self?.session = nil
-                if let image { self?.edit(image) }
+                if let image {
+                    self?.keep(image)
+                    self?.edit(image)
+                }
             }
             self.session = session
             session.start()
@@ -129,16 +134,25 @@ public final class CaptureFeature: NotchFeature {
             do {
                 let image = try await ScreenGrab.image(of: area, excluding: [overlayWindow])
                 switch tool {
-                case .pin: pin(image)
+                case .pin:
+                    keep(image)
+                    pin(image)
                 case .text: readText(in: image)
                 case .qrCode: readCodes(in: image)
-                default: edit(image)
+                default:
+                    keep(image)
+                    edit(image)
                 }
             } catch {
                 Log.features.error("Capture failed: \(error.localizedDescription, privacy: .public)")
                 report("Couldn't capture the screen", symbol: "exclamationmark.triangle.fill")
             }
         }
+    }
+
+    /// Hands a screenshot on, as a PNG, to whoever keeps them.
+    private func keep(_ capture: CaptureImage) {
+        if let png = CaptureFiles.png(capture.image) { onScreenshot?(png) }
     }
 
     private func edit(_ capture: CaptureImage) {

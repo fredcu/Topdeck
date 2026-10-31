@@ -4,6 +4,7 @@ import Observation
 import QuickLookUI
 import SwiftUI
 import TopdeckCore
+import UniformTypeIdentifiers
 
 /// A file on the shelf, kept as a bookmark so it follows renames and moves.
 public struct ShelfItem: Codable, Hashable, Identifiable, Sendable {
@@ -24,10 +25,19 @@ public final class ShelfFeature: NotchFeature {
     public private(set) var items: [ShelfItem] = []
     /// Where each file is now. An item without a location is missing.
     public private(set) var locations: [ShelfItem.ID: URL] = [:]
+    /// The size of each file now, in bytes; a folder or a missing file has none.
+    public private(set) var sizes: [ShelfItem.ID: Int] = [:]
+    /// The tiles ticked. A click ticks one; in select mode a click toggles.
+    public var selected: Set<ShelfItem.ID> = []
+    public var isSelecting = false
     /// Raised when files land on the shelf.
     @ObservationIgnored public var onActivity: ((Activity) -> Void)?
     /// Uploads to Cloudflare R2, offered from each file's menu.
     @ObservationIgnored public var uploads: R2Uploads?
+    /// Starts a note with this text; the app wires it to Notes.
+    @ObservationIgnored public var addToNote: ((String) -> Void)?
+    /// The pictures on the tiles, made off the main thread and kept in memory.
+    @ObservationIgnored let thumbnails = ShelfThumbnails()
 
     // ponytail: a fixed cap keeps the shelf and its bookmark checks bounded; make it a setting if asked.
     static let capacity = 100
@@ -63,6 +73,7 @@ public final class ShelfFeature: NotchFeature {
         }
         guard !added.isEmpty else { return false }
         items = Array((items + added).suffix(Self.capacity))
+        measure()
         save()
         let title = added.count == 1 ? "1 file" : "\(added.count) files"
         onActivity?(Activity(feature: .shelf, symbol: "tray.and.arrow.down.fill", title: title, duration: .seconds(2)))
@@ -72,6 +83,8 @@ public final class ShelfFeature: NotchFeature {
     public func remove(_ item: ShelfItem) {
         items.removeAll { $0.id == item.id }
         locations[item.id] = nil
+        sizes[item.id] = nil
+        selected.remove(item.id)
         uploads?.forget(item.id)
         accessing.removeValue(forKey: item.id)?.stopAccessingSecurityScopedResource()
         save()
@@ -81,6 +94,9 @@ public final class ShelfFeature: NotchFeature {
         for item in items { uploads?.forget(item.id) }
         items = []
         locations = [:]
+        sizes = [:]
+        selected = []
+        isSelecting = false
         for url in accessing.values { url.stopAccessingSecurityScopedResource() }
         accessing = [:]
         save()
@@ -94,8 +110,9 @@ public final class ShelfFeature: NotchFeature {
         quickLook.show(url)
     }
 
-    public func airDrop(_ items: [ShelfItem]) {
-        let urls = items.compactMap(url(for:))
+    public func airDrop(_ items: [ShelfItem]) { airDrop(urls: items.compactMap(url(for:))) }
+
+    public func airDrop(urls: [URL]) {
         guard !urls.isEmpty, let service = NSSharingService(named: .sendViaAirDrop) else { return }
         NSApp.activate()
         service.perform(withItems: urls)
@@ -129,7 +146,83 @@ public final class ShelfFeature: NotchFeature {
             }
         }
         locations = found
+        selected.formIntersection(found.keys)
+        measure()
         if renewed { save() }
+    }
+
+    private func measure() {
+        sizes = locations.compactMapValues { try? $0.resourceValues(forKeys: [.fileSizeKey]).fileSize }
+    }
+
+    // MARK: Selecting
+
+    /// Ticks the tile, alone unless selecting or `extend`, which toggle it among the others.
+    public func select(_ item: ShelfItem, extend: Bool = false) {
+        if isSelecting || extend {
+            if selected.contains(item.id) { selected.remove(item.id) } else { selected.insert(item.id) }
+        } else {
+            selected = [item.id]
+        }
+    }
+
+    public func finishSelecting() {
+        isSelecting = false
+        selected = []
+    }
+
+    /// The files the targets act on when clicked: the ticked ones, or all when none is ticked.
+    public var actionURLs: [URL] {
+        let chosen = items.filter { selected.contains($0.id) }
+        return (chosen.isEmpty ? items : chosen).compactMap(url(for:))
+    }
+
+    // MARK: Targets
+
+    public enum Target: CaseIterable, Sendable {
+        case airDrop, upload, note, openWith
+
+        public var title: String {
+            switch self {
+            case .airDrop: "AirDrop"
+            case .upload: "Upload to R2"
+            case .note: "Add to Note"
+            case .openWith: "Open With"
+            }
+        }
+    }
+
+    /// Whether the target can be used: Upload to R2 needs a bucket and keys.
+    public func isAvailable(_ target: Target) -> Bool { target != .upload || uploads?.isSetUp == true }
+
+    /// Does what the target says to these files, which may be on the shelf or dropped straight from elsewhere.
+    public func perform(_ target: Target, on urls: [URL]) {
+        guard !urls.isEmpty, isAvailable(target) else { return }
+        switch target {
+        case .airDrop: airDrop(urls: urls)
+        case .upload:
+            // An upload belongs to a file on the shelf, which is where its progress shows.
+            add(urls)
+            for url in urls {
+                if let item = items.first(where: { locations[$0.id]?.standardizedFileURL == url.standardizedFileURL }) {
+                    uploads?.upload(item, from: url)
+                }
+            }
+        case .note: addToNote?(Self.noteText(for: urls))
+        case .openWith: OpenWithMenu.show(for: urls)
+        }
+    }
+
+    /// What a new note starts with: a text file's content, up to 20,000 characters, or else the path.
+    nonisolated static func noteText(for urls: [URL]) -> String {
+        urls.map { url in
+            let isText = (try? url.resourceValues(forKeys: [.contentTypeKey]).contentType)?.conforms(to: .text) == true
+            guard isText, let handle = try? FileHandle(forReadingFrom: url) else { return url.path }
+            defer { try? handle.close() }
+            let data = (try? handle.read(upToCount: 80_000)) ?? Data()
+            let text = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            return text.isEmpty ? url.path : String(text.prefix(20_000))
+        }.joined(separator: "\n\n")
     }
 
     private static var bookmarkOptions: URL.BookmarkCreationOptions { sandboxed ? .withSecurityScope : [] }

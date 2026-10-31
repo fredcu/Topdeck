@@ -10,14 +10,15 @@ import TopdeckSurface
 @MainActor
 enum DeckScreen {
     /// The open deck's default size and its smallest.
-    static let normal = CGSize(width: 700, height: 430)
-    static let smallest = CGSize(width: 620, height: 340)
+    nonisolated static let normal = CGSize(width: 700, height: 430)
+    nonisolated static let smallest = CGSize(width: 620, height: 340)
 
     /// `space` is the open one: its accent, and the label lit in the wings. Without `tabs` the second row
     /// shows the space's name, as it does for a space without sub-tabs.
     static func render(
         _ body: some View, name: String, size: CGSize = normal, space: SpaceID = .agents, tabs: [String] = [],
-        selected: String = "", actions: some View = EmptyView()
+        selected: String = "", leading: AnyView? = nil, settle: TimeInterval = 0,
+        actions: some View = EmptyView()
     ) throws {
         func wing(_ spaces: [SpaceID]) -> some View {
             HStack(spacing: 4) {
@@ -37,7 +38,9 @@ enum DeckScreen {
             .padding(.horizontal, 10)
             .frame(height: 37)
             HStack(spacing: 0) {
-                if tabs.isEmpty {
+                if let leading {
+                    leading
+                } else if tabs.isEmpty {
                     Text(space.title).deckText(.title)
                 } else {
                     DeckSubTabs(tabs, selection: selected, title: { $0 }, select: { _ in })
@@ -74,6 +77,10 @@ enum DeckScreen {
         let window = NSWindow(contentRect: host.frame, styleMask: .borderless, backing: .buffered, defer: false)
         window.contentView = host
         host.layoutSubtreeIfNeeded()
+        if settle > 0 {  // pictures made off the main thread arrive
+            RunLoop.main.run(until: .now + settle)
+            host.layoutSubtreeIfNeeded()
+        }
         let bitmap = try #require(
             NSBitmapImageRep(
                 bitmapDataPlanes: nil, pixelsWide: Int(area.width) * 2, pixelsHigh: Int(area.height) * 2,

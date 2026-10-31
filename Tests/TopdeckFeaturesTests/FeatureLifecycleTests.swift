@@ -46,7 +46,7 @@ struct FeatureLifecycleTests {
         host.update(notches: [], enabled: enabled)  // quit
 
         #expect(features.allSatisfy { $0.phase == .stopped })
-        #expect(!media.isListening && media.nowPlaying == nil && !media.audio.isRunning)
+        #expect(!media.isListening && media.nowPlaying == nil)
         #expect(!calendar.isObserving && calendar.events.isEmpty)
         #expect(notes.notes.isEmpty, "notes leave memory")
         #expect(

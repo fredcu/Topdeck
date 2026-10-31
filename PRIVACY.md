@@ -54,7 +54,8 @@ Topdeck is local-first.
 - Messages sent with the Show in Notch action or an `topdeck://` link are
   only displayed: they're never stored, and nothing in them is opened.
 - Clipboard history is off until you turn it on in the Clipboard tab. Then it
-  keeps what you copy (text, links, images, and file locations) in
+  keeps what you copy (text, links, images, and file locations), and every
+  screenshot Topdeck takes as an image from Topdeck, in
   `~/Library/Application Support/Topdeck` on this Mac only, up to 200 items
   plus your favorites. It skips anything the copying app marks secret or
   temporary, anything copied in a password manager, and copies from apps you
@@ -68,11 +69,10 @@ Topdeck is local-first.
   **Add to Shelf** writes a file, in
   `~/Library/Application Support/Topdeck/Captures`.
 - The bars beside the camera while music plays move to a made-up pattern, not
-  to the sound, and listen to nothing. Only the Media view's waveform listens
-  to your Mac's audio output (macOS asks for "system audio recording"
-  permission the first time), only while that view is open and something
-  plays; it turns the sound into loudness per frequency band as it plays, and
-  never records, stores, or sends audio. Turn it off in Settings › Now.
+  to the sound, and listen to nothing. Only the Sound tab listens to your
+  Mac's audio output, to set each app's volume (macOS asks for "system audio
+  recording" permission the first time); it never records, stores, or sends
+  audio.
 - Shuffle, repeat, Music's up next and lyrics, Spotify's recently played, and,
   in the App Store edition, all of Media's controls talk to Music or Spotify
   through their own AppleScript, on this Mac. macOS asks first (Privacy &

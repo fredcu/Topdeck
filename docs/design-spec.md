@@ -3,8 +3,8 @@
 Approved design: the artboards in `docs/design/`, one `.dc.html` file each, styled by
 `docs/design/deck.css`. They are the source of truth for layout, sizes, colours and copy; open them
 in a browser if it helps. This file states what the boards can't. Round 3 (`NowColor3`, `NowPlay3`,
-`NoteAdd3`) sets the colours and Now; `Shelf3`, `Clipboard3`, `Agents3`, `Tools3`, `Mac3` and `Editor3`
-show where the other spaces go and are built in later batches. Where an older board disagrees with a
+`NoteAdd3`) sets the colours and Now; `Shelf3` and `Clipboard3` set those two spaces; `Agents3`, `Tools3`,
+`Mac3` and `Editor3` show where the others go and are built in later batches. Where an older board disagrees with a
 round 3 one, round 3 wins. App icon: `docs/design/icon-paper.svg`.
 
 ## Tokens
@@ -110,6 +110,37 @@ Right-click: each colour, Pin to Desktop, Keep on Top, Unpin, Keep First in List
 Delete (after a confirmation). There is no Notes tab. The folder and the sort order are in Settings, search
 is in the Command Bar (Notes appear there by title and the start of their text), and the new-note shortcut
 opens the notch on Now with the add field set to Note.
+
+### Shelf
+
+Board `Shelf3`. Second row: the item count (Bold 20) and the total size at the left; Select and Clear at the
+right. Body: a grid of three large tiles (the board's 102 high at 700 wide, the same ratio at 620), each a
+real Quick Look thumbnail, or the file's kind colour (`Deck.Kind`, defined once) with its extension, then the
+name and "KIND, size". Four targets stand to the right, 172 wide: AirDrop, Upload to R2, Add to Note, Open
+With. Upload to R2 is dimmed until R2 is set up.
+
+Click ticks a tile (Command-click, or Select mode, ticks several), double-click opens it, Space opens Quick
+Look, and a tile drags out as a file. A target acts on the ticked tiles, or on all when none is ticked; tiles
+or files dropped on it are acted on instead. Add to Note starts a note with a text file's content or else the
+file's path; Open With pops up the apps that can open the file. Items dropped together are not grouped: the
+model keeps no groups. Thumbnails are made off the main thread and kept in memory. An empty shelf is one line,
+"Drop files here", and the drop highlight.
+
+### Clipboard
+
+Board `Clipboard3`. Second row: the filters All, Text, Images, Links, Files at the left; a menu, Keep open and
+Settings at the right. The menu holds what the board has no place for: Select Items, Clear History, paste as
+plain text, link cleaning, and turning the history off. Ignored apps stay in Settings. Left column, 296 wide:
+the search field and the list, each row 44 high with a kind icon (a real thumbnail for an image), the title and
+"source, age". Right column: the chosen item large (an image scaled to fit, text and links scrollable, a file
+with its icon and name), what it is ("1440 × 900, PNG") and where it came from, a favourite star and Paste.
+
+Up and Down move the choice, Return pastes it, and typing goes to the search. A filter with nothing in it is
+"No images" and so on; a search with nothing is "No matches".
+
+Every screenshot Topdeck takes is kept in the history as an image from "Topdeck", without touching the system
+pasteboard, within the same size limit and capacity, and only while the history is on. A screenshot that is
+also copied stays one item (the pictures are matched by a fingerprint of their PNG). Recordings do not go in.
 
 ## Settings
 

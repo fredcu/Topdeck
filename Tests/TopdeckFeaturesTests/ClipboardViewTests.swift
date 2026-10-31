@@ -27,4 +27,18 @@ struct ClipboardViewTests {
         #expect(ClipboardView.host(of: link) == "github.com")
         #expect(ClipboardView.host(of: ClipItem(kind: .text, text: "https://github.com", copied: now)) == nil)
     }
+
+    @Test func aRowSaysWhereAndHowLongAgo() {
+        var item = ClipItem(kind: .text, text: "hello", copied: now.addingTimeInterval(-120))
+        #expect(ClipboardView.subtitle(of: item, at: now) == "2m")
+        item.source = "Safari"
+        #expect(ClipboardView.subtitle(of: item, at: now) == "Safari, 2m")
+        #expect(ClipboardView.origin(of: item, at: now) == "Safari, 2m ago")
+    }
+
+    @Test func thePreviewSaysWhatItShows() {
+        let picture = ClipItem(kind: .image, text: "Image 1440 × 900", copied: now)
+        #expect(ClipboardView.facts(of: picture) == "1440 × 900, PNG")
+        #expect(ClipboardView.facts(of: ClipItem(kind: .text, text: "hello", copied: now)) == "5 characters")
+    }
 }

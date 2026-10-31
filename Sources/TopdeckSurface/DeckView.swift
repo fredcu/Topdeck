@@ -89,6 +89,8 @@ struct DeckView: View {
                 }
             } else if space == .now {
                 DeckClock()
+            } else if let leading = content.leading(space) {
+                leading
             } else {
                 Text(space.headline()).deckText(.title).lineLimit(1)
             }

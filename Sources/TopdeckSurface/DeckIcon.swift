@@ -10,7 +10,7 @@ public enum DeckIcon: String, CaseIterable, Sendable {
         calendar, clock, hand, terminal, cpu, volume, microphone, display, disk, network, capture, qrCode,
         recognizeText, colorPicker, scrollingCapture, moon, bolt, chevronRight, chevronDown, note, arrowUpRight, grid,
         battery, thermometer, shield, stack, list, app, markupArrow, markupRectangle, markupOval, markupPen,
-        markupHighlighter, markupMosaic, undo, markupNumber, cursor, onTop
+        markupHighlighter, markupMosaic, undo, markupNumber, cursor, onTop, star, more, airDrop, upload, openWith
 
     /// The icon's shapes, on a 24 by 24 grid.
     var shapes: String {
@@ -81,6 +81,14 @@ public enum DeckIcon: String, CaseIterable, Sendable {
         case .markupNumber: #"<circle cx='12' cy='12' r='9'/><path d='M10 9l2-1v8'/>"#
         case .cursor: #"<path d='M6 3l13 9-6 1-3 6z'/>"#
         case .onTop: #"<rect x='8' y='4' width='13' height='10' rx='2'/><path d='M5 9v9a2 2 0 0 0 2 2h9'/>"#
+        case .star:
+            #"<path d='M12 3.500l2.600 5.300 5.900.9-4.300 4.100 1 5.800-5.200-2.800-5.200 2.800 1-5.800-4.300-4.100 5.900-.9z'/>"#
+        case .more: #"<path d='M5 12h.010M12 12h.010M19 12h.010' stroke-width='3'/>"#
+        case .airDrop:
+            #"<path d='M8 15a5.500 5.500 0 1 1 8 0M5 18a9.500 9.500 0 1 1 14 0'/><circle cx='12' cy='14' r='1.500' fill='#000'/>"#
+        case .upload:
+            #"<path d='M7 18a4.500 4.500 0 0 1-.5-9A6 6 0 0 1 18 9.500 4 4 0 0 1 17.500 18M12 20v-8M9 14.500l3-3 3 3'/>"#
+        case .openWith: #"<rect x='4' y='4' width='16' height='16' rx='4'/><path d='M9 15l6-6M10 9h5v5'/>"#
         }
     }
 }
