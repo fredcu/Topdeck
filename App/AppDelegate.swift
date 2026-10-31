@@ -180,6 +180,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// The spaces that draw their whole body from the features that are on.
+    private func screen(for space: SpaceID, enabled: Set<FeatureID>) -> AnyView? {
+        switch space {
+        case .plan:
+            return AnyView(
+                PlanScreen(
+                    calendar: enabled.contains(.calendar) ? calendar : nil,
+                    tasks: enabled.contains(.tasks) ? tasks : nil))
+        case .tools:
+            return AnyView(
+                ToolsScreen(
+                    capture: enabled.contains(.capture) ? capture : nil, timer: enabled.contains(.timer) ? timer : nil,
+                    shortcuts: enabled.contains(.shortcuts) ? shortcuts : nil,
+                    sleepDisplays: { [monitors] in monitors.sleepDisplays() }))
+        default:
+            return nil
+        }
+    }
+
     /// Each tab's own settings, as the sections of its Settings page.
     private func settingsView(for feature: FeatureID) -> AnyView? {
         switch feature {
@@ -230,8 +249,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         open: { [weak self] in self?.coordinator?.open($0) }))
             },
             badge: { [unowned self] in $0 == .agents ? waitingAgents : 0 },
+            actions: { [unowned self] space, _ in
+                guard space == .plan else { return AnyView(EmptyView()) }
+                return AnyView(
+                    PlanAddField(
+                        calendar: preferences.isEnabled(.calendar) ? calendar : nil,
+                        tasks: preferences.isEnabled(.tasks) ? tasks : nil))
+            },
             dropFiles: { [preferences, shelf] urls in preferences.isEnabled(.shelf) && shelf.add(urls) },
-            openSettings: { [weak self] in self?.settings.show() })
+            openSettings: { [weak self] in self?.settings.show() },
+            screen: { [unowned self] space, enabled in screen(for: space, enabled: enabled) },
+            titleAccessory: { [unowned self] space in
+                guard space == .plan, preferences.isEnabled(.calendar) else { return AnyView(EmptyView()) }
+                return AnyView(PlanDayChips(calendar: calendar))
+            },
+            join: { [calendar] url in calendar.join(url: url) })
         let coordinator = PanelCoordinator(preferences: preferences, content: content)
         coordinator.onNotchesChange = { [weak self] notches in
             guard let self else { return }

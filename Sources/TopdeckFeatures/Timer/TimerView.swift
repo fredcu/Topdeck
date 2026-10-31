@@ -1,284 +1,199 @@
 // SPDX-License-Identifier: MIT
 import SwiftUI
+import TopdeckSurface
 
-/// The timer tab: countdown presets or a running countdown, a stopwatch with laps, and keep awake.
+/// What the Keep Awake card says about how long is left.
+enum AwakeLabel {
+    /// "1:12 left" with an hour or more to go, "42 min left" under it, "On" until it is turned off.
+    static func text(until: Date, now: Date = .now) -> String {
+        if until == .distantFuture { return "On" }
+        let minutes = max(1, Int((until.timeIntervalSince(now) / 60).rounded(.up)))
+        return minutes >= 60 ? String(format: "%d:%02d left", minutes / 60, minutes % 60) : "\(minutes) min left"
+    }
+}
+
+/// The Tools screen's timer and Keep Awake cards, one above the other: a countdown or a stopwatch,
+/// and how long to keep the Mac awake. `compact` is the shorter layout for the smallest deck.
 struct TimerView: View {
     let timer: TimerFeature
-    /// The clock time picked for keeping awake until; only its hour and minute count.
-    @State private var awakeTime = TimerView.nextHour()
+    var compact = false
 
     var body: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 4) {
-                modeButton("Timer", .countdown)
-                modeButton("Stopwatch", .stopwatch)
-                modeButton("Keep Awake", .keepAwake, lit: timer.keepsAwake)
-            }
-            switch timer.mode {
-            case .countdown: countdown
-            case .stopwatch: stopwatch
-            case .keepAwake: keepAwake
-            }
+        VStack(spacing: Deck.Metric.gap) {
+            clockCard
+            awakeCard
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
-    /// `lit` marks a mode that's running while another is showing.
-    private func modeButton(_ title: String, _ mode: TimerFeature.Mode, lit: Bool = false) -> some View {
-        Button {
-            timer.mode = mode
-        } label: {
-            HStack(spacing: 4) {
-                if lit { Image(systemName: "cup.and.saucer.fill").font(.system(size: 9)) }
-                Text(title)
-            }
-        }
-        .buttonStyle(.plain)
-        .font(.caption.weight(.semibold))
-        .padding(.horizontal, 10)
-        .padding(.vertical, 3)
-        .background(timer.mode == mode ? .white.opacity(0.16) : .clear, in: Capsule())
-        .accessibilityLabel(lit ? "\(title), on" : title)
-        .accessibilityAddTraits(timer.mode == mode ? .isSelected : [])
-    }
+    private var cardPadding: CGFloat { compact ? 12 : Deck.Metric.cardPadding }
 
-    /// How long to stay awake, or how long is left. The smallest notch shrinks the clock and drops
-    /// the line of explanation.
-    @ViewBuilder private var keepAwake: some View {
-        if let until = timer.awakeUntil {
-            ViewThatFits(in: .vertical) {
-                awake(until: until, compact: false)
-                awake(until: until, compact: true)
-            }
-        } else {
-            ViewThatFits(in: .vertical) {
-                awakePresets(explained: true, height: 34)
-                awakePresets(explained: false, height: 34)
-                awakePresets(explained: false, height: 26)
-            }
-        }
-    }
+    // MARK: Timer and stopwatch
 
-    private var screenOnToggle: some View {
-        Toggle("Keep screen on", isOn: Binding(get: { timer.keepScreenOn }, set: { timer.keepScreenOn = $0 }))
-            .toggleStyle(.switch)
-            .controlSize(.mini)
-            .font(.caption.weight(.medium))
-            .fixedSize()
-    }
-
-    /// The next whole hour from now.
-    nonisolated private static func nextHour(now: Date = .now, calendar: Calendar = .current) -> Date {
-        calendar.nextDate(after: now, matching: DateComponents(minute: 0, second: 0), matchingPolicy: .nextTime)
-            ?? now.addingTimeInterval(3600)
-    }
-
-    private func awake(until: Date, compact: Bool) -> some View {
-        VStack(spacing: 8) {
-            if until == .distantFuture {
-                Label("Awake until you turn it off", systemImage: "cup.and.saucer.fill")
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
-                    .padding(.vertical, compact ? 4 : 12)
-            } else {
-                // Redraws once a second, and only while it's on screen.
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    RollingTime(until.timeIntervalSince(context.date), countsDown: true)
-                        .font(.system(size: compact ? 30 : 40, weight: .semibold, design: .rounded))
-                }
-                if !compact {
-                    let note = timer.keepScreenOn ? "Your Mac and its display stay awake" : "Your Mac stays awake"
-                    Text("\(note) until then.")
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.6))
-                }
-            }
-            HStack(spacing: 18) {
-                if until != .distantFuture { control("+30 min") { timer.extendAwake() } }
-                control("Turn Off", timer.allowSleep)
-                screenOnToggle
-            }
-        }
-    }
-
-    private func awakePresets(explained: Bool, height: CGFloat) -> some View {
-        VStack(spacing: explained ? 10 : 8) {
-            if explained {
-                let subject = timer.keepScreenOn ? "your Mac and its display" : "your Mac"
-                Text("Keep \(subject) from sleeping through a download, a build, or a talk.")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.6))
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 320)
-            }
-            HStack(spacing: 8) {
-                ForEach(TimerFeature.awakePresets, id: \.self) { seconds in
-                    let title = seconds < 3600 ? "\(Int(seconds / 60)) min" : "\(Int(seconds / 3600)) hr"
-                    awakePreset(title, height) {
-                        timer.keepAwake(for: seconds)
+    private var clockCard: some View {
+        DeckCard(padding: cardPadding) {
+            VStack(spacing: 0) {
+                HStack(spacing: 4) {
+                    Text(timer.mode == .stopwatch ? "Stopwatch" : "Timer").deckText(.caption)
+                    Spacer(minLength: 0)
+                    if timer.mode != .stopwatch, timer.countdown != nil {
+                        DeckIconButton(.close, label: "Cancel timer", action: timer.cancel)
                     }
-                    .accessibilityLabel("Keep awake for \(formatTime(seconds))")
+                    Button {
+                        timer.mode = timer.mode == .stopwatch ? .countdown : .stopwatch
+                    } label: {
+                        DeckIconView(.clock, size: 13)
+                    }
+                    .buttonStyle(.deckIcon(on: timer.mode == .stopwatch))
+                    .frame(width: 26, height: 26)
+                    .help(timer.mode == .stopwatch ? "Timer" : "Stopwatch")
+                    .accessibilityLabel(timer.mode == .stopwatch ? "Timer" : "Stopwatch")
                 }
-                awakePreset(nil, height) { timer.keepAwake(for: nil) }
-                    .help("Until you turn it off")
-                    .accessibilityLabel("Keep awake until you turn it off")
+                .frame(height: 26)
+                Spacer(minLength: 0)
+                if timer.mode == .stopwatch { stopwatch } else { countdown }
             }
-            HStack(spacing: 8) {
-                DatePicker("Until", selection: $awakeTime, displayedComponents: .hourAndMinute)
-                    .labelsHidden()
-                    .datePickerStyle(.stepperField)
-                    .fixedSize()
-                    .accessibilityLabel("Time to keep awake until")
-                control("Until") {
-                    let time = Calendar.current.dateComponents([.hour, .minute], from: awakeTime)
-                    timer.keepAwake(.at(hour: time.hour ?? 0, minute: time.minute ?? 0))
-                }
-                .accessibilityLabel("Keep awake until the chosen time")
-                Spacer(minLength: 8)
-                screenOnToggle
-            }
+            .frame(maxHeight: .infinity)
         }
-        .padding(.top, 4)
+        .frame(maxHeight: .infinity)
     }
 
-    /// A duration to stay awake for; nil for "until you turn it off".
-    private func awakePreset(_ title: String?, _ height: CGFloat, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Group {
-                if let title { Text(title) } else { Image(systemName: "infinity") }
-            }
-            .font(.callout.weight(.medium))
-            .frame(maxWidth: .infinity, minHeight: height)
-            .background(.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 9))
-        }
-        .buttonStyle(.plain)
-    }
+    private var clockStyle: DeckTextStyle { compact ? .metric : .timer }
 
-    /// The smallest notch shrinks the clock and drops the progress bar, and shortens the presets.
+    /// The clock in the middle of the card and its buttons along the bottom; the presets when idle.
     @ViewBuilder private var countdown: some View {
         if let countdown = timer.countdown {
             // Redraws once a second, and only while running on screen.
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 let left = countdown.remaining(at: context.date)
-                ViewThatFits(in: .vertical) {
-                    running(countdown, left: left, compact: false)
-                    running(countdown, left: left, compact: true)
-                }
-                .accessibilityElement(children: .contain)
-                .accessibilityLabel("Timer, \(formatTime(left)) left")
+                RollingTime(left, countsDown: true)
+                    .deckText(clockStyle)
+                    .opacity(countdown.isRunning ? 1 : 0.5)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Timer, \(formatTime(left)) left")
             }
-        } else {
-            ViewThatFits(in: .vertical) {
-                presets(height: 34)
-                presets(height: 28)
-            }
-        }
-    }
-
-    private func running(_ countdown: Countdown, left: TimeInterval, compact: Bool) -> some View {
-        VStack(spacing: 8) {
-            RollingTime(left, countsDown: true)
-                .font(.system(size: compact ? 30 : 40, weight: .semibold, design: .rounded))
-                .opacity(countdown.isRunning ? 1 : 0.5)
-            if !compact {
-                ProgressView(value: countdown.total - left, total: countdown.total)
-                    .tint(.white)
-                    .frame(maxWidth: 260)
-            }
-            HStack(spacing: 18) {
-                control(countdown.isRunning ? "Pause" : "Resume") {
+            .frame(maxHeight: .infinity)
+            HStack(spacing: 8) {
+                Button(countdown.isRunning ? "Pause" : "Resume") {
                     countdown.isRunning ? timer.pause() : timer.resume()
                 }
-                control("+1 min", timer.addMinute)
-                control("Cancel", timer.cancel)
+                .buttonStyle(.deck(.primary))
+                .frame(maxWidth: .infinity)
+                Button("+1", action: timer.addMinute).buttonStyle(.deck())
             }
-        }
-    }
-
-    private func presets(height: CGFloat) -> some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
-            ForEach(TimerFeature.presets, id: \.self) { seconds in
-                Button {
-                    timer.start(seconds)
-                } label: {
-                    Text(seconds < 3600 ? "\(Int(seconds / 60)) min" : "1 hr")
-                        .font(.callout.weight(.medium))
-                        .frame(maxWidth: .infinity, minHeight: height)
-                        .background(.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 9))
+        } else {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 4), spacing: 6) {
+                ForEach(TimerFeature.presets, id: \.self) { seconds in
+                    Button(Self.presetTitle(seconds)) { timer.start(seconds) }
+                        .buttonStyle(.deckPill())
+                        .frame(maxWidth: .infinity)
+                        .accessibilityLabel("Start a \(formatTime(seconds)) timer")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Start a \(formatTime(seconds)) timer")
             }
+            .frame(maxHeight: .infinity)
         }
-        .padding(.top, 4)
     }
 
-    /// Laps go under the clock, or beside it when the notch is too short to show a few of them, and
-    /// the smallest notch shrinks the clock.
-    private var stopwatch: some View {
+    /// "5m", "1h".
+    static func presetTitle(_ seconds: TimeInterval) -> String {
+        seconds < 3600 ? "\(Int(seconds / 60))m" : "\(Int(seconds / 3600))h"
+    }
+
+    @ViewBuilder private var stopwatch: some View {
         let watch = timer.stopwatch
-        return ViewThatFits(in: .vertical) {
-            VStack(spacing: 8) {
-                stopwatchClock(watch)
-                if !watch.laps.isEmpty { lapList(watch.laps).frame(idealHeight: 44) }
+        VStack(spacing: 2) {
+            // Tenths of a second need ten redraws a second, only while running on screen.
+            TimelineView(.periodic(from: .now, by: watch.isRunning ? 0.1 : 3600)) { context in
+                RollingTime(watch.elapsed(at: context.date), tenths: true).deckText(clockStyle)
             }
-            HStack(alignment: .top, spacing: 16) {
-                stopwatchClock(watch)
-                if !watch.laps.isEmpty { lapList(watch.laps) }
+            if let last = watch.laps.indices.last {
+                let split = watch.laps[last] - (last > 0 ? watch.laps[last - 1] : 0)
+                Text("Lap \(last + 1)  \(formatTime(split, tenths: true))").deckText(.caption).lineLimit(1)
             }
-            HStack(alignment: .top, spacing: 16) {
-                stopwatchClock(watch, compact: true)
-                if !watch.laps.isEmpty { lapList(watch.laps) }
+        }
+        .frame(maxHeight: .infinity)
+        HStack(spacing: 8) {
+            Button(watch.isRunning ? "Pause" : "Start") { timer.toggleStopwatch() }
+                .buttonStyle(.deck(.primary))
+                .frame(maxWidth: .infinity)
+            if watch.isRunning {
+                Button("Lap") { timer.lap() }.buttonStyle(.deck())
+            } else {
+                Button("Reset", action: timer.resetStopwatch)
+                    .buttonStyle(.deck())
+                    .disabled(watch.elapsed(at: .now) == 0)
             }
         }
     }
 
-    private func stopwatchClock(_ watch: Stopwatch, compact: Bool = false) -> some View {
-        // Tenths of a second need ten redraws a second, only while running on screen.
-        TimelineView(.periodic(from: .now, by: watch.isRunning ? 0.1 : 3600)) { context in
-            VStack(spacing: 8) {
-                RollingTime(watch.elapsed(at: context.date), tenths: true)
-                    .font(.system(size: compact ? 30 : 40, weight: .semibold, design: .rounded))
-                HStack(spacing: 18) {
-                    control(watch.isRunning ? "Pause" : "Start") { timer.toggleStopwatch() }
-                    if watch.isRunning {
-                        control("Lap") { timer.lap() }
-                    } else {
-                        control("Reset", timer.resetStopwatch).disabled(watch.elapsed(at: context.date) == 0)
+    // MARK: Keep awake
+
+    private var awakeCard: some View {
+        DeckCard(padding: cardPadding) {
+            VStack(spacing: Deck.Metric.gap) {
+                HStack {
+                    Text("Keep Awake").deckText(.body)
+                    Spacer(minLength: 0)
+                    if let until = timer.awakeUntil {
+                        TimelineView(.everyMinute) { context in
+                            Text(AwakeLabel.text(until: until, now: context.date)).deckText(.detail)
+                        }
+                    }
+                    options
+                }
+                .frame(height: 26)
+                HStack(spacing: 6) {
+                    ForEach(TimerFeature.awakePresets.prefix(3), id: \.self) { seconds in
+                        Button(Self.presetTitle(seconds)) { timer.keepAwake(for: seconds) }
+                            .buttonStyle(.deckPill())
+                            .accessibilityLabel("Keep awake for \(formatTime(seconds))")
+                    }
+                    Button("\u{221E}") { timer.keepAwake(for: nil) }
+                        .buttonStyle(.deckPill(on: timer.awakeUntil == .distantFuture))
+                        .help("Until you turn it off")
+                        .accessibilityLabel("Keep awake until you turn it off")
+                    Spacer(minLength: 0)
+                    if timer.keepsAwake {
+                        DeckChip("Off", selected: true, action: timer.allowSleep)
                     }
                 }
             }
         }
     }
 
-    /// Every lap, newest first, scrolling once they outgrow the notch. It sits outside the timeline,
-    /// so it isn't rebuilt ten times a second.
-    private func lapList(_ laps: [TimeInterval]) -> some View {
-        ScrollView {
-            LazyVStack(spacing: 4) {
-                ForEach(laps.indices.reversed(), id: \.self) { index in
-                    let split = laps[index] - (index > 0 ? laps[index - 1] : 0)
-                    HStack {
-                        Text("Lap \(index + 1)")
-                        Spacer()
-                        Text(formatTime(split, tenths: true)).monospacedDigit()
-                    }
-                    .accessibilityElement(children: .combine)
+    /// Keeping the display on too, and keeping awake until a clock time.
+    private var options: some View {
+        Menu {
+            Toggle("Keep screen on", isOn: Binding(get: { timer.keepScreenOn }, set: { timer.keepScreenOn = $0 }))
+            Divider()
+            ForEach(Self.nextHours(), id: \.self) { time in
+                Button("Until \(time.formatted(date: .omitted, time: .shortened))") {
+                    let parts = Calendar.current.dateComponents([.hour, .minute], from: time)
+                    timer.keepAwake(.at(hour: parts.hour ?? 0, minute: parts.minute ?? 0))
                 }
             }
-            .font(.caption)
-            .foregroundStyle(.white.opacity(0.6))
-            .padding(.vertical, 6)
+            if let until = timer.awakeUntil, until != .distantFuture {
+                Divider()
+                Button("Add 30 Minutes") { timer.extendAwake() }
+            }
+        } label: {
+            DeckIconView(.chevronDown, size: 12)
+                .foregroundStyle(Deck.secondary)
+                .frame(width: 26, height: 26)
+                .contentShape(Rectangle())
         }
-        .fadingEdges()
-        .frame(maxWidth: 220)
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .accessibilityLabel("More ways to keep awake")
     }
 
-    private func control(_ title: String, _ action: @escaping () -> Void) -> some View {
-        Button(title, action: action)
-            .buttonStyle(.plain)
-            .font(.callout.weight(.semibold))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 5)
-            .background(.white.opacity(0.14), in: Capsule())
+    /// The next three whole hours from `now`.
+    static func nextHours(now: Date = .now, calendar: Calendar = .current) -> [Date] {
+        guard
+            let first = calendar.nextDate(
+                after: now, matching: DateComponents(minute: 0, second: 0), matchingPolicy: .nextTime)
+        else { return [] }
+        return (0..<3).compactMap { calendar.date(byAdding: .hour, value: $0, to: first) }
     }
 }

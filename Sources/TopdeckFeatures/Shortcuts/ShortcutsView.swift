@@ -1,58 +1,42 @@
 // SPDX-License-Identifier: MIT
 import SwiftUI
+import TopdeckSurface
 
-/// The shortcuts tab: a grid of shortcuts; click one to run it.
+/// The Shortcuts button on the Tools screen: a menu of the user's shortcuts; choosing one runs it.
 struct ShortcutsView: View {
     let shortcuts: ShortcutsFeature
 
     var body: some View {
-        switch shortcuts.status {
-        case .loading:
-            ProgressView().controlSize(.small).frame(maxWidth: .infinity, maxHeight: .infinity)
-        case .unavailable:
-            FeatureUnavailableView(
-                symbol: "square.stack.3d.up.slash",
-                title: "Shortcuts unavailable",
-                message: "The shortcuts command didn't respond on this Mac.")
-        case .ready where shortcuts.visible.isEmpty:
-            FeatureUnavailableView(
-                symbol: "square.stack.3d.up",
-                title: "No shortcuts to show",
-                message: "Shortcuts you make in the Shortcuts app show up here.",
-                action: (label: "Open Shortcuts", perform: shortcuts.openShortcutsApp))
-        case .ready:
-            ScrollView {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
-                    ForEach(shortcuts.visible, id: \.self) { name in
-                        tile(name)
-                    }
+        Menu {
+            switch shortcuts.status {
+            case .loading:
+                Text("Loading")
+            case .unavailable:
+                Text("Shortcuts unavailable")
+            case .ready where shortcuts.visible.isEmpty:
+                Button("Open Shortcuts", action: shortcuts.openShortcutsApp)
+            case .ready:
+                ForEach(shortcuts.visible, id: \.self) { name in
+                    let running = shortcuts.running.contains(name)
+                    Button(running ? "\(name) (running)" : name) { shortcuts.run(name) }
+                        .disabled(running)
                 }
-                .padding(.vertical, 6)
             }
-            .fadingEdges()
-        }
-    }
-
-    private func tile(_ name: String) -> some View {
-        let running = shortcuts.running.contains(name)
-        return Button {
-            shortcuts.run(name)
         } label: {
             HStack(spacing: 6) {
-                if running {
-                    ProgressView().controlSize(.mini)
-                } else {
-                    Image(systemName: "play.fill").font(.system(size: 10))
-                }
-                Text(name).font(.caption.weight(.medium)).lineLimit(2).multilineTextAlignment(.leading)
-                Spacer(minLength: 0)
+                DeckIconView(.stack, size: 13)
+                Text("Shortcuts")
             }
-            .padding(.horizontal, 10)
-            .frame(maxWidth: .infinity, minHeight: 38)
-            .background(.white.opacity(running ? 0.18 : 0.1), in: RoundedRectangle(cornerRadius: 9))
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(Deck.text)
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, minHeight: Deck.Metric.buttonHeight)
+            .background(RoundedRectangle(cornerRadius: Deck.Radius.control, style: .continuous).fill(Deck.control))
+            .contentShape(RoundedRectangle(cornerRadius: Deck.Radius.control, style: .continuous))
         }
+        .menuStyle(.button)
         .buttonStyle(.plain)
-        .disabled(running)
-        .accessibilityLabel(running ? "\(name), running" : "Run \(name)")
+        .menuIndicator(.hidden)
+        .accessibilityLabel("Shortcuts")
     }
 }

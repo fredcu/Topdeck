@@ -15,6 +15,8 @@ public struct DayEvent: Identifiable, Hashable, Sendable {
     public var color: RGB?
     /// The video call to join, when the event has a link to one.
     public var meeting: MeetingLink?
+    /// Where it happens, when the event says.
+    public var location: String?
     /// Declined, or canceled by the organizer: nothing to join.
     public var isDeclined: Bool
     /// Yours to change from the notch: in a calendar that takes changes, with nobody else invited.
@@ -29,6 +31,8 @@ public struct DayEvent: Identifiable, Hashable, Sendable {
         isAllDay = event.isAllDay
         color = RGB(event.calendar?.cgColor)
         meeting = MeetingLink.find(in: [event.url?.absoluteString, event.location, event.notes])
+        // A video call's address isn't a place.
+        location = event.location.flatMap { $0.isEmpty || MeetingLink.find(in: [$0]) != nil ? nil : $0 }
         isDeclined =
             event.status == .canceled
             || event.attendees?.first(where: \.isCurrentUser)?.participantStatus == .declined
@@ -37,7 +41,7 @@ public struct DayEvent: Identifiable, Hashable, Sendable {
 
     init(
         id: String, title: String, start: Date, end: Date, isAllDay: Bool = false, color: RGB? = nil,
-        meeting: MeetingLink? = nil, isDeclined: Bool = false, isEditable: Bool = true
+        meeting: MeetingLink? = nil, location: String? = nil, isDeclined: Bool = false, isEditable: Bool = true
     ) {
         self.id = id
         self.title = title
@@ -46,6 +50,7 @@ public struct DayEvent: Identifiable, Hashable, Sendable {
         self.isAllDay = isAllDay
         self.color = color
         self.meeting = meeting
+        self.location = location
         self.isDeclined = isDeclined
         self.isEditable = isEditable
     }
@@ -80,6 +85,15 @@ public final class CalendarFeature: NotchFeature {
     }
     public private(set) var access = EventAccess(.event)
     public private(set) var events: [DayEvent] = []
+    /// The events of the day Plan shows: today's, unless a later day's chip is picked.
+    public private(set) var dayEvents: [DayEvent] = []
+    /// Which day Plan shows, in days from today. Today for everything but Plan's agenda.
+    public var dayOffset = 0 {
+        didSet {
+            guard dayOffset != oldValue else { return }
+            reload()
+        }
+    }
     /// Open reminders due today or overdue, when Reminders access is allowed.
     public private(set) var dueTasks: [TaskItem] = []
     /// A short confirmation or problem after adding an event. Clears itself.
@@ -249,6 +263,8 @@ public final class CalendarFeature: NotchFeature {
     func show(events: [DayEvent], dueTasks: [TaskItem] = []) {
         access = .granted
         self.events = events
+        dayOffset = 0
+        dayEvents = events
         self.dueTasks = dueTasks
     }
 
@@ -273,6 +289,15 @@ public final class CalendarFeature: NotchFeature {
         NSWorkspace.shared.open(meeting.url)
         joined.insert(event.id)
         watchMeetings()
+    }
+
+    /// Joins the meeting the notch counts down to, from its Join button; any other link just opens.
+    public func join(url: URL) {
+        if let meeting = countingDown, meeting.meeting?.url == url {
+            join(meeting)
+        } else {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     public func copyLink(_ event: DayEvent) {
@@ -303,8 +328,10 @@ public final class CalendarFeature: NotchFeature {
             reload()
         } else {
             events = []
+            dayEvents = []
             dueTasks = []
         }
+        if phase == .stopped { dayOffset = 0 }
         watchMeetings()
     }
 
@@ -313,12 +340,15 @@ public final class CalendarFeature: NotchFeature {
         let calendar = Calendar.current
         let start = calendar.startOfDay(for: .now)
         guard let end = calendar.date(byAdding: .day, value: 1, to: start) else { return }
+        events = agenda(from: start, to: end)
+        if dayOffset == 0 {
+            dayEvents = events
+        } else if let first = calendar.date(byAdding: .day, value: dayOffset, to: start),
+            let last = calendar.date(byAdding: .day, value: 1, to: first)
+        {
+            dayEvents = agenda(from: first, to: last)
+        }
         let store = eventStore.store
-        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: nil)
-        events = store.events(matching: predicate)
-            .map(DayEvent.init)
-            .filter { showsAllDay || !$0.isAllDay }
-            .sorted(by: DayEvent.agendaOrder)
         // Tasks come along only when Reminders access was already given in the Tasks tab.
         guard showsTasks, EventAccess(.reminder) == .granted else {
             dueTasks = []
@@ -334,6 +364,15 @@ public final class CalendarFeature: NotchFeature {
                 self.dueTasks = bounded
             }
         }
+    }
+
+    /// The day's events in agenda order.
+    private func agenda(from start: Date, to end: Date) -> [DayEvent] {
+        let store = eventStore.store
+        return store.events(matching: store.predicateForEvents(withStart: start, end: end, calendars: nil))
+            .map(DayEvent.init)
+            .filter { showsAllDay || !$0.isAllDay }
+            .sorted(by: DayEvent.agendaOrder)
     }
 
     // MARK: Meeting countdown
@@ -383,6 +422,6 @@ public final class CalendarFeature: NotchFeature {
         onOngoing?(
             Activity(
                 feature: .calendar, symbol: "video.fill", title: "\(meeting.title) starts in", duration: .zero,
-                countdown: meeting.start))
+                countdown: meeting.start, meetingLink: meeting.meeting?.url))
     }
 }

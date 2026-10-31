@@ -47,7 +47,8 @@ let package = Package(
             name: "TopdeckMixer", dependencies: ["TopdeckCore", "TopdeckSurface", "TopdeckFeatures"],
             swiftSettings: strict),
         .testTarget(name: "TopdeckCoreTests", dependencies: ["TopdeckCore"], swiftSettings: strict),
-        .testTarget(name: "TopdeckSurfaceTests", dependencies: ["TopdeckSurface"], swiftSettings: strict),
+        .testTarget(
+            name: "TopdeckSurfaceTests", dependencies: ["TopdeckSurface", "TopdeckFeatures"], swiftSettings: strict),
         .testTarget(name: "TopdeckFeaturesTests", dependencies: ["TopdeckFeatures"], swiftSettings: strict),
         .testTarget(name: "TopdeckUsageTests", dependencies: ["TopdeckUsage"], swiftSettings: strict),
         .testTarget(name: "TopdeckMixerTests", dependencies: ["TopdeckMixer"], swiftSettings: strict),

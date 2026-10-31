@@ -41,6 +41,8 @@ struct ClosedContent: Equatable {
     var trailing: Trailing?
     /// The trailing text's tone: a meeting about to start is signal.
     var trailingTone: Tone = .normal
+    /// The video call to join, beside the countdown of a meeting about to start.
+    var join: URL?
     /// Read by VoiceOver in place of the pieces.
     var spoken: String
 
@@ -63,7 +65,10 @@ struct ClosedContent: Equatable {
             trailing = .meter(level)
         } else if let countdown = activity.countdown {
             trailing = .countdown(countdown)
-            if activity.feature == .calendar { trailingTone = .signal }
+            if activity.feature == .calendar {
+                trailingTone = .signal
+                join = activity.meetingLink
+            }
         } else if activity.artwork != nil {
             trailing = symbol == "pause.fill" ? .icon(.pause) : .equalizer
         } else {
@@ -89,6 +94,10 @@ struct ClosedContent: Equatable {
     private static let iconSide: CGFloat = 16
     static let artworkSide: CGFloat = 24
     static let meterWidth: CGFloat = 92
+    /// The Join button's label, and the gap between it and the minutes.
+    private static var joinFont: NSFont { .systemFont(ofSize: 12, weight: .semibold) }
+    static let joinPadding: CGFloat = 9
+    static let joinSpacing: CGFloat = 8
 
     private static func width(_ text: String, _ font: NSFont) -> CGFloat {
         (text as NSString).size(withAttributes: [.font: font]).width.rounded(.up)
@@ -108,8 +117,14 @@ struct ClosedContent: Equatable {
         case nil: 0
         case .meter: Self.meterWidth
         case .countdown(let end):
-            // Room for its longest reading, so the notch doesn't breathe as digits change.
-            Self.width(end.timeIntervalSinceNow >= 3600 ? "0:00:00" : "00:00", Self.countdownFont)
+            // A meeting's minutes, with its Join button.
+            if join != nil {
+                Self.width("5 min", Self.countdownFont) + Self.joinSpacing + Self.width("Join", Self.joinFont)
+                    + Self.joinPadding * 2
+            } else {
+                // Room for its longest reading, so the notch doesn't breathe as digits change.
+                Self.width(end.timeIntervalSinceNow >= 3600 ? "0:00:00" : "00:00", Self.countdownFont)
+            }
         case .equalizer: 18
         case .icon: Self.iconSide
         case .text(let text): Self.width(text, Self.labelFont)

@@ -8,6 +8,8 @@ import TopdeckCore
 struct ClosedNotchView: View {
     let content: ClosedContent
     let metrics: NotchMetrics
+    /// Opens a meeting's link, from the Join button.
+    var join: (URL) -> Void = { _ in }
 
     var body: some View {
         Group {
@@ -37,6 +39,9 @@ struct ClosedNotchView: View {
         .foregroundStyle(Deck.text)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(content.spoken)
+        .accessibilityActions {
+            if let link = content.join { Button("Join meeting") { join(link) } }
+        }
     }
 
     private func color(_ tone: ClosedContent.Tone) -> Color {
@@ -87,14 +92,11 @@ struct ClosedNotchView: View {
                     Capsule().fill(Deck.text).frame(width: ClosedContent.meterWidth * min(max(level, 0), 1))
                 }
         case .countdown(let end):
-            // ponytail: redraws once a second while a countdown shows; a per-minute timeline if a
-            // soak ever notices.
-            let now = Date.now
-            Text(timerInterval: now...max(end, now), countsDown: true)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(color(content.trailingTone))
-                .lineLimit(1)
+            if let link = content.join {
+                meetingCountdown(end, link: link)
+            } else {
+                countdown(end)
+            }
         case .equalizer:
             Equalizer()
         case .icon(let icon):
@@ -104,6 +106,35 @@ struct ClosedNotchView: View {
         case .badge(let count):
             DeckBadge(count)
         }
+    }
+
+    /// "4 min" in signal, and the Join button that opens the call.
+    private func meetingCountdown(_ end: Date, link: URL) -> some View {
+        HStack(spacing: ClosedContent.joinSpacing) {
+            // ponytail: redraws once a second while a meeting countdown shows, like the timer's.
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                let minutes = max(1, Int((end.timeIntervalSince(context.date) / 60).rounded(.up)))
+                Text("\(minutes) min")
+                    .font(.system(size: 13, weight: .semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(color(content.trailingTone))
+                    .lineLimit(1)
+            }
+            Button("Join") { join(link) }
+                .buttonStyle(.deck(.accent, compact: true))
+                .accessibilityLabel("Join meeting")
+        }
+    }
+
+    private func countdown(_ end: Date) -> some View {
+        // ponytail: redraws once a second while a countdown shows; a per-minute timeline if a
+        // soak ever notices.
+        let now = Date.now
+        return Text(timerInterval: now...max(end, now), countsDown: true)
+            .font(.system(size: 13, weight: .semibold, design: .rounded))
+            .monospacedDigit()
+            .foregroundStyle(color(content.trailingTone))
+            .lineLimit(1)
     }
 }
 

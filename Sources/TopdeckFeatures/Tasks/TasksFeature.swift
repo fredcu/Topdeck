@@ -310,6 +310,7 @@ public final class TasksFeature: NotchFeature {
             Log.features.error("Couldn't add a reminder: \(error.localizedDescription, privacy: .public)")
             return false
         }
+        show(notice: "Added \u{201C}\(draft.title)\u{201D}")
         reload()
         scheduleNextAlert()
         return true
