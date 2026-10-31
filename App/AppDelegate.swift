@@ -317,6 +317,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         calendar.onOngoing = { [weak coordinator] in coordinator?.setOngoing($0, for: .calendar) }
         timer.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         timer.onOngoing = { [weak coordinator] in coordinator?.setOngoing($0, for: .timer) }
+        timer.restoreAwake()
         network.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         network.onOngoing = { [weak coordinator] in coordinator?.setOngoing($0, for: .network) }
         shortcuts.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }

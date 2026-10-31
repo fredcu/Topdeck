@@ -82,7 +82,11 @@ public final class TimerFeature: NotchFeature {
     /// Where the Mac says it's about to sleep.
     @ObservationIgnored private let workspace: NotificationCenter
     @ObservationIgnored private let defaults: UserDefaults
+    /// When the Mac booted, so a stored keep awake can tell a restart from a quit.
+    @ObservationIgnored private let bootTime: () -> Date?
     private static let screenOnKey = "timer.keepsScreenOn"
+    private static let awakeUntilKey = "timer.awakeUntil"
+    private static let awakeBootKey = "timer.awakeBoot"
 
     public static let presets: [TimeInterval] = [60, 180, 300, 600, 900, 1500, 2700, 3600]
     public static let awakePresets: [TimeInterval] = [1800, 3600, 7200, 14_400]
@@ -93,7 +97,11 @@ public final class TimerFeature: NotchFeature {
         self.init(workspace: workspace, defaults: defaults, assertions: .live)
     }
 
-    init(workspace: NotificationCenter, defaults: UserDefaults, assertions: PowerAssertions) {
+    init(
+        workspace: NotificationCenter, defaults: UserDefaults, assertions: PowerAssertions,
+        bootTime: @escaping () -> Date? = TimerFeature.systemBootTime
+    ) {
+        self.bootTime = bootTime
         self.workspace = workspace
         self.defaults = defaults
         self.assertions = assertions
@@ -187,6 +195,8 @@ public final class TimerFeature: NotchFeature {
         guard assertions.hold(screenOn: keepScreenOn) else { return }
         let until = end.deadline(from: now, calendar: calendar)
         awakeUntil = until ?? .distantFuture
+        defaults.set(awakeUntil, forKey: Self.awakeUntilKey)
+        defaults.set(bootTime(), forKey: Self.awakeBootKey)
         awakeEnd?.cancel()
         awakeEnd = nil
         if let until {
@@ -209,6 +219,28 @@ public final class TimerFeature: NotchFeature {
             Activity(feature: .timer, symbol: "cup.and.saucer.fill", title: "Awake", duration: .zero, countdown: until))
     }
 
+    /// Picks keep awake back up after a quit or an update, which release the assertions: runs the
+    /// stored end through `keepAwake` unless it has passed or the Mac has restarted since.
+    public func restoreAwake(now: Date = .now) {
+        guard !keepsAwake, let until = defaults.object(forKey: Self.awakeUntilKey) as? Date else { return }
+        let boot = defaults.object(forKey: Self.awakeBootKey) as? Date
+        guard until > now, let boot, boot == bootTime() else { return clearStoredAwake() }
+        keepAwake(for: until == .distantFuture ? nil : until.timeIntervalSince(now), now: now)
+    }
+
+    private func clearStoredAwake() {
+        defaults.removeObject(forKey: Self.awakeUntilKey)
+        defaults.removeObject(forKey: Self.awakeBootKey)
+    }
+
+    /// `kern.boottime`; nil if the Mac won't say.
+    nonisolated static func systemBootTime() -> Date? {
+        var time = timeval()
+        var size = MemoryLayout<timeval>.size
+        guard sysctlbyname("kern.boottime", &time, &size, nil, 0) == 0 else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(time.tv_sec) + TimeInterval(time.tv_usec) / 1_000_000)
+    }
+
     /// Adds half an hour to a timed keep awake.
     public func extendAwake(now: Date = .now) {
         guard let awakeUntil, awakeUntil != .distantFuture else { return }
@@ -222,6 +254,7 @@ public final class TimerFeature: NotchFeature {
         guard keepsAwake else { return }
         assertions.releaseAll()
         awakeUntil = nil
+        clearStoredAwake()
         awakeEnd?.cancel()
         awakeEnd = nil
         if let sleepObserver { workspace.removeObserver(sleepObserver) }
