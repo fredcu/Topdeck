@@ -13,7 +13,10 @@ Topdeck is local-first.
   track go to lrclib.net, a free third-party service, to find its lyrics, and
   nothing else is sent. Found lyrics are cached on this Mac in
   `~/Library/Caches/net.icuai.topdeck/lyrics`, so a track is asked for once;
-  turn the setting off and nothing is sent or read from that folder.
+  turn the setting off and nothing is sent or read from that folder. When a
+  track isn't found under its name, its title and artist also go to Apple's
+  public iTunes Search API (itunes.apple.com) to find its name in another
+  language.
 - Everything Topdeck creates (settings, notes, shelf items) stays on your Mac,
   unless you choose a notes folder that syncs, such as one in iCloud Drive.
 - System permissions (Calendar, Reminders, Camera, and so on) are requested only

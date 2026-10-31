@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+import CryptoKit
 import Foundation
 import Testing
 
@@ -187,6 +188,12 @@ struct LyricsClientTests {
             )
         }
         static func list(_ records: [[String: Any]]) -> Reply { Reply(body: json(records)) }
+        static func itunes(_ results: [[String: Any]]) -> Reply {
+            Reply(body: json(["resultCount": results.count, "results": results]))
+        }
+        static func song(_ id: Int, _ title: String, _ artist: String, seconds: Double = 200) -> [String: Any] {
+            ["trackId": id, "trackName": title, "artistName": artist, "trackTimeMillis": seconds * 1000]
+        }
         static func status(_ code: Int, headers: [String: String] = [:]) -> Reply {
             Reply(status: code, headers: headers)
         }
@@ -227,6 +234,7 @@ struct LyricsClientTests {
     }
 
     private let track = LyricsTrack(title: "Made Up", artist: "Artist", duration: 200.4)
+    private let latin = LyricsTrack(title: "Moon Road", artist: "Lee Wen", duration: 200)
     private let lrc = "[00:01.00]made up line\n[00:05.00]another made up line"
 
     private func makeClient(
@@ -235,7 +243,7 @@ struct LyricsClientTests {
         let directory = directory ?? FileManager.default.temporaryDirectory.appending(path: "Lyrics-\(UUID())")
         let client = LyricsClient(
             directory: directory, now: now, fetch: { try network.fetch($0) }, sleep: { network.wait($0) },
-            version: "1.2.3")
+            country: "au", version: "1.2.3")
         return (client, directory)
     }
 
@@ -260,7 +268,7 @@ struct LyricsClientTests {
     }
 
     @Test func noAlbumIsSentEvenWhenKnown() async throws {
-        let network = Network([.status(404), .list([])])
+        let network = Network([.status(404), .list([]), .itunes([])])
         let (client, directory) = makeClient(network)
         defer { try? FileManager.default.removeItem(at: directory) }
         _ = try await client.lyrics(for: track)
@@ -294,6 +302,90 @@ struct LyricsClientTests {
         #expect(network.paths == ["/api/get", "/api/search", "/api/search"])
         let last = URLComponents(url: network.requests[2].url!, resolvingAgainstBaseURL: false)?.queryItems
         #expect(last?.first?.value == "Made Up")
+    }
+
+    private func query(_ request: URLRequest, _ name: String) -> String? {
+        URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == name }?.value
+    }
+
+    @Test func aLatinNameThatMissesIsFoundUnderItsLocalName() async throws {
+        let hit: [String: Any] = [
+            "trackName": "月路", "artistName": "李文", "duration": 200.0, "syncedLyrics": lrc,
+        ]
+        let network = Network([
+            .status(404), .list([]), .itunes([Reply.song(7, "Moon Road", "Lee Wen")]),
+            .itunes([Reply.song(7, "月路", "李文")]), .status(404), .list([hit]),
+        ])
+        let (client, directory) = makeClient(network)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        #expect(try await client.lyrics(for: latin) != nil)
+        #expect(
+            network.requests.map { $0.url!.host! } == [
+                "lrclib.net", "lrclib.net", "itunes.apple.com", "itunes.apple.com", "lrclib.net", "lrclib.net",
+            ])
+        #expect(query(network.requests[2], "term") == "Moon Road Lee Wen")
+        #expect(query(network.requests[4], "track_name") == "月路" && query(network.requests[4], "duration") == "200")
+        let asked = network.requests.count
+        #expect(try await client.lyrics(for: latin) != nil, "kept under the original name")
+        #expect(network.requests.count == asked)
+    }
+
+    @Test func storefrontsAreAskedInOrderAndAnEmptyOneMovesOn() async throws {
+        let network = Network([
+            .status(404), .list([]), .itunes([Reply.song(7, "Moon Road", "Lee Wen")]),
+            .itunes([]),  // hk
+            .itunes([Reply.song(7, "月路", "李文")]),  // jp
+            .status(404), .list([]),
+            .itunes([Reply.song(7, "月路", "李文")]),  // cn: the same name again, not tried twice
+            .itunes([Reply.song(7, "Moon Road", "Lee Wen")]),  // tw: the original again
+        ])
+        let (client, directory) = makeClient(network)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        #expect(try await client.lyrics(for: latin) == nil)
+        let apple = network.requests.filter { $0.url?.host == "itunes.apple.com" }
+        #expect(apple.map { $0.url!.path } == ["/search", "/lookup", "/lookup", "/lookup", "/lookup"])
+        #expect(apple.map { query($0, "country") ?? "" } == ["au", "hk", "jp", "cn", "tw"])
+        #expect(query(apple[1], "id") == "7")
+        #expect(network.requests.count == 9, "one LRCLIB round for the one other name")
+    }
+
+    @Test func aFailureAtITunesIsNotRememberedAsNotFound() async throws {
+        let network = Network([.status(404), .list([]), .status(403)])
+        let (client, directory) = makeClient(network)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        await #expect(throws: LyricsClient.Failure.self) { try await client.lyrics(for: latin) }
+        #expect(files(directory).isEmpty)
+        let bad = Network([.status(404), .list([]), Reply(body: Data("nope".utf8))])
+        let (second, _) = makeClient(bad, directory: directory)
+        await #expect(throws: LyricsClient.Failure.self) { try await second.lyrics(for: latin) }
+        #expect(files(directory).isEmpty)
+    }
+
+    @Test func aCatalogEntryOfAnotherLengthOrArtistIsRejected() async throws {
+        let network = Network([
+            .status(404), .list([]),
+            .itunes([Reply.song(7, "Moon Road", "Lee Wen", seconds: 203), Reply.song(8, "Moon Road", "Someone Else")]),
+        ])
+        let (client, directory) = makeClient(network)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        #expect(try await client.lyrics(for: latin) == nil)
+        #expect(network.requests.count == 3, "no lookups for a song that isn't this one")
+        #expect(files(directory).count == 1, "and that is a real not found")
+    }
+
+    @Test func theCatalogMatchAcceptsAnArtistInsideTheOther() {
+        let near = LyricsClient.ITunesResult(
+            trackId: 7, trackName: "Moon Road", artistName: "Lee Wen & Friends", trackTimeMillis: 200_000)
+        let result = LyricsClient.itunesMatch([near], for: latin)
+        #expect(result?.trackId == 7)
+    }
+
+    @Test func theCacheKeyIsSalted() {
+        let text = [
+            LyricsClient.normalized(track.title), LyricsClient.normalized(track.artist ?? ""), "200",
+        ].joined(separator: "\u{1F}")
+        let old = SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
+        #expect(LyricsCache.key(for: track) != old)
     }
 
     @Test func aTrackWithoutAnArtistIsNeverLookedUp() async throws {
@@ -344,7 +436,7 @@ struct LyricsClientTests {
     }
 
     @Test func aNotFoundIsCachedForAWeekAndThenAsksAgain() async throws {
-        let network = Network([.status(404), .list([])])
+        let network = Network([.status(404), .list([]), .itunes([])])
         let clock = Clock(Date(timeIntervalSince1970: 1_000_000))
         let (client, directory) = makeClient(network, now: { clock.date })
         defer { try? FileManager.default.removeItem(at: directory) }

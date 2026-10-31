@@ -38,6 +38,8 @@ struct LyricsClient: Sendable {
     private let fetch: Fetch
     private let sleep: @Sendable (TimeInterval) async throws -> Void
     private let userAgent: String
+    /// The storefront the track's own name is searched in, lowercased ("au").
+    private let country: String
 
     init(
         directory: URL = LyricsCache.defaultDirectory, now: @escaping @Sendable () -> Date = { .now },
@@ -45,11 +47,13 @@ struct LyricsClient: Sendable {
         sleep: @escaping @Sendable (TimeInterval) async throws -> Void = {
             try await Task.sleep(for: .seconds($0))
         },
+        country: String = Locale.current.region?.identifier.lowercased() ?? "us",
         version: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
     ) {
         cache = LyricsCache(directory: directory, now: now)
         self.fetch = fetch
         self.sleep = sleep
+        self.country = country.isEmpty ? "us" : country
         userAgent = "Topdeck/\(version) (https://github.com/fredcu/Topdeck)"
     }
 
@@ -87,9 +91,17 @@ struct LyricsClient: Sendable {
         return value
     }
 
-    private func find(_ track: LyricsTrack, artist: String, retries: inout Int) async throws
-        -> (lrc: String, lyrics: SyncedLyrics)?
-    {
+    typealias Found = (lrc: String, lyrics: SyncedLyrics)
+
+    /// LRCLIB under the name the player gives; failing that, under the names Apple's catalog has for
+    /// the same song in other storefronts, since a Chinese song arrives as "Sunny Day" in Australia
+    /// and LRCLIB holds it under its Chinese title.
+    private func find(_ track: LyricsTrack, artist: String, retries: inout Int) async throws -> Found? {
+        if let found = try await lrclib(track, artist: artist, retries: &retries) { return found }
+        return try await localized(track, artist: artist, retries: &retries)
+    }
+
+    private func lrclib(_ track: LyricsTrack, artist: String, retries: inout Int) async throws -> Found? {
         var query = [
             URLQueryItem(name: "track_name", value: track.title), URLQueryItem(name: "artist_name", value: artist),
         ]
@@ -112,9 +124,81 @@ struct LyricsClient: Sendable {
         return nil
     }
 
+    // MARK: Local names
+
+    /// How many other names of a song are tried at LRCLIB.
+    static let localNameLimit = 3
+    /// Storefronts asked for a song's own name, in order.
+    static let storefronts = ["hk", "jp", "cn", "tw"]
+
+    struct ITunesResult: Decodable {
+        var trackId: Int?
+        var trackName: String?
+        var artistName: String?
+        var trackTimeMillis: Double?
+    }
+
+    private struct ITunesResponse: Decodable {
+        var results: [ITunesResult]
+    }
+
+    private func localized(_ track: LyricsTrack, artist: String, retries: inout Int) async throws -> Found? {
+        let search = [
+            URLQueryItem(name: "term", value: "\(track.title) \(artist)"),
+            URLQueryItem(name: "country", value: country),
+            URLQueryItem(name: "entity", value: "song"), URLQueryItem(name: "limit", value: "10"),
+        ]
+        guard let data = try await get("search", search, &retries, base: Self.itunes),
+            let id = Self.itunesMatch(try decode(ITunesResponse.self, data).results, for: track)?.trackId
+        else { return nil }
+        var tried: Set<String> = [Self.pairKey(track.title, artist)]
+        for storefront in Self.storefronts {
+            let lookup = [
+                URLQueryItem(name: "id", value: String(id)), URLQueryItem(name: "country", value: storefront),
+            ]
+            guard let data = try await get("lookup", lookup, &retries, base: Self.itunes),
+                let named = try decode(ITunesResponse.self, data).results.first,
+                let title = named.trackName, let name = named.artistName,
+                tried.insert(Self.pairKey(title, name)).inserted
+            else { continue }
+            let other = LyricsTrack(title: title, artist: name, duration: track.duration)
+            if let found = try await lrclib(other, artist: name, retries: &retries) { return found }
+            if tried.count > Self.localNameLimit { break }  // the original and three others
+        }
+        return nil
+    }
+
+    private static let itunes = "https://itunes.apple.com/"
+
+    private static func pairKey(_ title: String, _ artist: String) -> String {
+        normalized(title) + "\u{1F}" + normalized(artist)
+    }
+
+    /// The catalog entry that is this track: equal title and artist, else an equal title and one artist
+    /// inside the other, and within 2 seconds. The closest length wins.
+    static func itunesMatch(_ results: [ITunesResult], for track: LyricsTrack) -> ITunesResult? {
+        let title = normalized(track.title)
+        let artist = normalized(track.artist ?? "")
+        var best: (rank: Int, gap: Double, result: ITunesResult)?
+        for result in results {
+            guard let name = result.trackName, normalized(name) == title, result.trackId != nil,
+                let millis = result.trackTimeMillis, abs(millis / 1000 - track.duration) <= 2
+            else { continue }
+            let other = normalized(result.artistName ?? "")
+            guard !other.isEmpty, !artist.isEmpty else { continue }
+            let rank = other == artist ? 0 : (other.contains(artist) || artist.contains(other) ? 1 : 2)
+            guard rank < 2 else { continue }
+            let gap = abs(millis / 1000 - track.duration)
+            if best.map({ (rank, gap) < ($0.rank, $0.gap) }) ?? true { best = (rank, gap, result) }
+        }
+        return best?.result
+    }
+
     /// The body of a 200, nil for a 404. Retries 503, 429 and network errors, three times per track in all.
-    private func get(_ path: String, _ query: [URLQueryItem], _ retries: inout Int) async throws -> Data? {
-        var components = URLComponents(string: "https://lrclib.net/api/\(path)")!
+    private func get(
+        _ path: String, _ query: [URLQueryItem], _ retries: inout Int, base: String = "https://lrclib.net/api/"
+    ) async throws -> Data? {
+        var components = URLComponents(string: base + path)!
         components.queryItems = query
         var request = URLRequest(url: components.url!, timeoutInterval: 10)
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
@@ -235,8 +319,9 @@ struct LyricsCache: Sendable {
 
     /// A SHA-256 of the normalized title and artist and the length in whole seconds.
     static func key(for track: LyricsTrack) -> String {
+        // "v2": entries from before names were tried in other storefronts said "not found" too early.
         let text = [
-            LyricsClient.normalized(track.title), LyricsClient.normalized(track.artist ?? ""),
+            "v2", LyricsClient.normalized(track.title), LyricsClient.normalized(track.artist ?? ""),
             String(Int(track.duration.rounded())),
         ].joined(separator: "\u{1F}")
         return SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
