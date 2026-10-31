@@ -171,7 +171,7 @@ enum AgentsUsage {
         categories: [String: ErrorCategory], now: Date
     ) -> [QuotaBlock] {
         providers.compactMap { provider -> QuotaBlock? in
-            let rows = snapshots[provider.id].map { rows(from: $0.meters, now: now) } ?? []
+            let rows = snapshots[provider.id].map { AgentsUsage.rows(from: $0.meters, now: now) } ?? []
             if !rows.isEmpty {
                 return QuotaBlock(id: provider.id, name: provider.name, state: .rows(rows), detail: errors[provider.id])
             }
