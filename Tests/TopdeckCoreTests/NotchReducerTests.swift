@@ -414,7 +414,7 @@ struct NotchReducerTests {
                 try #require(state.spaceSet.spaces.contains(space), "\(event) opened hidden \(space)")
                 if let tab = state.subTab(in: space) {
                     try #require(state.spaceSet.enabled.contains(tab), "\(event) showed the sub-tab of an off feature")
-                    try #require(state.onScreen == [tab])
+                    try #require(state.onScreen == [tab] || (tab == .sound && state.onScreen.isSuperset(of: [tab])))
                 }
             }
             try #require(state.spaceSet.spaces.contains(state.lastSpace), "\(event) left a hidden space as the last")

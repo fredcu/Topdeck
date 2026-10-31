@@ -105,7 +105,11 @@ public struct SpaceSet: Hashable, Sendable {
 
     /// The features a space shows on screen at once when `subTab` is chosen.
     public func visibleFeatures(in space: SpaceID, subTab: FeatureID?) -> Set<FeatureID> {
-        if space.hasSubTabs { return subTab.map { [$0] } ?? [] }
+        if space.hasSubTabs {
+            guard let subTab else { return [] }
+            // Sound also shows the external monitors' volume, so Displays runs while it's on screen.
+            return subTab == .sound && enabled.contains(.monitors) ? [.sound, .monitors] : [subTab]
+        }
         return Set(space.features.filter(enabled.contains))
     }
 

@@ -430,6 +430,152 @@ public struct DeckEmptyLine: View {
     }
 }
 
+// MARK: Controls
+
+/// A sideways slider, as on the Sound board: a 6 point track and a 16 point thumb. Drag or click
+/// anywhere along it; VoiceOver adjusts it in steps of five percent.
+public struct DeckSlider: View {
+    let level: Double
+    let label: String
+    let value: String
+    let enabled: Bool
+    let set: (Double) -> Void
+
+    private static let thumb: CGFloat = 16
+
+    /// `value` is what VoiceOver reads, such as "64%" or "Muted".
+    public init(
+        _ level: Double, label: String, value: String? = nil, enabled: Bool = true,
+        set: @escaping (Double) -> Void
+    ) {
+        self.level = level
+        self.label = label
+        self.value = value ?? "\(Int((min(max(level, 0), 1) * 100).rounded())) percent"
+        self.enabled = enabled
+        self.set = set
+    }
+
+    public var body: some View {
+        GeometryReader { proxy in
+            let travel = max(proxy.size.width - Self.thumb, 1)
+            let x = Self.thumb / 2 + travel * min(max(level, 0), 1)
+            ZStack(alignment: .leading) {
+                Capsule().fill(Deck.control).frame(height: 6)
+                Capsule().fill(Deck.text).frame(width: x, height: 6)
+                Circle()
+                    .fill(Deck.text)
+                    .frame(width: Self.thumb, height: Self.thumb)
+                    .shadow(color: Deck.deck.opacity(0.6), radius: 2, y: 1)
+                    .offset(x: x - Self.thumb / 2)
+            }
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0).onChanged { drag in
+                    set(min(max((drag.location.x - Self.thumb / 2) / travel, 0), 1))
+                },
+                isEnabled: enabled)
+        }
+        .frame(height: 22)
+        .opacity(enabled ? 1 : 0.5)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue(value)
+        .accessibilityAdjustableAction { direction in
+            set(min(max(level + (direction == .increment ? 0.05 : -0.05), 0), 1))
+        }
+    }
+}
+
+/// A slider with what it sets: an optional 24 point lead (an icon, or a button around one), a title in
+/// a 92 point column, the slider, and its value in a 36 point column. At least 38 high. `label` is what
+/// VoiceOver calls the slider when the visible title is short, such as "Volume".
+public struct DeckLevelRow<Lead: View>: View {
+    let title: String
+    let style: DeckTextStyle
+    let level: Double
+    let value: String
+    let spoken: String?
+    let label: String
+    let enabled: Bool
+    let set: (Double) -> Void
+    let lead: Lead?
+
+    public init(
+        _ title: String, style: DeckTextStyle = .body, level: Double, value: String, spoken: String? = nil,
+        label: String? = nil, enabled: Bool = true, set: @escaping (Double) -> Void, @ViewBuilder lead: () -> Lead
+    ) {
+        self.title = title
+        self.style = style
+        self.level = level
+        self.value = value
+        self.spoken = spoken
+        self.label = label ?? title
+        self.enabled = enabled
+        self.set = set
+        self.lead = lead()
+    }
+
+    public var body: some View {
+        HStack(spacing: Deck.Metric.gap) {
+            if let lead { lead.frame(width: 24) }
+            Text(title).deckText(style).lineLimit(1).truncationMode(.tail).frame(width: 92, alignment: .leading)
+            DeckSlider(level, label: label, value: spoken, enabled: enabled, set: set)
+            Text(value).deckText(.detail).lineLimit(1).frame(width: 36, alignment: .leading)
+                .accessibilityHidden(true)
+        }
+        .frame(minHeight: 38)
+    }
+}
+
+extension DeckLevelRow where Lead == EmptyView {
+    /// A row with no lead.
+    public init(
+        _ title: String, style: DeckTextStyle = .body, level: Double, value: String, spoken: String? = nil,
+        label: String? = nil, enabled: Bool = true, set: @escaping (Double) -> Void
+    ) {
+        self.title = title
+        self.style = style
+        self.level = level
+        self.value = value
+        self.spoken = spoken
+        self.label = label ?? title
+        self.enabled = enabled
+        self.set = set
+        self.lead = nil
+    }
+}
+
+/// A tick box for a row in a list you select from.
+public struct DeckCheckbox: View {
+    let ticked: Bool
+    let label: String
+    let toggle: () -> Void
+
+    public init(ticked: Bool, label: String, toggle: @escaping () -> Void) {
+        self.ticked = ticked
+        self.label = label
+        self.toggle = toggle
+    }
+
+    public var body: some View {
+        Button(action: toggle) {
+            let shape = RoundedRectangle(cornerRadius: 5, style: .continuous)
+            DeckIconView(.check, size: 12)
+                .foregroundStyle(Deck.onFill)
+                .opacity(ticked ? 1 : 0)
+                .frame(width: 18, height: 18)
+                .background(shape.fill(ticked ? Deck.text : .clear))
+                .overlay(shape.strokeBorder(ticked ? .clear : Deck.tertiary, lineWidth: 1.5))
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityValue(ticked ? "Selected" : "Not selected")
+    }
+}
+
 // MARK: Layout
 
 /// Lays its children side by side, with the deck's gap between them, sharing the width by `weights`
