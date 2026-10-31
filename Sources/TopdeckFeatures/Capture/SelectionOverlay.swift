@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 import AppKit
 import Carbon.HIToolbox
+import TopdeckSurface
 
 /// Dims the screen under the pointer and lets the user drag out an area on it. Escape, or a click
 /// without a drag, cancels.
@@ -84,10 +85,10 @@ private final class SelectionView: NSView {
             dim.append(NSBezierPath(rect: selection))
             dim.windingRule = .evenOdd
         }
-        NSColor.black.withAlphaComponent(0.35).setFill()
+        NSColor(Deck.deck).withAlphaComponent(0.35).setFill()
         dim.fill()
         guard CaptureGeometry.isArea(selection) else { return }
-        NSColor.white.setStroke()
+        NSColor(Deck.text).setStroke()
         let outline = NSBezierPath(rect: selection.insetBy(dx: -0.5, dy: -0.5))
         outline.lineWidth = 1
         outline.stroke()

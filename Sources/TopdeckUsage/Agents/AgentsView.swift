@@ -1,8 +1,9 @@
-import SwiftUI
 // SPDX-License-Identifier: MIT
+import SwiftUI
 import TopdeckFeatures
+import TopdeckSurface
 
-/// The Agents tab: requests to answer first, then every session the connected tools reported, the
+/// The Sessions tab: requests to answer first, then every session the connected tools reported, the
 /// ones waiting for approval first in line to be noticed, with a way back to each one's terminal.
 struct AgentsView: View {
     let agents: AgentsFeature
@@ -11,89 +12,79 @@ struct AgentsView: View {
         if agents.connected.isEmpty {
             setup
         } else if agents.sessions.isEmpty, agents.requests.isEmpty {
-            FeatureUnavailableView(
-                symbol: "terminal", title: "No agents at work",
-                message: "Sessions show up here when \(names(agents.connected)) starts working.")
+            DeckEmptyLine("No agents at work")
         } else {
             ScrollView {
-                LazyVStack(spacing: 4) {
+                VStack(spacing: 8) {
                     ForEach(agents.requests) { AgentRequestCard(agents: agents, request: $0) }
-                    ForEach(agents.sessions) { row($0) }
+                    VStack(spacing: 0) {
+                        ForEach(agents.sessions) { row($0) }
+                    }
+                    .padding(.horizontal, 2)
                 }
-                .padding(.vertical, 6)
             }
-            .fadingEdges()
+            // Fades only at the bottom, so a card at the top isn't dimmed when there's nothing above it.
+            .mask {
+                VStack(spacing: 0) {
+                    Color.black
+                    LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom).frame(height: 12)
+                }
+            }
         }
     }
 
     private var setup: some View {
-        VStack(spacing: 8) {
-            FeatureUnavailableView(
-                symbol: "terminal", title: "Your coding agents, in the notch",
-                message: agents.available.isEmpty
-                    ? "Install Claude Code or Codex, then connect it here."
-                    : "The notch shows when an agent needs your approval or finishes, and takes you back to its "
-                        + "terminal. Connecting adds a hook to the tool's own settings.")
-            HStack(spacing: 8) {
+        VStack(spacing: Deck.Metric.gap) {
+            Text(agents.available.isEmpty ? "No coding agents found" : "Connect a coding agent")
+                .deckText(.body, color: Deck.tertiary)
+            HStack(spacing: Deck.Metric.gap) {
                 ForEach(agents.available) { tool in
-                    Button("Connect \(tool.name)") { agents.connect(tool) }
-                        .buttonStyle(.plain)
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(.white.opacity(0.15), in: Capsule())
+                    Button("Connect \(tool.name)") { agents.connect(tool) }.buttonStyle(.deck())
                 }
             }
             if let failure = agents.failure {
-                Text(failure).font(.caption).foregroundStyle(.orange).multilineTextAlignment(.center)
+                Text(failure).deckText(.detail, color: Deck.stop).multilineTextAlignment(.center)
             }
         }
-        .frame(maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    /// A session: its state as a dot, the project, what it is doing, and how long ago. With a
+    /// terminal to go back to, the whole row is the way there.
     private func row(_ session: AgentSession) -> some View {
-        let waiting = session.state == .waiting
-        return HStack(spacing: 10) {
-            ProviderLogo(providerID: session.tool.rawValue, name: session.tool.name, size: 18)
-                .foregroundStyle(ProviderStyle.of(session.tool.rawValue).gradient)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(session.project).font(.callout.weight(.medium)).lineLimit(1)
-                status(session)
-                    .font(.caption)
-                    .foregroundStyle(waiting ? .orange : .white.opacity(0.55))
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 0)
-            if session.app != nil {
-                Button("Go") { agents.open(session) }
-                    .buttonStyle(.plain)
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(waiting ? Color.orange.opacity(0.85) : .white.opacity(0.14), in: Capsule())
-                    .help("Go to its terminal")
-            }
+        let tone: DeckTone = session.state == .waiting ? .signal : session.state == .working ? .go : .quiet
+        return DeckRow(action: session.app == nil ? nil : { agents.open(session) }) {
+            DeckDot(tone)
+            Text(session.project).deckText(.body).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+            status(session).deckText(.caption).lineLimit(1)
+            Text(Self.age(of: session.updated))
+                .deckText(.caption)
+                .frame(width: 44, alignment: .trailing)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .background(waiting ? Color.orange.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 9))
-        .contentShape(Rectangle())
+        .help(session.app == nil ? "" : "Go to its terminal")
         .contextMenu {
             Button("Go to Terminal") { agents.open(session) }.disabled(session.app == nil)
             Button("Clear") { agents.clear(session) }
         }
         .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(session.project), \(session.tool.name)")
         .accessibilityAction(named: "Clear") { agents.clear(session) }
     }
 
-    @ViewBuilder private func status(_ session: AgentSession) -> some View {
+    private func status(_ session: AgentSession) -> Text {
         switch session.state {
-        case .waiting: Text("\(session.tool.shortName) needs you: \(session.detail ?? "waiting for approval")")
-        case .working: Text("\(session.tool.shortName) is working")
-        // Fixed when drawn, not a ticking clock: it's redrawn whenever the tab is.
-        case .done:
-            Text("\(session.tool.shortName) finished \(session.updated.formatted(.relative(presentation: .named)))")
+        case .waiting: Text(session.detail ?? "Waiting for approval")
+        case .working: Text("Working")
+        case .done: Text("Done")
         }
+    }
+
+    /// "12m", "1h": the biggest unit only. Fixed when drawn, not a ticking clock: it's redrawn
+    /// whenever the tab is.
+    private static func age(of date: Date) -> String {
+        let minutes = max(1, Int(Date.now.timeIntervalSince(date) / 60))
+        if minutes < 60 { return "\(minutes)m" }
+        return minutes < 24 * 60 ? "\(minutes / 60)h" : "\(minutes / (24 * 60))d"
     }
 }
 
@@ -105,42 +96,17 @@ private struct AgentRequestCard: View {
     @State private var picked: [[String]] = []
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                ProviderLogo(providerID: request.tool.rawValue, name: request.tool.name, size: 16)
-                    .foregroundStyle(ProviderStyle.of(request.tool.rawValue).gradient)
-                Text(request.project).font(.callout.weight(.medium)).lineLimit(1)
-                if !request.isQuestion {
-                    Text(request.toolName).font(.caption.monospaced()).foregroundStyle(.white.opacity(0.55))
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 0)
-            }
-            if request.isQuestion {
-                questions
-            } else {
-                if !request.summary.isEmpty {
-                    Text(request.summary).font(.caption.monospaced()).foregroundStyle(.white.opacity(0.8))
-                        .lineLimit(3)
-                        .textSelection(.enabled)
-                }
-                HStack(spacing: 6) {
-                    pill("Deny", tint: .white.opacity(0.14)) { agents.answer(request, .deny) }
-                    pill("Allow", tint: .green.opacity(0.7)) { agents.answer(request, .allow) }
-                    if let rule = request.alwaysAllowRule {
-                        pill("Always Allow \(rule)", tint: .white.opacity(0.14), truncation: .middle) {
-                            agents.answer(request, .allowAlways)
-                        }
-                        .accessibilityLabel("Always Allow \(rule)")
-                    }
-                    Spacer(minLength: 0)
-                    terminal
+        DeckCard(request.isQuestion ? .standard : .signal) {
+            VStack(alignment: .leading, spacing: Deck.Metric.gap) {
+                header
+                if request.isQuestion {
+                    questions
+                } else {
+                    permission
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 9))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(request.tool.name) in \(request.project) asks to use \(request.toolName)")
         .onAppear {
@@ -148,27 +114,96 @@ private struct AgentRequestCard: View {
         }
     }
 
-    @ViewBuilder private var questions: some View {
-        ForEach(Array(request.questions.enumerated()), id: \.offset) { index, question in
-            Text(question.question).font(.caption).lineLimit(3)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 90), spacing: 6)], alignment: .leading, spacing: 6) {
-                ForEach(question.options, id: \.self) { option in
-                    let chosen = picked.indices.contains(index) && picked[index].contains(option)
-                    pill(option, tint: chosen ? .green.opacity(0.7) : .white.opacity(0.14)) {
-                        pick(option, for: index)
-                    }
-                    .accessibilityAddTraits(chosen ? .isSelected : [])
-                }
+    /// Who is asking, and from which tool.
+    private var header: some View {
+        HStack(spacing: Deck.Metric.gap) {
+            HStack(spacing: 7) {
+                DeckIconView(.hand).foregroundStyle(Deck.signal)
+                Text(request.project)
+                    .deckText(.body, color: request.isQuestion ? Deck.text : Deck.signal)
+                    .fontWeight(.semibold)
+                    .lineLimit(1)
             }
+            Spacer(minLength: 0)
+            Text(request.isQuestion ? request.tool.name : "\(request.tool.name) · \(request.toolName)")
+                .deckText(.caption)
+                .lineLimit(1)
         }
-        HStack(spacing: 6) {
-            if needsSend {
-                pill("Send", tint: .green.opacity(0.7)) { agents.answer(request, .answer(picked)) }
-                    .disabled(picked.count != request.questions.count || picked.contains(where: \.isEmpty))
+    }
+
+    @ViewBuilder private var permission: some View {
+        if !request.summary.isEmpty {
+            Text(request.summary)
+                .deckText(.command)
+                .lineLimit(3)
+                .textSelection(.enabled)
+                .padding(.horizontal, 11)
+                .padding(.vertical, 9)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: Deck.Radius.control, style: .continuous).fill(Deck.deck))
+        }
+        HStack(spacing: Deck.Metric.gap) {
+            Button("Allow") { agents.answer(request, .allow) }.buttonStyle(.deck(.primary)).fixedSize()
+            Button("Deny") { agents.answer(request, .deny) }.buttonStyle(.deck()).fixedSize()
+            if let rule = request.alwaysAllowRule {
+                Button {
+                    agents.answer(request, .allowAlways)
+                } label: {
+                    Text("Always Allow \(rule)").lineLimit(1).truncationMode(.middle)
+                }
+                .buttonStyle(.deck(.outline))
+                .accessibilityLabel("Always Allow \(rule)")
             }
             Spacer(minLength: 0)
             terminal
         }
+    }
+
+    @ViewBuilder private var questions: some View {
+        let single = request.questions.count == 1
+        ForEach(Array(request.questions.enumerated()), id: \.offset) { index, question in
+            Text(question.question).deckText(.body).lineLimit(3).frame(maxWidth: .infinity, alignment: .leading)
+            if single {
+                HStack(alignment: .top, spacing: Deck.Metric.gap) {
+                    options(of: question, at: index).frame(maxWidth: .infinity, alignment: .leading)
+                    actions
+                }
+            } else {
+                options(of: question, at: index)
+            }
+        }
+        if !single {
+            HStack(spacing: Deck.Metric.gap) {
+                if needsSend { send }
+                Spacer(minLength: 0)
+                terminal
+            }
+        }
+    }
+
+    private func options(of question: AgentQuestion, at index: Int) -> some View {
+        DeckFlow(spacing: Deck.Metric.gap) {
+            ForEach(question.options, id: \.self) { option in
+                let chosen = picked.indices.contains(index) && picked[index].contains(option)
+                Button(option) { pick(option, for: index) }
+                    .buttonStyle(.deck(chosen ? .primary : .standard))
+                    .accessibilityAddTraits(chosen ? .isSelected : [])
+            }
+        }
+    }
+
+    /// Send, when the answer waits for it, and Terminal.
+    private var actions: some View {
+        HStack(spacing: Deck.Metric.gap) {
+            if needsSend { send }
+            terminal
+        }
+    }
+
+    private var send: some View {
+        Button("Send") { agents.answer(request, .answer(picked)) }
+            .buttonStyle(.deck(.primary))
+            .disabled(picked.count != request.questions.count || picked.contains(where: \.isEmpty))
     }
 
     /// One question with one answer goes as soon as it's picked; anything more waits for Send.
@@ -191,27 +226,11 @@ private struct AgentRequestCard: View {
     }
 
     private var terminal: some View {
-        pill("Terminal", tint: .white.opacity(0.14)) { agents.answerInTerminal(request) }
+        Button("Terminal") { agents.answerInTerminal(request) }
+            .buttonStyle(.deck(.outline))
+            .fixedSize()
             .accessibilityLabel("Answer in the terminal")
     }
-
-    private func pill(
-        _ title: String, tint: Color, truncation: Text.TruncationMode = .tail, action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Text(title).lineLimit(1).truncationMode(truncation)
-        }
-        .buttonStyle(.plain)
-        .font(.caption.weight(.semibold))
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
-        .background(tint, in: Capsule())
-    }
-}
-
-/// "Claude Code and Codex".
-private func names(_ tools: Set<AgentTool>) -> String {
-    AgentTool.allCases.filter(tools.contains).map(\.name).formatted(.list(type: .and))
 }
 
 extension AgentsFeature {

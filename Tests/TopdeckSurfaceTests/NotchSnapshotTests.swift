@@ -164,7 +164,7 @@ struct NotchSnapshotTests {
         window.contentView = host
         host.layoutSubtreeIfNeeded()
         if settle {
-            RunLoop.main.run(until: .now + 0.1)
+            RunLoop.main.run(until: .now + 0.6)
             host.layoutSubtreeIfNeeded()
         }
         guard let bitmap = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { return nil }

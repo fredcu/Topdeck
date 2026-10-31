@@ -78,10 +78,12 @@ public struct Activity: Hashable, Sendable {
     public var countdown: Date?
     /// A small encoded image shown in place of the symbol, such as the cover of what's playing.
     public var artwork: Data?
+    /// The video call of a meeting about to start, which the closed notch offers as a Join button.
+    public var meetingLink: URL?
 
     public init(
         feature: FeatureID?, symbol: String, title: String, level: Double? = nil, duration: Duration,
-        countdown: Date? = nil, artwork: Data? = nil
+        countdown: Date? = nil, artwork: Data? = nil, meetingLink: URL? = nil
     ) {
         self.feature = feature
         self.symbol = symbol
@@ -90,6 +92,7 @@ public struct Activity: Hashable, Sendable {
         self.duration = duration
         self.countdown = countdown
         self.artwork = artwork
+        self.meetingLink = meetingLink
     }
 }
 

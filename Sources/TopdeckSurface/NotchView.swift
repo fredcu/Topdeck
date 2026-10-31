@@ -17,6 +17,13 @@ public struct NotchContent {
     /// Files dropped on the notch; returns whether they were accepted.
     public var dropFiles: ([URL]) -> Bool
     public var openSettings: () -> Void
+    /// A space that draws its whole body itself, from the features that are on: Plan and Tools. Nil
+    /// for the others, which show their feature's view (or Now's cards).
+    public var screen: (SpaceID, Set<FeatureID>) -> AnyView?
+    /// What follows the title in the second row of a space without sub-tabs: Plan's day chips.
+    public var titleAccessory: (SpaceID) -> AnyView
+    /// Joins a meeting from the closed notch's Join button.
+    public var join: (URL) -> Void
 
     public init(
         feature: @escaping (FeatureID) -> AnyView,
@@ -24,7 +31,10 @@ public struct NotchContent {
         badge: @escaping (SpaceID) -> Int = { _ in 0 },
         actions: @escaping (SpaceID, FeatureID?) -> AnyView = { _, _ in AnyView(EmptyView()) },
         dropFiles: @escaping ([URL]) -> Bool,
-        openSettings: @escaping () -> Void
+        openSettings: @escaping () -> Void,
+        screen: @escaping (SpaceID, Set<FeatureID>) -> AnyView? = { _, _ in nil },
+        titleAccessory: @escaping (SpaceID) -> AnyView = { _ in AnyView(EmptyView()) },
+        join: @escaping (URL) -> Void = { NSWorkspace.shared.open($0) }
     ) {
         self.feature = feature
         self.now = now
@@ -32,6 +42,9 @@ public struct NotchContent {
         self.actions = actions
         self.dropFiles = dropFiles
         self.openSettings = openSettings
+        self.screen = screen
+        self.titleAccessory = titleAccessory
+        self.join = join
     }
 }
 
@@ -69,13 +82,13 @@ struct NotchView: View {
                 )
                 .transition(.opacity)
             } else if case .transient(let activity) = presentation {
-                ClosedNotchView(content: ClosedContent(activity), metrics: metrics)
+                ClosedNotchView(content: ClosedContent(activity), metrics: metrics, join: content.join)
                     .transition(.opacity)
             } else if presentation == .dropTarget {
                 DropTargetView()
                     .transition(.opacity)
             } else if let resting {
-                ClosedNotchView(content: ClosedContent(resting), metrics: metrics)
+                ClosedNotchView(content: ClosedContent(resting), metrics: metrics, join: content.join)
                     .transition(.opacity)
             }
         }

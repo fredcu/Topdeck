@@ -222,3 +222,8 @@ extension KeyboardShortcuts.Name {
     /// Option-Space to start with.
     static let commandBar = Self("commandBar", initial: .init(.space, modifiers: [.option]))
 }
+
+extension WindowAction {
+    /// Its shortcut as keys, such as "⌃⌥←", where one is set.
+    @MainActor public var shortcutText: String? { KeyboardShortcuts.getShortcut(for: .window(self))?.description }
+}

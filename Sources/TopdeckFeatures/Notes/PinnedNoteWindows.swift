@@ -2,6 +2,7 @@
 import AppKit
 import SwiftUI
 import TopdeckCore
+import TopdeckSurface
 
 /// A window for each note taken out of the notch, on the desktop or on top. The windows edit the same
 /// notes as the notch, so they open at launch and keep saving while `FeatureHost` has Notes stopped.
@@ -180,66 +181,92 @@ private final class PinnedNoteHostingView<Content: View>: NSHostingView<Content>
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
-/// A pinned note: its text on its colour. Hovering shows a bar to drag it by, with buttons to keep it
-/// on the desktop, keep it on top, or send it back to the notch.
+/// A pinned note: its text on its paper colour. Hovering shows a bar to drag it by, with buttons to keep
+/// it on the desktop, keep it on top, or send it back to the notch.
 private struct PinnedNoteView: View {
     let notes: NotesFeature
     let id: Note.ID
-    @State private var hovering = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         if let note = notes.notes.first(where: { $0.id == id }) {
-            ZStack(alignment: .top) {
-                TextEditor(text: Binding(get: { note.text }, set: { notes.update(id, text: $0) }))
-                    .font(.body)
-                    .scrollContentBackground(.hidden)
-                    .accessibilityLabel("Note text")
-                    .padding(.top, 22)
-                    .padding([.horizontal, .bottom], 8)
-                if hovering {
-                    controls(note).transition(.opacity)
-                }
+            PinnedNoteSurface(
+                text: Binding(get: { note.text }, set: { notes.update(id, text: $0) }), color: note.color,
+                mode: note.window, setMode: { notes.setWindow(id, $0) })
+        }
+    }
+}
+
+/// What a pinned note looks like, apart from the notes it edits.
+struct PinnedNoteSurface: View {
+    @Binding var text: String
+    let color: NoteColor?
+    let mode: NoteWindow?
+    let setMode: (NoteWindow?) -> Void
+    @State private var hovering: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    init(
+        text: Binding<String>, color: NoteColor?, mode: NoteWindow?, hovering: Bool = false,
+        setMode: @escaping (NoteWindow?) -> Void
+    ) {
+        _text = text
+        self.color = color
+        self.mode = mode
+        self.setMode = setMode
+        _hovering = State(initialValue: hovering)
+    }
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            TextEditor(text: $text)
+                .font(.system(size: 13))
+                .lineSpacing(4.5)
+                .scrollContentBackground(.hidden)
+                .foregroundStyle(Deck.Paper.ink)
+                .tint(Deck.Paper.ink)
+                .accessibilityLabel("Note text")
+                .padding(.top, hovering ? 40 : 12)
+                .padding(.horizontal, 10)
+                .padding(.bottom, 8)
+            if hovering {
+                controls.transition(.opacity)
             }
-            .background {
-                ZStack {
-                    Rectangle().fill(.regularMaterial)
-                    Rectangle().fill(note.color?.swatch.opacity(0.3) ?? .clear)
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .onHover { inside in
-                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { hovering = inside }
-            }
+        }
+        .background(color?.paper ?? Deck.Paper.plain)
+        .clipShape(RoundedRectangle(cornerRadius: Deck.Floating.noteRadius, style: .continuous))
+        .environment(\.colorScheme, .light)
+        .onHover { inside in
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { hovering = inside }
         }
     }
 
-    private func controls(_ note: Note) -> some View {
-        HStack(spacing: 8) {
+    private var controls: some View {
+        HStack(spacing: 2) {
             WindowDragArea()
-            ForEach(NoteWindow.allCases) { mode in
-                Button {
-                    notes.setWindow(id, mode)
-                } label: {
-                    Image(systemName: mode.symbol).opacity(note.window == mode ? 1 : 0.5)
-                }
-                .help(mode.name)
-                .accessibilityLabel(mode.name)
-                .accessibilityAddTraits(note.window == mode ? .isSelected : [])
+            ForEach(NoteWindow.allCases) { option in
+                barButton(option.icon, label: option.name, on: mode == option) { setMode(option) }
             }
-            Button {
-                notes.setWindow(id, nil)
-            } label: {
-                Image(systemName: "arrow.up.to.line")
-            }
-            .help("Back to Notch")
-            .accessibilityLabel("Back to Notch")
+            barButton(.arrowUpRight, label: "Back to Notch", on: false) { setMode(nil) }
+        }
+        .padding(.horizontal, 4)
+        .frame(height: 26)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Deck.Paper.bar))
+        .padding(.top, 8)
+        .padding(.horizontal, 8)
+    }
+
+    private func barButton(_ icon: DeckIcon, label: String, on: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            DeckIconView(icon, size: 13)
+                .foregroundStyle(on ? Deck.Paper.iconOn : Deck.Paper.icon)
+                .frame(width: 26, height: 22)
+                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(on ? Deck.Paper.barOn : .clear))
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .font(.system(size: 11, weight: .semibold))
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 8)
-        .frame(height: 22)
+        .help(label)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 }
 
@@ -266,10 +293,34 @@ extension NoteWindow {
         }
     }
 
+    /// The SF Symbol the notch's note list uses.
     var symbol: String {
         switch self {
         case .desktop: "menubar.dock.rectangle"
         case .top: "rectangle.stack"
+        }
+    }
+
+    var icon: DeckIcon {
+        switch self {
+        case .desktop: .display
+        case .top: .pin
+        }
+    }
+}
+
+extension NoteColor {
+    /// The note's paper: a light colour in every appearance, since it sits on the desktop.
+    var paper: Color {
+        switch self {
+        case .red: Deck.Paper.red
+        case .orange: Deck.Paper.orange
+        case .yellow: Deck.Paper.yellow
+        case .green: Deck.Paper.green
+        case .mint: Deck.Paper.mint
+        case .blue: Deck.Paper.blue
+        case .purple: Deck.Paper.purple
+        case .pink: Deck.Paper.pink
         }
     }
 }

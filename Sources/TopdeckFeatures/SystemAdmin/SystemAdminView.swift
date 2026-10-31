@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 import SwiftUI
+import TopdeckSurface
 
-/// The System Admin tab: launch agents or Homebrew packages, a running command's output in place of
-/// the list, and a question before anything destructive.
+/// The System tab: launch agents or Homebrew packages, a running command's output in place of the
+/// list, and a question before anything destructive.
 struct SystemAdminView: View {
     @Bindable var admin: SystemAdminFeature
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: Deck.Metric.gap) {
             header
             if let job = admin.job {
                 JobOutput(job: job, cancel: admin.cancelJob, close: admin.closeJob)
@@ -21,42 +22,42 @@ struct SystemAdminView: View {
                 ConfirmBar(pending: pending, confirm: admin.confirm, dismiss: admin.dismissPending)
             }
         }
-        .padding(.trailing, 8)  // clear of the resize grip in the notch's corner
     }
 
     private var header: some View {
-        HStack(spacing: 8) {
-            Picker("Section", selection: $admin.section) {
-                ForEach(SystemAdminFeature.Section.allCases) { Text($0.title).tag($0) }
+        HStack(spacing: 6) {
+            DeckSegmented(SystemAdminFeature.Section.allCases, selection: admin.section, title: \.title) {
+                admin.section = $0
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
             Spacer(minLength: 0)
             let busy = admin.job?.isRunning == true
             if admin.section == .homebrew, admin.packages != nil {
-                IconButton(symbol: "arrow.down.circle", label: "Check for Updates") { admin.perform(.update) }
+                headerButton("Update", label: "Check for Updates") { admin.perform(.update) }
                     .disabled(busy)
-                IconButton(symbol: "arrow.up.circle", label: "Upgrade All") { admin.perform(.upgradeAll) }
+                headerButton("Upgrade All") { admin.perform(.upgradeAll) }
                     .disabled(busy || admin.outdated.isEmpty)
-                IconButton(symbol: "stethoscope", label: "Doctor") { admin.perform(.doctor) }
+                headerButton("Doctor") { admin.perform(.doctor) }
                     .disabled(busy)
             }
             if admin.isLoading {
                 ProgressView().controlSize(.mini).frame(width: 18)
             } else {
-                IconButton(symbol: "arrow.clockwise", label: "Refresh", action: admin.refresh)
-                    .disabled(admin.job != nil)
+                headerButton("Refresh", action: admin.refresh).disabled(admin.job != nil)
             }
         }
+    }
+
+    private func headerButton(_ title: String, label: String? = nil, action: @escaping () -> Void) -> some View {
+        Button(title, action: action)
+            .buttonStyle(.deck(compact: true))
+            .help(label ?? title)
+            .accessibilityLabel(label ?? title)
     }
 
     @ViewBuilder private var services: some View {
         if let items = admin.services {
             if items.isEmpty {
-                FeatureUnavailableView(
-                    symbol: "gearshape.2", title: "No launch agents",
-                    message: "Nothing in ~/Library/LaunchAgents, /Library/LaunchAgents, or /Library/LaunchDaemons.")
+                DeckEmptyLine("No launch agents")
             } else {
                 list(items) { ServiceRow(item: $0, perform: admin.perform(_:on:)) }
             }
@@ -67,12 +68,10 @@ struct SystemAdminView: View {
 
     @ViewBuilder private var homebrew: some View {
         if let error = admin.brewError {
-            FeatureUnavailableView(symbol: "shippingbox", title: error, message: "Homebrew is at brew.sh.")
+            DeckEmptyLine(error)
         } else if let packages = admin.packages {
             if packages.isEmpty {
-                FeatureUnavailableView(
-                    symbol: "shippingbox", title: "Nothing installed",
-                    message: "Formulae and casks you install with brew show up here.")
+                DeckEmptyLine("Nothing installed")
             } else {
                 list(packages) { PackageRow(package: $0, perform: admin.perform(_:)) }
             }
@@ -86,13 +85,14 @@ struct SystemAdminView: View {
     }
 
     private func list<Item: Identifiable, Row: View>(_ items: [Item], row: @escaping (Item) -> Row) -> some View {
-        ScrollView {
-            LazyVStack(spacing: 2) {
-                ForEach(items) { row($0) }
+        DeckCard(padding: 6) {
+            ScrollView {
+                LazyVStack(spacing: 2) {
+                    ForEach(items) { row($0) }
+                }
             }
-            .padding(.vertical, 4)
+            .fadingEdges(length: 6)
         }
-        .fadingEdges()
     }
 }
 
@@ -101,12 +101,12 @@ private struct ServiceRow: View {
     let perform: (LaunchAction, LaunchItem) -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
-            Circle().fill(item.state.color).frame(width: 6, height: 6)
-            Text(item.label).font(.caption).lineLimit(1).truncationMode(.middle)
+        DeckRow {
+            DeckDot(item.state.tone)
+            Text(item.label).deckText(.body).lineLimit(1).truncationMode(.middle)
             Spacer(minLength: 0)
             if let pid = item.pid, item.state == .running {
-                Text(verbatim: "\(pid)").font(.caption2).monospacedDigit().foregroundStyle(.white.opacity(0.5))
+                Text(verbatim: "\(pid)").deckText(.caption)
             }
             if item.isManageable {
                 Menu {
@@ -116,7 +116,7 @@ private struct ServiceRow: View {
                         }
                     }
                 } label: {
-                    Image(systemName: "ellipsis.circle")
+                    Text(verbatim: "···").deckText(.item, color: Deck.secondary)
                 }
                 .menuStyle(.button)
                 .buttonStyle(.plain)
@@ -124,12 +124,12 @@ private struct ServiceRow: View {
                 .fixedSize()
                 .accessibilityLabel("Actions for \(item.label)")
             } else {
-                Image(systemName: "lock").font(.caption2).opacity(0.4).accessibilityLabel("Read-only")
+                DeckIconView(.shield, size: 13)
+                    .foregroundStyle(Deck.tertiary)
+                    .accessibilityElement()
+                    .accessibilityLabel("Read-only")
             }
         }
-        .padding(.horizontal, 8)
-        .frame(minHeight: 24)
-        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 7))
         .help(([item.state.title] + item.program).joined(separator: "\n"))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(item.label), \(item.state.title)")
@@ -141,30 +141,23 @@ private struct PackageRow: View {
     let perform: (BrewAction) -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: package.kind == .cask ? "macwindow" : "shippingbox")
-                .font(.caption2)
-                .opacity(0.5)
+        DeckRow {
+            DeckIconView(package.kind == .cask ? .app : .stack, size: 14)
+                .foregroundStyle(Deck.tertiary)
+                .accessibilityElement()
                 .accessibilityLabel(package.kind == .cask ? "Cask" : "Formula")
-            Text(package.name).font(.caption).lineLimit(1)
+            Text(package.name).deckText(.body).lineLimit(1)
             Spacer(minLength: 0)
-            Group {
-                if let latest = package.latest {
-                    Text(verbatim: "\(package.version) → \(latest)").foregroundStyle(.orange)
-                } else {
-                    Text(verbatim: package.version).foregroundStyle(.white.opacity(0.5))
-                }
+            if let latest = package.latest {
+                Text(verbatim: "\(package.version) → \(latest)").deckText(.detail, color: Deck.signal).lineLimit(1)
+            } else {
+                Text(verbatim: package.version).deckText(.caption).lineLimit(1)
             }
-            .font(.caption2)
-            .lineLimit(1)
             if package.isOutdated, !package.isPinned {
-                IconButton(symbol: "arrow.up.circle", label: "Upgrade \(package.name)") { perform(.upgrade(package)) }
+                DeckIconButton(.arrowUpRight, label: "Upgrade \(package.name)") { perform(.upgrade(package)) }
             }
-            IconButton(symbol: "trash", label: "Uninstall \(package.name)") { perform(.uninstall(package)) }
+            DeckIconButton(.trash, label: "Uninstall \(package.name)") { perform(.uninstall(package)) }
         }
-        .padding(.horizontal, 8)
-        .frame(minHeight: 24)
-        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 7))
         .help(package.summary)
     }
 }
@@ -176,41 +169,42 @@ private struct JobOutput: View {
     let close: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                if let result = job.result {
-                    Image(systemName: result.succeeded ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        .foregroundStyle(result.succeeded ? .green : .red)
-                        .accessibilityLabel(result.cancelled ? "Cancelled" : result.succeeded ? "Done" : "Failed")
-                } else {
-                    ProgressView().controlSize(.mini)
-                }
-                Text(job.title).font(.caption.weight(.semibold)).lineLimit(1)
-                Spacer(minLength: 0)
-                Button(job.isRunning ? "Cancel" : "Done", action: job.isRunning ? cancel : close)
-                    .buttonStyle(.plain)
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 3)
-                    .background(.white.opacity(0.15), in: Capsule())
-            }
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(job.lines.enumerated()), id: \.offset) { index, line in
-                            Text(verbatim: line).id(index)
-                        }
+        DeckCard(padding: Deck.Metric.gap) {
+            VStack(alignment: .leading, spacing: Deck.Metric.gap) {
+                HStack(spacing: 6) {
+                    if let result = job.result {
+                        DeckDot(result.succeeded ? .go : .stop)
+                            .accessibilityHidden(false)
+                            .accessibilityLabel(result.cancelled ? "Cancelled" : result.succeeded ? "Done" : "Failed")
+                    } else {
+                        ProgressView().controlSize(.mini)
                     }
-                    .font(.system(size: 10, design: .monospaced))
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(6)
+                    Text(job.title).deckText(.item).lineLimit(1)
+                    Spacer(minLength: 0)
+                    Button(job.isRunning ? "Cancel" : "Done", action: job.isRunning ? cancel : close)
+                        .buttonStyle(.deck(compact: true))
                 }
-                .background(.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 7))
-                .onChange(of: job.lines.count) { _, count in
-                    if count > 0 { proxy.scrollTo(count - 1, anchor: .bottom) }
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 0) {
+                            ForEach(Array(job.lines.enumerated()), id: \.offset) { index, line in
+                                Text(verbatim: line).id(index)
+                            }
+                        }
+                        .deckText(.command)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(Deck.Metric.gap)
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: Deck.Radius.control, style: .continuous).fill(Deck.cardRaised)
+                    )
+                    .onChange(of: job.lines.count) { _, count in
+                        if count > 0 { proxy.scrollTo(count - 1, anchor: .bottom) }
+                    }
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
 }
@@ -222,35 +216,20 @@ private struct ConfirmBar: View {
     let dismiss: () -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(pending.title).font(.caption.weight(.semibold)).lineLimit(1).truncationMode(.middle)
-                Text(pending.message).font(.caption2).foregroundStyle(.white.opacity(0.6)).lineLimit(2)
+        DeckCard(.signal, padding: Deck.Metric.gap) {
+            HStack(spacing: Deck.Metric.gap) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(pending.title).deckText(.item).lineLimit(1).truncationMode(.middle)
+                    Text(pending.message).deckText(.detail).lineLimit(2)
+                }
+                Spacer(minLength: 0)
+                Button("Cancel", action: dismiss).buttonStyle(.deck())
+                Button(role: .destructive, action: confirm) {
+                    Text(pending.button).foregroundStyle(Deck.stop)
+                }
+                .buttonStyle(.deck(.outline))
             }
-            Spacer(minLength: 0)
-            Button("Cancel", action: dismiss)
-            Button(pending.button, role: .destructive, action: confirm)
-                .foregroundStyle(.red)
         }
-        .buttonStyle(.plain)
-        .font(.caption.weight(.semibold))
-        .padding(8)
-        .background(GlassPlatter(shape: RoundedRectangle(cornerRadius: 9)))
-    }
-}
-
-private struct IconButton: View {
-    let symbol: String
-    let label: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: symbol).font(.system(size: 12, weight: .medium)).frame(width: 18, height: 18)
-        }
-        .buttonStyle(.plain)
-        .help(label)
-        .accessibilityLabel(label)
     }
 }
 
@@ -266,13 +245,11 @@ extension LaunchItem.State {
         }
     }
 
-    fileprivate var color: Color {
+    fileprivate var tone: DeckTone {
         switch self {
-        case .running: .green
-        case .loaded: .blue
-        case .disabled: .orange
-        case .failed: .red
-        case .unloaded, .unknown: .gray
+        case .running: .go
+        case .failed: .stop
+        case .loaded, .disabled, .unloaded, .unknown: .quiet
         }
     }
 }

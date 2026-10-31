@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: MIT
 import AppKit
 import SwiftUI
+import TopdeckSurface
 
-/// The clipboard tab: search, then click an item (or press Return for the first match) to put it
-/// back on the clipboard, and paste it if the user chose that; with Option held, as plain text.
-/// Favorites come first and stay. Select mode ticks items to delete together,
-/// and Clear deletes all but favorites.
+/// The clipboard tab: the history on the left, the chosen item on the right. Paste puts it back on the
+/// clipboard and pastes it; Plain does the same without formatting; the pin keeps it first. Double-click
+/// or Return in the search does what picking does by default. Select mode ticks items to delete
+/// together, and Clear deletes all but favorites.
 struct ClipboardView: View {
     let clipboard: ClipboardFeature
-    @State private var query = ""
-    @FocusState private var searching: Bool
-    /// Clicking a row ticks it instead of copying it.
+    /// The item the card shows; the first match until one is clicked.
+    @State private var chosen: ClipItem.ID?
+    /// Clicking a row ticks it instead of choosing it.
     @State private var selecting = false
     @State private var selected: Set<ClipItem.ID> = []
     /// Clear asks once more, until the pointer leaves it.
@@ -18,189 +19,78 @@ struct ClipboardView: View {
 
     var body: some View {
         if !clipboard.isRecording {
-            FeatureUnavailableView(
-                symbol: "doc.on.clipboard", title: "Keep what you copy",
-                message: "Text, links, images, and files you copy, kept on this Mac to find and copy again. "
-                    + "Passwords and anything marked private are skipped.",
-                action: (label: "Turn On", perform: clipboard.startRecording))
+            DeckCard {
+                VStack(spacing: Deck.Metric.gap) {
+                    Text("Keep what you copy").deckText(.item)
+                    Button("Turn On", action: clipboard.startRecording).buttonStyle(.deck(.primary))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         } else if clipboard.access == .asks || clipboard.access == .denied {
-            FeatureUnavailableView(
-                symbol: "lock", title: "Let Topdeck read what you copy",
-                message: "In System Settings › Privacy & Security › Paste from Other Apps, set Topdeck to "
-                    + "Always Allow. Until then macOS would ask each time.",
-                action: (
-                    label: "Open Privacy Settings",
-                    perform: { NSWorkspace.shared.open(.privacySettings("Privacy_Pasteboard")) }
-                )
-            )
+            DeckCard {
+                VStack(spacing: Deck.Metric.gap) {
+                    Text("Allow Topdeck to read what you copy").deckText(.item)
+                    Button("Open Privacy Settings") {
+                        NSWorkspace.shared.open(.privacySettings("Privacy_Pasteboard"))
+                    }
+                    .buttonStyle(.deck(.primary))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
             .onAppear(perform: clipboard.refreshAccess)
         } else {
-            history
-                .onAppear {
-                    clipboard.refreshAccess()
-                    takeSearch()
-                }
-                .onChange(of: clipboard.wantsSearch) { takeSearch() }
+            history.onAppear(perform: clipboard.refreshAccess)
         }
     }
 
     private var history: some View {
-        let found = clipboard.search(query)
-        return VStack(spacing: 6) {
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass").font(.caption).opacity(0.6)
-                TextField("Search what you copied", text: $query)
-                    .textFieldStyle(.plain)
-                    .focused($searching)
-                    .onSubmit { if let first = found.first { pick(first) } }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+        let found = clipboard.search(clipboard.query)
+        let shown = found.first { $0.id == chosen } ?? found.first
+        return Group {
             if found.isEmpty {
-                FeatureUnavailableView(
-                    symbol: "doc.on.clipboard", title: clipboard.items.isEmpty ? "Nothing copied yet" : "No matches",
-                    message: clipboard.items.isEmpty ? "Copy something and it shows up here." : "Try other words.")
+                DeckEmptyLine(clipboard.items.isEmpty ? "Nothing copied yet" : "No matches")
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 2) {
-                        ForEach(found) { row($0) }
-                    }
-                    .padding(.vertical, 4)
-                }
-                .fadingEdges()
-            }
-            if !clipboard.items.isEmpty { footer(found) }
-        }
-    }
-
-    /// How many are ticked or kept, and at the bottom right, Select and Clear, or while selecting,
-    /// Select All, Delete, and Done.
-    private func footer(_ found: [ClipItem]) -> some View {
-        let keptByClear = clipboard.items.count { !$0.favorite }
-        let allTicked = !found.isEmpty && found.allSatisfy { selected.contains($0.id) }
-        return HStack(spacing: 8) {
-            Group {
-                if selecting {
-                    Text("\(selected.count) selected")
-                } else {
-                    Text("^[\(clipboard.items.count) item](inflect: true)")
-                }
-            }
-            .font(.caption2)
-            .monospacedDigit()
-            .foregroundStyle(.white.opacity(0.5))
-            Spacer(minLength: 0)
-            HStack(spacing: 0) {
-                if selecting {
-                    footerButton(allTicked ? "Select None" : "Select All") {
-                        selected = allTicked ? [] : Set(found.map(\.id))
-                    }
-                    footerButton("Delete", tint: .red) {
-                        clipboard.remove(selected)
-                        selected = []
-                        if clipboard.items.isEmpty { selecting = false }
-                    }
-                    .disabled(selected.isEmpty)
-                    .opacity(selected.isEmpty ? 0.4 : 1)
-                    .help("Delete the selected items, favorites too")
-                    footerButton("Done") {
-                        selecting = false
-                        selected = []
-                    }
-                } else {
-                    footerButton("Select") {
-                        confirmingClear = false
-                        selecting = true
-                    }
-                    .help("Select items to delete")
-                    footerButton(
-                        confirmingClear ? "Clear ^[\(keptByClear) item](inflect: true)?" : "Clear",
-                        tint: confirmingClear ? .red : .white
-                    ) {
-                        if confirmingClear {
-                            clipboard.clear()
-                            confirmingClear = false
-                        } else {
-                            confirmingClear = true
+                DeckWeightedRow([1.1, 1]) {
+                    VStack(spacing: 0) {
+                        ScrollView {
+                            LazyVStack(spacing: 2) {
+                                ForEach(found) { row($0, shown: shown, found: found) }
+                            }
                         }
+                        footer(found)
                     }
-                    .disabled(keptByClear == 0)
-                    .opacity(keptByClear == 0 ? 0.4 : 1)
-                    .onHover { if !$0 { confirmingClear = false } }
-                    .help(keptByClear == 0 ? "Only favorites are left" : "Delete everything but favorites")
+                    if let shown { detail(shown) }
                 }
             }
-            .background(GlassPlatter(shape: Capsule()))
         }
-        .padding(.leading, 6)
-        .padding(.trailing, 8)  // clear of the resize grip in the notch's corner
+        .onChange(of: clipboard.query) { chosen = nil }
     }
 
-    private func footerButton(_ title: LocalizedStringKey, tint: Color = .white, action: @escaping () -> Void)
-        -> some View
-    {
-        Button(action: action) {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .padding(.horizontal, 10)
-                .frame(height: 22)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(tint)
-    }
+    // MARK: Rows
 
-    /// The search field takes the keyboard when the tab opened from its shortcut.
-    private func takeSearch() {
-        guard clipboard.wantsSearch else { return }
-        clipboard.wantsSearch = false
-        searching = true
-    }
-
-    private func row(_ item: ClipItem) -> some View {
+    private func row(_ item: ClipItem, shown: ClipItem?, found: [ClipItem]) -> some View {
         let ticked = selected.contains(item.id)
-        return Button {
-            if !selecting {
-                pick(item)
-            } else if ticked {
-                selected.remove(item.id)
-            } else {
-                selected.insert(item.id)
-            }
-        } label: {
-            HStack(spacing: 8) {
+        return DeckRow(
+            selected: selecting ? ticked : item.id == shown?.id,
+            action: {
                 if selecting {
-                    Image(systemName: ticked ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 14))
-                        .foregroundStyle(ticked ? Color.accentColor : .white.opacity(0.4))
-                }
-                preview(item)
-                    .frame(width: 26, height: 26)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(title(item)).font(.callout).lineLimit(1).truncationMode(.middle)
-                    Text(detail(item)).font(.caption2).foregroundStyle(.white.opacity(0.5)).lineLimit(1)
-                }
-                Spacer(minLength: 0)
-                if !selecting {
-                    Button {
-                        clipboard.toggleFavorite(item)
-                    } label: {
-                        Image(systemName: item.favorite ? "star.fill" : "star")
-                            .font(.caption)
-                            .foregroundStyle(item.favorite ? .yellow : .white.opacity(0.4))
-                    }
-                    .buttonStyle(.plain)
-                    .help(item.favorite ? "Remove from favorites" : "Keep as a favorite")
-                    .accessibilityLabel(item.favorite ? "Favorite" : "Not a favorite")
+                    if ticked { selected.remove(item.id) } else { selected.insert(item.id) }
+                } else {
+                    chosen = item.id
                 }
             }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 4)
-            .background(.white.opacity(ticked ? 0.08 : 0), in: RoundedRectangle(cornerRadius: 6))
-            .contentShape(Rectangle())
+        ) {
+            if selecting {
+                DeckIconView(ticked ? .check : .app).foregroundStyle(ticked ? Deck.text : Deck.tertiary)
+            } else {
+                DeckIconView(item.favorite ? .pin : icon(item.kind))
+                    .foregroundStyle(item.favorite ? Deck.signal : Deck.tertiary)
+            }
+            Text(title(item)).deckText(.body).lineLimit(1).truncationMode(.middle)
+            Spacer(minLength: 0)
+            Text(item.favorite ? "Pinned" : Self.age(of: item.copied)).deckText(.caption).lineLimit(1)
         }
-        .buttonStyle(.plain)
+        .simultaneousGesture(TapGesture(count: 2).onEnded { if !selecting { pick(item) } })
         .help(selecting ? (ticked ? "Deselect" : "Select") : clipboard.pastesAfterPicking ? "Paste" : "Copy again")
         .contextMenu {
             Button("Copy") { clipboard.pick(item, paste: false) }
@@ -212,9 +102,113 @@ struct ClipboardView: View {
             Divider()
             Button("Delete") { delete(item) }
         }
-        .accessibilityAddTraits(ticked ? .isSelected : [])
         .accessibilityAction(named: "Delete") { delete(item) }
     }
+
+    /// How many are ticked or there are, with Select and Clear; while selecting, Select All, Delete and Done.
+    private func footer(_ found: [ClipItem]) -> some View {
+        let keptByClear = clipboard.items.count { !$0.favorite }
+        let allTicked = !found.isEmpty && found.allSatisfy { selected.contains($0.id) }
+        return HStack(spacing: 6) {
+            Group {
+                if selecting {
+                    Text("\(selected.count) selected")
+                } else {
+                    Text("^[\(clipboard.items.count) item](inflect: true)")
+                }
+            }
+            .deckText(.caption)
+            .padding(.leading, 10)
+            Spacer(minLength: 0)
+            if selecting {
+                Button(allTicked ? "Select None" : "Select All") { selected = allTicked ? [] : Set(found.map(\.id)) }
+                    .buttonStyle(.deck(compact: true))
+                Button("Delete") {
+                    clipboard.remove(selected)
+                    selected = []
+                    if clipboard.items.isEmpty { selecting = false }
+                }
+                .buttonStyle(.deck(compact: true))
+                .foregroundStyle(Deck.stop)
+                .disabled(selected.isEmpty)
+                .help("Delete the selected items, favorites too")
+                Button("Done") {
+                    selecting = false
+                    selected = []
+                }
+                .buttonStyle(.deck(compact: true))
+            } else {
+                Button("Select") {
+                    confirmingClear = false
+                    selecting = true
+                }
+                .buttonStyle(.deck(compact: true))
+                .help("Select items to delete")
+                Button(confirmingClear ? "Clear ^[\(keptByClear) item](inflect: true)?" : "Clear") {
+                    if confirmingClear {
+                        clipboard.clear()
+                        confirmingClear = false
+                    } else {
+                        confirmingClear = true
+                    }
+                }
+                .buttonStyle(.deck(compact: true))
+                .foregroundStyle(confirmingClear ? Deck.stop : Deck.text)
+                .disabled(keptByClear == 0)
+                .onHover { if !$0 { confirmingClear = false } }
+                .help(keptByClear == 0 ? "Only favorites are left" : "Delete everything but favorites")
+            }
+        }
+        .frame(height: 28)
+        .padding(.trailing, 28)  // clear of the resize grip in the deck's corner
+    }
+
+    // MARK: Detail
+
+    private func detail(_ item: ClipItem) -> some View {
+        DeckCard {
+            VStack(alignment: .leading, spacing: Deck.Metric.gap) {
+                VStack(alignment: .leading, spacing: 8) {
+                    if let host = Self.host(of: item) { Text(host).deckText(.item).lineLimit(1) }
+                    content(item)
+                }
+                Spacer(minLength: 0)
+                if let source = item.source { Text(source).deckText(.caption).lineLimit(1) }
+                HStack(spacing: 8) {
+                    Button("Paste") { clipboard.pick(item, paste: true) }
+                        .buttonStyle(.deck(.primary, fill: true))
+                    Button("Plain") { clipboard.pick(item, plainText: true, paste: true) }
+                        .buttonStyle(.deck())
+                    DeckIconButton(
+                        .pin, label: item.favorite ? "Remove from Favorites" : "Add to Favorites", on: item.favorite
+                    ) {
+                        clipboard.toggleFavorite(item)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+    }
+
+    @ViewBuilder private func content(_ item: ClipItem) -> some View {
+        switch item.kind {
+        case .image:
+            if let image = clipboard.image(for: item) {
+                Image(nsImage: image).resizable().scaledToFit()
+                    .clipShape(RoundedRectangle(cornerRadius: Deck.Radius.control, style: .continuous))
+                    .frame(maxWidth: .infinity, maxHeight: 120, alignment: .leading)
+            }
+        case .files:
+            Text(item.paths.map { URL(filePath: $0).lastPathComponent }.joined(separator: "\n"))
+                .deckText(.body).lineLimit(5).truncationMode(.middle)
+        case .link:
+            Text(item.text).deckText(.command).lineSpacing(3).lineLimit(5).truncationMode(.middle)
+        case .text:
+            Text(item.text).deckText(.body).lineSpacing(2).lineLimit(6).truncationMode(.tail)
+        }
+    }
+
+    // MARK: Helpers
 
     /// Option leaves the formatting behind, whatever the setting.
     private func pick(_ item: ClipItem) {
@@ -226,21 +220,12 @@ struct ClipboardView: View {
         selected.remove(item.id)
     }
 
-    @ViewBuilder private func preview(_ item: ClipItem) -> some View {
-        switch item.kind {
-        case .image:
-            if let image = clipboard.thumbnail(for: item) {
-                Image(nsImage: image).resizable().aspectRatio(contentMode: .fill)
-                    .clipShape(RoundedRectangle(cornerRadius: 5))
-            } else {
-                Image(systemName: "photo")
-            }
-        case .files:
-            Image(nsImage: NSWorkspace.shared.icon(forFile: item.paths.first ?? "/")).resizable()
-        case .link:
-            Image(systemName: "link").font(.system(size: 13)).opacity(0.8)
-        case .text:
-            Image(systemName: "text.alignleft").font(.system(size: 13)).opacity(0.8)
+    private func icon(_ kind: ClipItem.Kind) -> DeckIcon {
+        switch kind {
+        case .text: .note
+        case .link: .link
+        case .image: .image
+        case .files: .file
         }
     }
 
@@ -254,8 +239,36 @@ struct ClipboardView: View {
         }
     }
 
-    private func detail(_ item: ClipItem) -> String {
-        let when = item.copied.formatted(.relative(presentation: .named))
-        return [item.source, when].compactMap { $0 }.joined(separator: " · ")
+    /// The site of a link, without "www.".
+    static func host(of item: ClipItem) -> String? {
+        guard item.kind == .link, let host = URL(string: item.text.trimmingCharacters(in: .whitespaces))?.host()
+        else { return nil }
+        return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+    }
+
+    /// How long ago, in a word or two: "Now", "2m", "3h", "Yesterday", then the date.
+    static func age(of date: Date, at now: Date = .now, calendar: Calendar = .current) -> String {
+        let seconds = now.timeIntervalSince(date)
+        if seconds < 60 { return "Now" }
+        if seconds < 3600 { return "\(Int(seconds / 60))m" }
+        if calendar.isDate(date, inSameDayAs: now) { return "\(Int(seconds / 3600))h" }
+        if calendar.isDate(date, inSameDayAs: calendar.date(byAdding: .day, value: -1, to: now) ?? now) {
+            return "Yesterday"
+        }
+        return date.formatted(.dateTime.month(.abbreviated).day())
+    }
+}
+
+/// The deck's second-row search field, once the history can be searched.
+struct ClipboardSearch: View {
+    let clipboard: ClipboardFeature
+
+    var body: some View {
+        if clipboard.showsHistory {
+            let bindable = Bindable(clipboard)
+            DeckSearchField(
+                "Search", text: bindable.query, takeFocus: bindable.wantsSearch,
+                submit: { if let first = clipboard.search(clipboard.query).first { clipboard.pick(first) } })
+        }
     }
 }
