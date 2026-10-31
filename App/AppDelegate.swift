@@ -177,10 +177,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .timer: return AnyView(timer.view)
         case .storage: return AnyView(storage.view)
         case .network: return AnyView(network.view)
-        case .usage:
-            return AnyView(usage.view)
-        case .agents:
-            return AnyView(agents.view)
+        case .usage, .agents: return AnyView(EmptyView())  // the Agents screen draws them
         case .monitors: return AnyView(monitors.view)
         case .admin: return AnyView(admin.view)
         case .performance: return AnyView(performance.view)
@@ -196,6 +193,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     capture: enabled.contains(.capture) ? capture : nil, timer: enabled.contains(.timer) ? timer : nil,
                     shortcuts: enabled.contains(.shortcuts) ? shortcuts : nil,
                     sleepDisplays: { [monitors] in monitors.sleepDisplays() }))
+        case .agents:
+            return AnyView(
+                AgentsScreen(
+                    agents: enabled.contains(.agents) ? agents : nil, usage: enabled.contains(.usage) ? usage : nil))
         case .mac:
             return AnyView(
                 MacScreen(
@@ -240,13 +241,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func section(_ rows: some View) -> AnyView { AnyView(Section { rows }) }
 
-    /// Agents waiting for an answer, for the badge on the Agents space: each session once, whether it
-    /// holds a request or only reported waiting.
-    private var waitingAgents: Int {
-        let held = agents.requests.map { "\($0.tool.rawValue)-\($0.session)" }
-        return Set(held + agents.sessions.filter { $0.state == .waiting }.map(\.id)).count
-    }
-
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = .hiddenEditMenu()
         let content = NotchContent(
@@ -260,7 +254,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         weather: preferences.isEnabled(.weather) ? weather : nil,
                         model: nowModel, openNote: { [weak self] in self?.pinnedNotes.present($0.id) }))
             },
-            badge: { [unowned self] in $0 == .agents ? waitingAgents : 0 },
+            badge: { [unowned self] in $0 == .agents ? agents.waitingCount : 0 },
             actions: { [unowned self] space, feature in
                 if space == .now {
                     return AnyView(
@@ -271,6 +265,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 switch (space, feature) {
                 case (.shelf, _): return AnyView(shelf.headerActions)
                 case (.clipboard, _): return AnyView(clipboard.headerActions)
+                case (.agents, _): return preferences.isEnabled(.usage) ? AnyView(usage.actions) : AnyView(EmptyView())
                 default: return AnyView(EmptyView())
                 }
             },
@@ -295,6 +290,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 switch space {
                 case .shelf: shelf.headerLeading()
                 case .clipboard: clipboard.headerLeading()
+                case .agents: AnyView(AgentsTitle(agents: preferences.isEnabled(.agents) ? agents : nil))
                 default: nil
                 }
             })

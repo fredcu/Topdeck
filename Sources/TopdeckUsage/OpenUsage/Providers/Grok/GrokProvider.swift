@@ -101,7 +101,7 @@ final class GrokProvider: ProviderRuntime {
         // Local spend tiles from completed session turns. Recorded Grok costs win when available;
         // older turns without a carried cost use the shared pricing store.
         var usageHistory: ProviderUsageHistory?
-        if let scan = await logUsageScanner.scan(daysBack: 30, now: now(), pricing: await pricing()) {
+        if let scan = await logUsageScanner.scan(daysBack: UsageHistoryWindow.scanDays, now: now(), pricing: await pricing()) {
             usageHistory = ProviderUsageHistory(
                 series: scan.series,
                 modelUsage: scan.modelUsage,

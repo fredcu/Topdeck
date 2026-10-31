@@ -155,6 +155,7 @@ struct AgentHookScriptTests {
 @MainActor
 struct AgentsFeatureTests {
     private let defaults = UserDefaults(suiteName: "Agents.\(UUID().uuidString)")!
+    private let cache = FileManager.default.temporaryDirectory.appending(path: "agents-usage-\(UUID().uuidString).json")
 
     @Test func aWaitingAgentRestsInTheNotchAndOneThatFinishesIsAnnounced() throws {
         let sandbox = try Sandbox()
@@ -209,18 +210,19 @@ struct AgentsFeatureTests {
         agents.phase = .stopped
     }
 
-    @Test func theTabOffersToConnectThenListsSessionsAndRequests() throws {
+    @Test func theLeftColumnListsWaitingThenRunningAndNothingElse() throws {
         let sandbox = try Sandbox()
         let agents = AgentsFeature(hooks: sandbox.hooks, defaults: defaults)
         agents.phase = .foreground
-        try renderTab(agents.view, name: "agents-setup")
         agents.connect(.claude)
+        #expect(!agents.hasActivity, "nothing at work: no column")
         try sandbox.record("claude-a", "waiting", project: "/Users/me/Code/nook", process: getpid())
         try sandbox.record("claude-b", "working", project: "/Users/me/Code/api", process: getpid())
         try sandbox.record("codex-c", "done", project: "/Users/me/Code/site", process: getpid())
         agents.reload(announcing: false)
         #expect(agents.sessions.count == 3)
-        try renderTab(agents.view, name: "agents-sessions")
+        #expect(agents.runningSessions.map(\.id) == ["claude-b"], "a finished session is not listed")
+        #expect(agents.waitingSessions.map(\.id) == ["claude-a"] && agents.waitingCount == 1 && agents.hasActivity)
         let bash = #"""
             {"session_id":"abc-123","hook_event_name":"PermissionRequest","cwd":"/Users/me/Code/nook",
              "tool_name":"Bash","tool_input":{"command":"git push origin main"},
@@ -234,14 +236,34 @@ struct AgentsFeatureTests {
             """#
         agents.received(try AgentRequest.parse(Data(bash.utf8), tool: .claude))
         agents.received(try AgentRequest.parse(Data(ask.utf8), tool: .claude))
-        try renderTab(agents.view, name: "agents")
+        #expect(agents.waitingCount == 3, "the two requests and the session waiting on its terminal")
+        let usage = try AgentsSample.usage(AgentsSample.board(), defaults: defaults, cache: cache)
+        let title = AnyView(AgentsTitle(agents: agents))
+        for (name, size) in [
+            ("R3c-Agents-waiting", DeckScreen.normal), ("R3c-Agents-waiting-620x340", DeckScreen.smallest),
+        ] {
+            try DeckScreen.render(
+                AgentsScreen(agents: agents, usage: usage), name: name, size: size, leading: title,
+                actions: usage.actions)
+        }
         agents.phase = .stopped
     }
 
-    /// The tab as the deck shows it, at the default size and the smallest; with SNAPSHOT_DIR set, also PNGs.
-    private func renderTab(_ view: some View, name: String) throws {
-        try DeckScreen.render(view, name: name)
-        try DeckScreen.render(view, name: name + "-smallest", size: DeckScreen.smallest)
+    @Test func theLeftColumnGoesWhenNothingIsWaitingOrRunning() throws {
+        let sandbox = try Sandbox()
+        let agents = AgentsFeature(hooks: sandbox.hooks, defaults: defaults)
+        agents.phase = .foreground
+        try sandbox.record("codex-c", "done", project: "/Users/me/Code/site", process: getpid())
+        agents.reload(announcing: false)
+        #expect(!agents.hasActivity && agents.waitingCount == 0)
+        let usage = try AgentsSample.usage(AgentsSample.board(), defaults: defaults, cache: cache)
+        let title = AnyView(AgentsTitle(agents: agents))
+        for (name, size) in [("R3c-Agents-idle", DeckScreen.normal), ("R3c-Agents-idle-620x340", DeckScreen.smallest)] {
+            try DeckScreen.render(
+                AgentsScreen(agents: agents, usage: usage), name: name, size: size, leading: title,
+                actions: usage.actions)
+        }
+        agents.phase = .stopped
     }
 
     @Test func sessionFilesAreReadLineByLine() throws {

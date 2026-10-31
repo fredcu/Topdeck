@@ -87,6 +87,24 @@ public final class AgentsFeature: NotchFeature {
     public private(set) var sessions: [AgentSession] = []
     /// Permission requests held for an answer, oldest first.
     public private(set) var requests: [AgentRequest] = []
+    /// Agents that need an answer: each session once, whether it holds a request or only reported waiting.
+    public var waitingCount: Int {
+        let held = requests.map { "\($0.tool.rawValue)-\($0.session)" }
+        return Set(held + sessions.filter { $0.state == .waiting }.map(\.id)).count
+    }
+
+    /// Sessions waiting on an approval that is answered in their terminal, not held here.
+    var waitingSessions: [AgentSession] {
+        let held = Set(requests.map { "\($0.tool.rawValue)-\($0.session)" })
+        return sessions.filter { $0.state == .waiting && !held.contains($0.id) }
+    }
+
+    /// Sessions at work. One that has finished or gone quiet is not listed.
+    var runningSessions: [AgentSession] { sessions.filter { $0.state == .working } }
+
+    /// Whether anything is waiting or running, which is what the Agents space's left column shows.
+    var hasActivity: Bool { !requests.isEmpty || !waitingSessions.isEmpty || !runningSessions.isEmpty }
+
     /// Tools with the notch's hooks in their settings.
     public private(set) var connected: Set<AgentTool> = []
     /// Why the last connect or disconnect failed.
@@ -135,8 +153,6 @@ public final class AgentsFeature: NotchFeature {
         announcesDone = defaults.object(forKey: Self.announceKey) as? Bool ?? true
         answersRequests = defaults.object(forKey: Self.answerKey) as? Bool ?? true
     }
-
-    public var view: some View { AgentsView(agents: self) }
 
     /// Tools that are on this Mac, which can be connected.
     public var available: [AgentTool] { AgentTool.allCases.filter { hooks.isPresent($0) || connected.contains($0) } }

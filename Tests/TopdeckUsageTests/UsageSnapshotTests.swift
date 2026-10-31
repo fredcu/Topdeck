@@ -54,43 +54,21 @@ struct UsageSnapshotTests {
         return UsageFeature(defaults: defaults, cacheURL: cache, runtimes: { runtimes })
     }
 
-    @Test func theTabShowsTheProviderPickedInTheSecondRow() async throws {
-        let usage = try usage(with: [
-            Self.sample("claude", "Claude", session: 62, weekly: 38),
-            Self.sample("codex", "Codex", session: 86, weekly: 40),
-            Self.sample("copilot", "Copilot", session: 15, weekly: 5),
-        ])
-        #expect(usage.currentProvider?.id == "claude", "the first one until another is picked")
-        try render(usage, name: "usage")
-        usage.selectedProvider = "codex"
-        #expect(usage.currentProvider?.id == "codex")
-        try render(usage, name: "usage-codex")
-        usage.setEnabled("codex", false)
-        #expect(usage.currentProvider?.id == "claude", "a provider that is turned off is no longer shown")
+    @Test func theColumnShowsTheToolsThatAreOnAndTheirQuotas() async throws {
+        let usage = try AgentsSample.usage(AgentsSample.board(now: Self.now), defaults: defaults, cache: cache)
+        #expect(usage.enabledProviders.map(\.id) == ["claude", "antigravity", "codex", "cline", "grok"])
+        #expect(
+            usage.toolUsage(now: Self.now).map(\.id) == ["claude", "codex", "antigravity", "cline"], "Grok has no spend"
+        )
+        #expect(usage.quotaBlocks(now: Self.now).count == 5)
+        try render(usage, name: "R3c-Agents-usage")
     }
 
-    @Test func aProviderWithMoreLimitsThanFitScrollsThem() async throws {
-        var snapshot = Self.sample("claude", "Claude", session: 97, weekly: 88)
-        snapshot.lines.insert(
-            contentsOf: (1...3).map { .progress(label: "Model \($0)", used: 20, limit: 100, format: .percent) }, at: 2)
-        snapshot.lines.append(.text(label: "Organization", value: "Forge"))
-        snapshot.warning = "Sign in again for live usage"
-        try render(try usage(with: [snapshot]), name: "usage-many")
-    }
-
-    @Test func moreChipsThanFitScrollSideways() async throws {
-        let ids = [
-            ("claude", "Claude"), ("codex", "Codex"), ("cursor", "Cursor"), ("copilot", "Copilot"), ("grok", "Grok"),
-        ]
-        let usage = try usage(with: ids.map { Self.sample($0.0, $0.1, session: 42, weekly: 20) })
-        try render(usage, name: "usage-five")
-    }
-
-    @Test func aProviderCanBeAddedFromTheMenuAndTurnedOffFromItsChip() async throws {
+    @Test func aProviderCanBeAddedFromTheMenu() async throws {
         let usage = try usage(
             with: [Self.sample("claude", "Claude", session: 42, weekly: 71)], offered: [("codex", "Codex")])
         usage.add("codex")
-        #expect(usage.isEnabled("codex") && usage.currentProvider?.id == "codex", "added and shown")
+        #expect(usage.isEnabled("codex") && usage.enabledProviders.map(\.id) == ["claude", "codex"])
     }
 
     @Test func beforeAnyProviderIsOnItOffersEveryOneSignedInFirst() async throws {
@@ -112,8 +90,11 @@ struct UsageSnapshotTests {
 
     /// The tab as the deck shows it, at the default size and the smallest; with SNAPSHOT_DIR set, also PNGs.
     private func render(_ usage: UsageFeature, name: String) throws {
-        try DeckScreen.render(UsageView(usage: usage), name: name, actions: usage.actions)
+        let title = AnyView(AgentsTitle(agents: nil))
         try DeckScreen.render(
-            UsageView(usage: usage), name: name + "-smallest", size: DeckScreen.smallest, actions: usage.actions)
+            AgentsScreen(agents: nil, usage: usage), name: name, leading: title, actions: usage.actions)
+        try DeckScreen.render(
+            AgentsScreen(agents: nil, usage: usage), name: name + "-620x340", size: DeckScreen.smallest, leading: title,
+            actions: usage.actions)
     }
 }

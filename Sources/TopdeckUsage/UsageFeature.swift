@@ -57,6 +57,8 @@ public final class UsageFeature: NotchFeature {
     private(set) var snapshots: [String: ProviderSnapshot] = [:]
     /// Why each provider's last refresh failed, shown over its last good numbers.
     private(set) var errors: [String: String] = [:]
+    /// What kind of failure each of those was, where the provider said.
+    private(set) var errorCategories: [String: ErrorCategory] = [:]
     /// Raised when a limit passes 80% or 95% while the Usage tab isn't on screen.
     @ObservationIgnored public var onActivity: ((Activity) -> Void)?
     /// Opens the AI Usage settings, where API keys go.
@@ -95,13 +97,12 @@ public final class UsageFeature: NotchFeature {
         let enabled = Set(defaults.stringArray(forKey: Key.enabled) ?? [])
         self.enabled = enabled
         backgroundRefresh = BackgroundRefresh(rawValue: defaults.integer(forKey: Key.background)) ?? .off
+        period = defaults.string(forKey: Key.period).flatMap(UsagePeriod.init(rawValue:)) ?? .month
         let cached = (try? Data(contentsOf: cacheURL)).flatMap {
             try? JSONDecoder().decode([String: ProviderSnapshot].self, from: $0)
         }
         snapshots = (cached ?? [:]).filter { enabled.contains($0.key) }
     }
-
-    public var view: some View { UsageView(usage: self) }
 
     /// Every provider, in OpenUsage's order.
     public var providers: [UsageProvider] {
@@ -114,16 +115,23 @@ public final class UsageFeature: NotchFeature {
         }
     }
 
-    /// Enabled providers in order, for the tab.
+    /// Enabled providers in order.
     var enabledProviders: [UsageProvider] { providers.filter { enabled.contains($0.id) } }
 
-    /// The provider the tab shows, picked in the second row. Not kept between launches.
-    public var selectedProvider: String?
+    /// The period the Agents space's cost and tokens are for. Kept between launches.
+    public var period: UsagePeriod {
+        didSet { defaults.set(period.rawValue, forKey: Key.period) }
+    }
 
-    /// The picked provider when it's still on, else the first one that is.
-    var currentProvider: UsageProvider? {
-        let on = enabledProviders
-        return on.first { $0.id == selectedProvider } ?? on.first
+    /// Cost and tokens by tool in the period.
+    func toolUsage(now: Date = .now) -> [ToolUsage] {
+        AgentsUsage.tools(snapshots: snapshots, providers: enabledProviders, period: period, now: now)
+    }
+
+    /// Each provider's quota rows, or the short state in their place.
+    func quotaBlocks(now: Date = .now) -> [QuotaBlock] {
+        AgentsUsage.blocks(
+            providers: enabledProviders, snapshots: snapshots, errors: errors, categories: errorCategories, now: now)
     }
 
     /// Turns a provider on and shows it; one that needs an API key it doesn't have opens Settings for it.
@@ -133,7 +141,6 @@ public final class UsageFeature: NotchFeature {
             return
         }
         setEnabled(providerID, true)
-        selectedProvider = providerID
     }
 
     // MARK: API keys
@@ -192,6 +199,7 @@ public final class UsageFeature: NotchFeature {
             enabled.remove(providerID)
             snapshots[providerID] = nil
             errors[providerID] = nil
+            errorCategories[providerID] = nil
             retryAfter[providerID] = nil
             saveCache()
         }
@@ -233,10 +241,11 @@ public final class UsageFeature: NotchFeature {
         guard let snapshot = result else {
             return fail(providerID, "It didn't answer within \(Int(Self.deadline)) seconds.")
         }
-        if let message = snapshot.errorMessage { return fail(providerID, message) }
+        if let message = snapshot.errorMessage { return fail(providerID, message, category: snapshot.errorCategory) }
         let previous = snapshots[providerID]
         snapshots[providerID] = snapshot
         errors[providerID] = nil
+        errorCategories[providerID] = nil
         retryAfter[providerID] = nil
         saveCache()
         if phase != .foreground, let alert = Self.alert(from: previous, to: snapshot) { onActivity?(alert) }
@@ -304,8 +313,9 @@ public final class UsageFeature: NotchFeature {
         return made
     }
 
-    private func fail(_ providerID: String, _ message: String) {
+    private func fail(_ providerID: String, _ message: String, category: ErrorCategory? = nil) {
         errors[providerID] = message
+        errorCategories[providerID] = category
         retryAfter[providerID] = now().addingTimeInterval(Self.failureBackoff)
         Log.features.error("Usage \(providerID, privacy: .public) didn't refresh")
     }
@@ -321,6 +331,7 @@ public final class UsageFeature: NotchFeature {
     private enum Key {
         static let enabled = "usage.enabledProviders"
         static let background = "usage.backgroundRefreshMinutes"
+        static let period = "agents.usagePeriod"
     }
 }
 

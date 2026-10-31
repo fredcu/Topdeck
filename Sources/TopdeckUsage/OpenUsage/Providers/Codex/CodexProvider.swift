@@ -166,7 +166,7 @@ final class CodexProvider: ProviderRuntime {
         // concurrently keeps the slowest one — not their sum — on the refresh's critical path.
         let selectedFallbackModel = fallbackModel()
         async let native = logUsageScanner.scan(
-            now: now(), pricing: pricing, fallbackModel: selectedFallbackModel
+            daysBack: UsageHistoryWindow.scanDays, now: now(), pricing: pricing, fallbackModel: selectedFallbackModel
         )
         async let pi = allowsUnattributedHistory ? PiUsageScanner.shared.scan(
             cardID: provider.id, now: now(), pricing: pricing,

@@ -179,11 +179,22 @@ final class ModelPricingStoreTests: XCTestCase {
         XCTAssertTrue(http.requests.isEmpty, "sources within TTL must not refetch")
     }
 
+    func testPricesAreFetchedAtMostOnceADay() async throws {
+        let (store, _) = makeStore(handler: { Self.respond(to: $0) })
+        await store.refreshNow()
+        XCTAssertEqual(ModelPricingStore.refreshInterval, 24 * 60 * 60)
+
+        let sameDay = Date().addingTimeInterval(23 * 60 * 60)
+        let (young, http) = makeStore(handler: { Self.respond(to: $0) }, now: { sameDay })
+        await young.refreshNow()
+        XCTAssertTrue(http.requests.isEmpty, "a day has not passed, so nothing is asked for")
+    }
+
     func testRefetchAfterTTLSendsETagAndHandles304() async throws {
         let (store, _) = makeStore(handler: { Self.respond(to: $0) })
         await store.refreshNow()
 
-        let later = Date().addingTimeInterval(2 * 60 * 60)
+        let later = Date().addingTimeInterval(ModelPricingStore.refreshInterval + 60 * 60)
         let (aged, http) = makeStore(
             handler: { request in
                 XCTAssertEqual(request.headers["If-None-Match"], "\"v1\"")
@@ -202,7 +213,7 @@ final class ModelPricingStoreTests: XCTestCase {
         let (store, _) = makeStore(handler: { Self.respond(to: $0) })
         await store.refreshNow()
 
-        let later = Date().addingTimeInterval(2 * 60 * 60)
+        let later = Date().addingTimeInterval(ModelPricingStore.refreshInterval + 60 * 60)
         let (aged, _) = makeStore(handler: { _ in
             HTTPResponse(statusCode: 500, headers: [:], body: Data())
         }, now: { later })
@@ -216,7 +227,7 @@ final class ModelPricingStoreTests: XCTestCase {
         let (store, _) = makeStore(handler: { Self.respond(to: $0) })
         await store.refreshNow()
 
-        let later = Date().addingTimeInterval(2 * 60 * 60)
+        let later = Date().addingTimeInterval(ModelPricingStore.refreshInterval + 60 * 60)
         let (aged, _) = makeStore(handler: { _ in
             HTTPResponse(statusCode: 200, headers: [:], body: Data("not json".utf8))
         }, now: { later })

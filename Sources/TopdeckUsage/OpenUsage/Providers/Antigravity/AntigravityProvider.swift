@@ -89,7 +89,7 @@ final class AntigravityProvider: ProviderRuntime {
             let refreshedAt = now()
             var usageHistory: ProviderUsageHistory?
 
-            if let scan = await dbUsageScanner.scan(daysBack: 30, now: refreshedAt, pricing: await pricing()) {
+            if let scan = await dbUsageScanner.scan(daysBack: UsageHistoryWindow.scanDays, now: refreshedAt, pricing: await pricing()) {
                 usageHistory = ProviderUsageHistory(
                     series: scan.series,
                     modelUsage: scan.modelUsage,

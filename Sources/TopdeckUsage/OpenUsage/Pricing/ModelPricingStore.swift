@@ -6,14 +6,14 @@
 import Foundation
 
 /// Owns the app's model pricing data: bundled snapshots for offline first launch, on-disk caches in
-/// Application Support, and hourly refreshes from the live feeds (LiteLLM, models.dev, and the
+/// Application Support, and daily refreshes from the live feeds (LiteLLM, models.dev, and the
 /// OpenUsage pricing supplement on gh-pages). `current()` never blocks on the network — it serves
 /// the freshest data on hand and revalidates in the background (stale-while-revalidate).
 actor ModelPricingStore {
     static let shared = ModelPricingStore()
 
-    /// Refetch a source this long after its last success.
-    private static let refreshInterval: TimeInterval = 60 * 60
+    /// Refetch a source this long after its last success: once a day, since published prices move over months.
+    static let refreshInterval: TimeInterval = 24 * 60 * 60
     /// Retry a failed source after this long (keeps failure logs from repeating every provider pass).
     private static let failureRetryInterval: TimeInterval = 30 * 60
 
@@ -110,8 +110,8 @@ actor ModelPricingStore {
 
     /// Whichever of the fetched cache and the bundled resource carries the newer `updated_at`. The
     /// cache can't simply win: an app update ships a newer bundled supplement while an older cache is
-    /// still on disk, and the feed is only re-read once an hour — so a cache-always-wins rule hides
-    /// freshly shipped rates for that hour, and forever for anyone who can't reach the feed.
+    /// still on disk, and the feed is only re-read once a day — so a cache-always-wins rule hides
+    /// freshly shipped rates for that day, and forever for anyone who can't reach the feed.
     private func loadSupplement() -> PricingSupplement {
         let cached = decodedCachedSupplement()
         let bundled = decodedBundledSupplement()

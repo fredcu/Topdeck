@@ -29,6 +29,9 @@ struct DailyUsageSeries: Hashable, Sendable, Codable {
 /// `previousDays` excludes today, so 30 means today plus the previous 30 calendar days.
 enum UsageHistoryWindow {
     static let previousDays = 30
+    /// How far back the log scanners read for the Agents space's "All": everything the local logs still hold.
+    /// The tiles and the trend keep to `previousDays`.
+    static let scanDays = 3650
 
     static func dayKeys(through now: Date, calendar: Calendar = .current) -> Set<String> {
         let today = calendar.startOfDay(for: now)

@@ -65,6 +65,7 @@ enum ProviderCatalog {
         providers += [
             CursorProvider(),
             AntigravityProvider(),
+            ClineProvider(),
             CopilotProvider(defaults: defaults),
             DevinProvider(),
             GrokProvider(),

@@ -32,6 +32,11 @@ enum SpendTileMapper {
         modelSourceNote: String? = nil,
         fallbackPricingModelsByDay: [String: Set<String>]? = nil
     ) {
+        // The scanners can read further back than the tiles show (the Agents space's "All").
+        let window = UsageHistoryWindow.dayKeys(through: now)
+        let usage = DailyUsageSeries(
+            daily: usage.daily.filter { dayKey(fromUsageDate: $0.date).map(window.contains) ?? false })
+        let unknownModelsByDay = unknownModelsByDay.filter { window.contains($0.key) }
         let today = dayKey(from: now)
         let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: now).map(dayKey(from:))
 

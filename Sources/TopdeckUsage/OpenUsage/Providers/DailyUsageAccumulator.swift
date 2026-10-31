@@ -38,6 +38,14 @@ struct DailyUsageAccumulator {
         if let fallbackPricingModel { fallbackPricingModelsByDay[day, default: []].insert(fallbackPricingModel) }
     }
 
+    /// Add tokens of a model no pricing source can price. They count in the day's tokens and the model's, with
+    /// no cost: a day with only such tokens has no cost, not a cost of zero.
+    mutating func addUnpriced(day: String, tokens: Int, model: String) {
+        tokensByDay[day, default: 0] += tokens
+        modelsByDay[day, default: [:]][model, default: ModelAccumulator()].add(tokens: tokens, costUSD: nil)
+        addUnknownModel(day: day, model: model)
+    }
+
     /// Merge already-built scans (a provider's native log scan plus its pi slice) into one, by replaying
     /// each scan's per-model daily usage through a fresh accumulator so the combined `series`,
     /// `modelUsage`, and unknown-model set stay consistent. Every input must be accumulator-built (its
@@ -78,7 +86,7 @@ struct DailyUsageAccumulator {
     /// and the unknown-model set. Every counted day is priced, so its `costUSD` is always the real total.
     func build() -> LogUsageScan {
         let days = tokensByDay.keys.sorted(by: >).map { day in
-            DailyUsageEntry(date: day, totalTokens: tokensByDay[day] ?? 0, costUSD: costByDay[day] ?? 0)
+            DailyUsageEntry(date: day, totalTokens: tokensByDay[day] ?? 0, costUSD: costByDay[day])
         }
         let modelUsage = ModelUsageSeries(daily: modelsByDay.keys.sorted(by: >).map { day in
             DailyModelUsageEntry(

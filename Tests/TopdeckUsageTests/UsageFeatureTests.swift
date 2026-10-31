@@ -158,8 +158,8 @@ struct UsageFeatureTests {
         let ids = ProviderCatalog.make(defaults: defaults).map(\.provider.id)
         #expect(
             ids == [
-                "claude", "codex", "cursor", "antigravity", "copilot", "devin", "grok", "ollama", "opencode",
-                "openrouter", "zai",
+                "claude", "codex", "cursor", "antigravity", "cline", "copilot", "devin", "grok", "ollama",
+                "opencode", "openrouter", "zai",
             ])
     }
 }
