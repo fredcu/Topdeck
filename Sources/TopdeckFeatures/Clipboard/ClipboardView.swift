@@ -78,7 +78,7 @@ struct ClipboardView: View {
         .onKeyPress(.upArrow) { move(-1, in: found, from: shown) }
         .onKeyPress(.downArrow) { move(1, in: found, from: shown) }
         .onKeyPress(.return) {
-            guard let shown else { return .ignored }
+            guard focused, let shown else { return .ignored }
             clipboard.pick(shown, paste: true)
             return .handled
         }
@@ -95,7 +95,7 @@ struct ClipboardView: View {
         let bindable = Bindable(clipboard)
         return DeckSearchField(
             "Search", text: bindable.query, width: 296, takeFocus: bindable.wantsSearch,
-            submit: { if let shown { clipboard.pick(shown) } })
+            submit: { if let shown { clipboard.pick(shown, paste: true) } })
     }
 
     /// Up or Down: the next item in the list, stopping at its ends.
