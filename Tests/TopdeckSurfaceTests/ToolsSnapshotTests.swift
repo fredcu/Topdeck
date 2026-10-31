@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 import AppKit
+import ImageIO
 import SwiftUI
 import Testing
 import TopdeckCore
@@ -17,13 +18,51 @@ struct ToolsSnapshotTests {
 
     private func defaults() -> UserDefaults { UserDefaults(suiteName: "PlanTools.\(UUID().uuidString)")! }
 
-    private func tools() -> (CaptureFeature, TimerFeature, ShortcutsFeature) {
+    /// A folder of captures with sample pictures: three screenshots and a GIF, the newest first.
+    private func captures() throws -> URL {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "ToolsSnapshot-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let shades: [(String, UInt32, UInt32)] = [
+            ("a.png", 0x2B4C7E, 0x6B4FA0), ("b.gif", 0x3B4660, 0x2E6CB8), ("c.png", 0xB5562B, 0xA8325E),
+            ("d.png", 0x1E8E7E, 0x3B4660),
+        ]
+        for (offset, shade) in shades.enumerated() {
+            let url = folder.appending(path: shade.0)
+            let context = CGContext(
+                data: nil, width: 320, height: 200, bitsPerComponent: 8, bytesPerRow: 0,
+                space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+            func color(_ hex: UInt32) -> CGColor {
+                CGColor(
+                    red: CGFloat(hex >> 16 & 255) / 255, green: CGFloat(hex >> 8 & 255) / 255,
+                    blue: CGFloat(hex & 255) / 255, alpha: 1)
+            }
+            let gradient = CGGradient(
+                colorsSpace: nil, colors: [color(shade.1), color(shade.2)] as CFArray, locations: [0, 1])!
+            context.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: 320, y: 200), options: [])
+            context.setFillColor(CGColor(gray: 1, alpha: 0.14))
+            context.fill(CGRect(x: 20, y: 20, width: 280, height: 160))
+            let type = url.pathExtension == "gif" ? "com.compuserve.gif" : "public.png"
+            let destination = CGImageDestinationCreateWithURL(url as CFURL, type as CFString, 1, nil)!
+            CGImageDestinationAddImage(destination, context.makeImage()!, nil)
+            CGImageDestinationFinalize(destination)
+            try FileManager.default.setAttributes(
+                [.creationDate: Date().addingTimeInterval(-Double(offset) * 3600)], ofItemAtPath: url.path)
+        }
+        return folder
+    }
+
+    private func tools() async throws -> (CaptureFeature, TimerFeature, ShortcutsFeature) {
         let colors = defaults()
         colors.set(["#FFB340", "#3B82F6", "#FC3C44", "#34C759"], forKey: CaptureFeature.colorsKey)
         let timer = TimerFeature(defaults: defaults())
         timer.start(1498)
         timer.keepAwake(for: 4320)
-        return (CaptureFeature(defaults: colors), timer, ShortcutsFeature(defaults: defaults()))
+        let capture = CaptureFeature(defaults: colors, folder: try captures())
+        capture.reloadRecents()
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(capture.recents.count == 4, "the sample captures are listed")
+        for item in capture.recents { _ = await capture.thumbnails.image(for: item, maxPixel: 360) }
+        return (capture, timer, ShortcutsFeature(defaults: defaults()))
     }
 
     private func draw(_ name: String, events: [NotchEvent], size: CGSize, content: NotchContent) throws {
@@ -51,10 +90,10 @@ struct ToolsSnapshotTests {
     }
 
     @Test(arguments: [
-        ("Tools", NotchPreferences.defaultExpandedSize), ("Tools-min", NotchPreferences.minimumExpandedSize),
+        ("R3c-Tools", NotchPreferences.defaultExpandedSize), ("R3c-Tools-min", NotchPreferences.minimumExpandedSize),
     ])
-    func toolsFitItsDeck(name: String, size: CGSize) throws {
-        let (capture, timer, shortcuts) = tools()
+    func toolsFitItsDeck(name: String, size: CGSize) async throws {
+        let (capture, timer, shortcuts) = try await tools()
         let content = content(
             screen: { space, _ in
                 space == .tools

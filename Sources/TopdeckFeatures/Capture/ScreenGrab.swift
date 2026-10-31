@@ -55,6 +55,23 @@ enum ScreenGrab {
         return CaptureImage(image: image, scale: CGFloat(image.width) / max(1, area.rect.width))
     }
 
+    /// One window as it is now, without its shadow, at its display's resolution.
+    static func image(ofWindow id: CGWindowID) async throws -> CaptureImage {
+        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        guard let window = content.windows.first(where: { $0.windowID == id }) else { throw Failure.noImage }
+        let filter = SCContentFilter(desktopIndependentWindow: window)
+        let info = SCShareableContent.info(for: filter)
+        let scale = CGFloat(info.pointPixelScale)
+        let configuration = SCStreamConfiguration()
+        let pixels = CaptureGeometry.pixels(info.contentRect.size, scale: scale)
+        configuration.width = pixels.width
+        configuration.height = pixels.height
+        configuration.showsCursor = false
+        configuration.captureResolution = .best
+        let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
+        return CaptureImage(image: image, scale: scale)
+    }
+
     static func filter(
         for display: SCDisplay, in content: SCShareableContent, excluding windowNumbers: [Int]
     ) -> SCContentFilter {

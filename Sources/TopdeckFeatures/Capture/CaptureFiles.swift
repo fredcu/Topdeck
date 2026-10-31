@@ -6,11 +6,15 @@ import UniformTypeIdentifiers
 
 /// Captures as files: PNG data, and the folder captures sent to the Shelf are kept in, on this Mac.
 enum CaptureFiles {
-    static func png(_ image: CGImage) -> Data? {
+    /// `scale` is pixels per point, kept in the file as its resolution so it opens at the size it was taken.
+    static func png(_ image: CGImage, scale: CGFloat = 1) -> Data? {
         let data = NSMutableData()
         let type = UTType.png.identifier as CFString
         guard let destination = CGImageDestinationCreateWithData(data, type, 1, nil) else { return nil }
-        CGImageDestinationAddImage(destination, image, nil)
+        let properties: [CFString: Any] = [
+            kCGImagePropertyDPIWidth: 72 * scale, kCGImagePropertyDPIHeight: 72 * scale,
+        ]
+        CGImageDestinationAddImage(destination, image, properties as CFDictionary)
         return CGImageDestinationFinalize(destination) ? data as Data : nil
     }
 

@@ -2,41 +2,49 @@
 import SwiftUI
 import TopdeckSurface
 
-/// The Shortcuts button on the Tools screen: a menu of the user's shortcuts; choosing one runs it.
+/// The user's shortcuts as a list, in a popover on the Tools screen; choosing one runs it.
 struct ShortcutsView: View {
     let shortcuts: ShortcutsFeature
+    var done: () -> Void = {}
 
     var body: some View {
-        Menu {
+        VStack(alignment: .leading, spacing: 2) {
             switch shortcuts.status {
             case .loading:
-                Text("Loading")
+                Text("Loading").deckText(.detail)
             case .unavailable:
-                Text("Shortcuts unavailable")
+                Text("Shortcuts unavailable").deckText(.detail)
             case .ready where shortcuts.visible.isEmpty:
-                Button("Open Shortcuts", action: shortcuts.openShortcutsApp)
-            case .ready:
-                ForEach(shortcuts.visible, id: \.self) { name in
-                    let running = shortcuts.running.contains(name)
-                    Button(running ? "\(name) (running)" : name) { shortcuts.run(name) }
-                        .disabled(running)
+                Button("Open Shortcuts") {
+                    done()
+                    shortcuts.openShortcutsApp()
                 }
+                .buttonStyle(.deck())
+            case .ready:
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(shortcuts.visible, id: \.self) { name in
+                            let running = shortcuts.running.contains(name)
+                            DeckRow(
+                                action: running
+                                    ? nil
+                                    : {
+                                        done()
+                                        shortcuts.run(name)
+                                    }
+                            ) {
+                                Text(running ? "\(name) (running)" : name).deckText(.body).lineLimit(1)
+                                Spacer(minLength: 0)
+                            }
+                        }
+                    }
+                }
+                .scrollIndicators(.never)
             }
-        } label: {
-            HStack(spacing: 6) {
-                DeckIconView(.stack, size: 13)
-                Text("Shortcuts")
-            }
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(Deck.text)
-            .lineLimit(1)
-            .frame(maxWidth: .infinity, minHeight: Deck.Metric.buttonHeight)
-            .background(RoundedRectangle(cornerRadius: Deck.Radius.control, style: .continuous).fill(Deck.control))
-            .contentShape(RoundedRectangle(cornerRadius: Deck.Radius.control, style: .continuous))
         }
-        .menuStyle(.button)
-        .buttonStyle(.plain)
-        .menuIndicator(.hidden)
-        .accessibilityLabel("Shortcuts")
+        .padding(8)
+        .frame(width: 240)
+        .frame(maxHeight: 280)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }

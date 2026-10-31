@@ -4,6 +4,13 @@ import TopdeckSurface
 
 /// What the Keep Awake card says about how long is left.
 enum AwakeLabel {
+    /// "1:12", "42m" or "On": the short form for a pill.
+    static func short(until: Date, now: Date = .now) -> String {
+        if until == .distantFuture { return "On" }
+        let minutes = max(1, Int((until.timeIntervalSince(now) / 60).rounded(.up)))
+        return minutes >= 60 ? String(format: "%d:%02d", minutes / 60, minutes % 60) : "\(minutes)m"
+    }
+
     /// "1:12 left" with an hour or more to go, "42 min left" under it, "On" until it is turned off.
     static func text(until: Date, now: Date = .now) -> String {
         if until == .distantFuture { return "On" }
@@ -12,16 +19,19 @@ enum AwakeLabel {
     }
 }
 
-/// The Tools screen's timer and Keep Awake cards, one above the other: a countdown or a stopwatch,
-/// and how long to keep the Mac awake. `compact` is the shorter layout for the smallest deck.
+/// The timer and Keep Awake cards: a countdown or a stopwatch, and how long to keep the Mac awake. The
+/// Tools screen shows one of them in a popover (`only`); the Timer's own view shows both, one above the other.
 struct TimerView: View {
+    enum Part { case clock, awake }
+
     let timer: TimerFeature
     var compact = false
+    var only: Part?
 
     var body: some View {
         VStack(spacing: Deck.Metric.gap) {
-            clockCard
-            awakeCard
+            if only != .awake { clockCard }
+            if only != .clock { awakeCard }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }

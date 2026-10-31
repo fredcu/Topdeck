@@ -13,13 +13,15 @@ import TopdeckCore
 @Observable
 public final class CaptureFeature: NotchFeature {
     public enum Tool: String, CaseIterable, Identifiable, Sendable {
-        case screenshot, scrolling, text, qrCode, color, pin
+        case screenshot, window, screen, scrolling, text, qrCode, color, pin
 
         public var id: Self { self }
 
         public var title: String {
             switch self {
             case .screenshot: "Screenshot"
+            case .window: "Window"
+            case .screen: "Screen"
             case .scrolling: "Scrolling"
             case .text: "Text"
             case .qrCode: "QR Code"
@@ -31,6 +33,8 @@ public final class CaptureFeature: NotchFeature {
         public var symbol: String {
             switch self {
             case .screenshot: "camera.viewfinder"
+            case .window: "macwindow"
+            case .screen: "display"
             case .scrolling: "scroll"
             case .text: "text.viewfinder"
             case .qrCode: "qrcode.viewfinder"
@@ -42,7 +46,11 @@ public final class CaptureFeature: NotchFeature {
 
     public let id = FeatureID.capture
     /// Nothing runs in the background: every tool starts from a click.
-    public var phase: FeaturePhase = .stopped
+    public var phase: FeaturePhase = .stopped {
+        didSet { if phase == .foreground, oldValue != .foreground { reloadRecents() } }
+    }
+    /// The newest captures kept in the Captures folder, newest first.
+    public private(set) var recents: [RecentCapture] = []
     /// Colours picked, as hex codes, newest first.
     public private(set) var colors: [String] {
         didSet { defaults.set(colors, forKey: Self.colorsKey) }
@@ -61,15 +69,22 @@ public final class CaptureFeature: NotchFeature {
     static let colorsKey = "capture.colors"
     static let askedKey = "capture.askedForScreenRecording"
     static let keptColors = 6
+    /// How many recent captures are listed; the folder keeps them all.
+    nonisolated static let listedRecents = 8
     @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored private let folder: URL?
+    @ObservationIgnored let thumbnails = CaptureThumbnails()
     @ObservationIgnored private let overlay = SelectionOverlay()
+    @ObservationIgnored private let windowPicker = WindowPicker()
     @ObservationIgnored private var session: ScrollingSession?
     @ObservationIgnored private var sampler: NSColorSampler?
     @ObservationIgnored private var editors: [ObjectIdentifier: MarkupWindow] = [:]
     @ObservationIgnored private var pins: [ObjectIdentifier: PinnedImage] = [:]
 
-    public init(defaults: UserDefaults = .standard) {
+    /// `folder` is where captures are kept: Topdeck's Captures folder unless a test gives its own.
+    public init(defaults: UserDefaults = .standard, folder: URL? = nil) {
         self.defaults = defaults
+        self.folder = folder
         colors = defaults.stringArray(forKey: Self.colorsKey) ?? []
         // Each tool's shortcut works from any app, with the notch closed.
         for tool in Tool.allCases {
@@ -82,8 +97,10 @@ public final class CaptureFeature: NotchFeature {
 
     public var view: some View { CaptureView(capture: self) }
 
+    private var capturesFolder: URL { folder ?? CaptureFiles.folder }
+
     public func run(_ tool: Tool) {
-        guard !overlay.isActive, session == nil, sampler == nil else { return }
+        guard !overlay.isActive, !windowPicker.isActive, session == nil, sampler == nil else { return }
         onBegin?()
         if tool == .color {
             pickColor()
@@ -93,6 +110,45 @@ public final class CaptureFeature: NotchFeature {
             askForAccess()
             return
         }
+        switch tool {
+        case .window: pickWindow()
+        case .screen: captureScreen()
+        default: pickArea(for: tool)
+        }
+    }
+
+    private func pickWindow() {
+        windowPicker.begin { [weak self] picked, _, _ in
+            self?.finish { try await ScreenGrab.image(ofWindow: picked.id) }
+        }
+    }
+
+    /// The whole display under the pointer, once the notch has gone.
+    private func captureScreen() {
+        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) ?? NSScreen.main,
+            let area = CaptureArea(screen.frame, on: screen)
+        else { return }
+        finish {
+            try await Task.sleep(for: .milliseconds(350))
+            return try await ScreenGrab.image(of: area, excluding: [])
+        }
+    }
+
+    /// Takes the picture `grab` makes, keeps it and opens it in the editor.
+    private func finish(_ grab: @escaping @MainActor () async throws -> CaptureImage) {
+        Task {
+            do {
+                let image = try await grab()
+                keep(image)
+                edit(image)
+            } catch {
+                Log.features.error("Capture failed: \(error.localizedDescription, privacy: .public)")
+                report("Couldn't capture the screen", symbol: "exclamationmark.triangle.fill")
+            }
+        }
+    }
+
+    private func pickArea(for tool: Tool) {
         overlay.begin { [weak self] rect, screen, window in
             self?.selected(rect, on: screen, overlayWindow: window, for: tool)
         }
@@ -150,9 +206,59 @@ public final class CaptureFeature: NotchFeature {
         }
     }
 
-    /// Hands a screenshot on, as a PNG, to whoever keeps them.
+    /// Hands a screenshot on, as a PNG, to whoever keeps them, and keeps it in the Captures folder, where
+    /// the Tools screen lists it.
     private func keep(_ capture: CaptureImage) {
-        if let png = CaptureFiles.png(capture.image) { onScreenshot?(png) }
+        guard let png = CaptureFiles.png(capture.image, scale: capture.scale) else { return }
+        onScreenshot?(png)
+        let folder = capturesFolder
+        let name = CaptureFiles.name(at: .now)
+        Task.detached(priority: .utility) { [weak self] in
+            _ = try? CaptureFiles.save(png, named: name, in: folder)
+            await self?.reloadRecents()
+        }
+    }
+
+    /// Looks at the Captures folder again, off the main thread.
+    public func reloadRecents() {
+        let folder = capturesFolder
+        Task.detached(priority: .utility) { [weak self] in
+            let found = CaptureLibrary.recent(in: folder, limit: Self.listedRecents)
+            await MainActor.run { if self?.recents != found { self?.recents = found } }
+        }
+    }
+
+    /// Opens a recent capture: a picture in the editor, a recording or GIF in its own app.
+    public func open(_ capture: RecentCapture) {
+        guard capture.kind == .png, let image = CaptureLibrary.image(at: capture.url) else {
+            NSWorkspace.shared.open(capture.url)
+            return
+        }
+        onBegin?()
+        edit(image)
+    }
+
+    /// Puts a recent capture on the pasteboard: a picture as a picture, anything else as the file.
+    public func copy(_ capture: RecentCapture) {
+        if capture.kind == .png, let image = CaptureLibrary.image(at: capture.url) {
+            copy(image)
+        } else {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.writeObjects([capture.url as NSURL])
+            report("Copied", symbol: "doc.on.clipboard.fill")
+        }
+    }
+
+    public func reveal(_ capture: RecentCapture) {
+        NSWorkspace.shared.activateFileViewerSelecting([capture.url])
+    }
+
+    /// Moves a capture to the Trash, where it can be put back.
+    public func delete(_ capture: RecentCapture) {
+        try? FileManager.default.trashItem(at: capture.url, resultingItemURL: nil)
+        thumbnails.forget(capture)
+        recents.removeAll { $0.id == capture.id }
+        reloadRecents()
     }
 
     private func edit(_ capture: CaptureImage) {
@@ -204,8 +310,10 @@ public final class CaptureFeature: NotchFeature {
     /// off, it's copied instead.
     private func shelve(_ capture: CaptureImage) {
         do {
-            guard let png = CaptureFiles.png(capture.image) else { throw CocoaError(.fileWriteUnknown) }
-            let url = try CaptureFiles.save(png, named: CaptureFiles.name(at: .now), in: CaptureFiles.folder)
+            guard let png = CaptureFiles.png(capture.image, scale: capture.scale) else {
+                throw CocoaError(.fileWriteUnknown)
+            }
+            let url = try CaptureFiles.save(png, named: CaptureFiles.name(at: .now), in: capturesFolder)
             if addToShelf?([url]) != true { copy(capture) }
         } catch {
             Log.features.error("Couldn't save a capture: \(error.localizedDescription, privacy: .public)")

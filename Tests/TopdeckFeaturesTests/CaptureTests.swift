@@ -376,3 +376,67 @@ struct CaptureOutputTests {
         #expect(CaptureImage(image: image, scale: 2).pointSize == CGSize(width: 10, height: 5))
     }
 }
+
+struct CaptureLibraryTests {
+    private func folder() throws -> URL {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "CaptureLibrary-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder
+    }
+
+    @Test func theNewestCapturesComeFirstAndOnlyCapturesCount() throws {
+        let folder = try folder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let now = Date()
+        for (name, age) in [("old.png", 7200.0), ("new.mp4", 60), ("mid.gif", 3600), ("notes.txt", 10)] {
+            let url = folder.appending(path: name)
+            try Data([0]).write(to: url)
+            try FileManager.default.setAttributes([.creationDate: now.addingTimeInterval(-age)], ofItemAtPath: url.path)
+        }
+        let found = CaptureLibrary.recent(in: folder, limit: 8)
+        #expect(found.map(\.url.lastPathComponent) == ["new.mp4", "mid.gif", "old.png"])
+        #expect(found.map(\.kind.badge) == ["MP4", "GIF", "PNG"])
+        #expect(found.map(\.kind.isVideo) == [true, false, false])
+        #expect(CaptureLibrary.recent(in: folder, limit: 2).count == 2)
+        #expect(CaptureLibrary.recent(in: folder.appending(path: "missing"), limit: 4).isEmpty)
+    }
+
+    @Test func timesReadAsTheBoardDoes() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        let locale = Locale(identifier: "en_GB")
+        let now = calendar.date(from: DateComponents(year: 2026, month: 10, day: 31, hour: 19))!
+        func label(_ day: Int, _ hour: Int, _ minute: Int) -> String {
+            let date = calendar.date(from: DateComponents(year: 2026, month: 10, day: day, hour: hour, minute: minute))!
+            return CaptureLibrary.timeLabel(date, now: now, calendar: calendar, locale: locale)
+        }
+        #expect(label(31, 18, 52) == "18:52", "\(label(31, 18, 52))")
+        #expect(label(30, 23, 5) == "Yesterday")
+        #expect(label(28, 9, 0) == "28 Oct")
+    }
+
+    @Test func aKeptScreenshotOpensAtTheScaleItWasTaken() throws {
+        let folder = try folder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let context = try #require(
+            CGContext(
+                data: nil, width: 40, height: 30, bitsPerComponent: 8, bytesPerRow: 0,
+                space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        let picture = try #require(context.makeImage())
+        let png = try #require(CaptureFiles.png(picture, scale: 2))
+        let url = try CaptureFiles.save(png, named: "Kept", in: folder)
+        let image = try #require(CaptureLibrary.image(at: url))
+        #expect(image.scale == 2 && image.pointSize == CGSize(width: 20, height: 15))
+    }
+
+    @Test func theWindowUnderThePointerIsTheFrontOne() {
+        let front = PickableWindow(id: 9, frame: CGRect(x: 100, y: 100, width: 200, height: 100))
+        let back = PickableWindow(id: 4, frame: CGRect(x: 0, y: 0, width: 800, height: 600))
+        #expect(CaptureGeometry.windowAt(CGPoint(x: 150, y: 150), in: [front, back]) == front)
+        #expect(CaptureGeometry.windowAt(CGPoint(x: 10, y: 10), in: [front, back]) == back)
+        #expect(CaptureGeometry.windowAt(CGPoint(x: 900, y: 10), in: [front, back]) == nil)
+        // Core Graphics counts from the top of the main display, AppKit from the bottom.
+        let frame = CaptureGeometry.appKitFrame(CGRect(x: 10, y: 20, width: 300, height: 200), mainDisplayHeight: 1000)
+        #expect(frame == CGRect(x: 10, y: 780, width: 300, height: 200))
+    }
+}
