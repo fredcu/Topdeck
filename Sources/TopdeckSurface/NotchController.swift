@@ -11,6 +11,8 @@ final class NotchController {
     let displayID: CGDirectDisplayID
     /// Called after every presentation change.
     var onPresentationChange: (() -> Void)?
+    /// Asked before Esc closes the notch: true when something inside took it.
+    var takesEscape: (() -> Bool)?
     /// The display's frame in global coordinates.
     var screenFrame: CGRect { metrics.screen }
 
@@ -29,7 +31,10 @@ final class NotchController {
         panel = NotchWindow(frame: metrics.panelFrame)
         let view = NotchView(engine: engine, metrics: metrics, preferences: preferences, content: content)
         panel.contentView = NotchHostingView(rootView: view)
-        panel.onCancel = { [weak self] in self?.engine.send(.dismiss) }
+        panel.onCancel = { [weak self] in
+            guard let self, self.takesEscape?() != true else { return }
+            engine.send(.dismiss)
+        }
         engine.onPresentationChange = { [weak self] old, new in self?.render(from: old, to: new) }
         engine.pointerCheck = { [weak self] in
             PointerCheck(

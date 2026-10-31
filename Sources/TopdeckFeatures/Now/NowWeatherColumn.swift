@@ -142,7 +142,7 @@ struct NowWeatherBlock: View {
         if let rain = today?.rainChance { cells.append(("umbrella", "\(Int(rain.rounded()))%", "Chance of rain")) }
         if let uv = today?.uv { cells.append(("sun.max", "\(Int(uv.rounded()))", "UV index")) }
         if let aqi = snapshot.aqi {
-            cells.append((Self.symbol(forAQI: aqi), "\(aqi)", "Air quality index"))
+            cells.append(("aqi.medium", "\(aqi)", "Air quality index"))
         }
         return LazyVGrid(
             columns: Array(repeating: GridItem(.flexible(), spacing: 6, alignment: .leading), count: 3),
@@ -152,12 +152,6 @@ struct NowWeatherBlock: View {
                 DeckMetricCell(symbol: cell.symbol, value: cell.value, label: cell.label)
             }
         }
-    }
-
-    /// Lungs read as air quality where the board's wind lines read as wind; Apple's own gauge glyph
-    /// stands in on a Mac that lacks them.
-    static func symbol(forAQI index: Int) -> String {
-        NSImage(systemSymbolName: "lungs", accessibilityDescription: nil) != nil ? "lungs" : "aqi.medium"
     }
 
     // MARK: Forecasts

@@ -9,6 +9,9 @@ public final class PanelCoordinator {
     /// Called whenever any notch's presentation or sub-tab, or the set of notches, changes.
     public var onNotchesChange: (([NotchState]) -> Void)?
 
+    /// Asked before Esc closes the deck: true when something inside took it.
+    public var takesEscape: (() -> Bool)?
+
     private let preferences: NotchPreferences
     private let content: NotchContent
     private var controllers: [NotchController] = []
@@ -101,6 +104,11 @@ public final class PanelCoordinator {
         return controllers.first { $0.screenFrame.contains(pointer) } ?? controllers.first
     }
 
+    /// Esc: whatever is open inside takes it first, otherwise every notch closes.
+    public func escape() {
+        if takesEscape?() != true { dismissAll() }
+    }
+
     /// Closes every open notch, pinned ones too.
     public func dismissAll() {
         for controller in controllers where controller.engine.state.presentation.openSpace != nil {
@@ -155,6 +163,7 @@ public final class PanelCoordinator {
             let standIn = pill ? nil : NotchMetrics.standIn(on: screen, among: all)
             let controller = NotchController(
                 screen: screen, content: content, preferences: preferences, standIn: standIn)
+            controller.takesEscape = { [weak self] in self?.takesEscape?() ?? false }
             controller.onPresentationChange = { [weak self] in
                 guard let self else { return }
                 onNotchesChange?(notches)

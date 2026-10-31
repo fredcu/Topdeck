@@ -23,7 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let calendar: CalendarFeature
     /// The weather where you are, in Now.
     private let weather = WeatherFeature(locator: SystemWeatherLocator())
-    /// The add field in Now's second row, which the plus, ⌘N and the body share.
+    /// The add field in Now's second row, which the plus and the body share.
     private let nowModel = NowModel()
     private let notes = NotesFeature()
     /// Notes taken out of the notch, in windows of their own.
@@ -57,8 +57,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let quickNoteKey = HotKey()
     /// Opens the Clipboard tab from any app, ready to search.
     private let clipboardKey = HotKey()
-    /// ⌘N, only while a deck is open on Now: opens its add field.
-    private let addKey = HotKey()
     /// Gives each app its own keyboard input source. Not a tab: it works while the notch is away.
     private let inputSwitch = InputSwitcher()
 
@@ -284,18 +282,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             },
             join: { [calendar] url in calendar.join(url: url) })
         let coordinator = PanelCoordinator(preferences: preferences, content: content)
+        // Esc closes an open add field first, and the deck only when there is none.
+        coordinator.takesEscape = { [nowModel] in nowModel.escape() }
         coordinator.onNotchesChange = { [weak self] notches in
             guard let self else { return }
             features.update(notches: notches, enabled: Set(preferences.enabledFeatures))
             if !notches.contains(where: { $0.presentation.openSpace != nil }) { escapeKey.shortcut = nil }
-            addKey.shortcut = notches.contains { $0.presentation.openSpace == .now } ? .addItem : nil
         }
         notchKey.onPress = { [weak self, weak coordinator] in
             guard let self, coordinator?.toggleNotch() == true else { return }
             escapeKey.shortcut = .escape
         }
-        escapeKey.onPress = { [weak coordinator] in coordinator?.dismissAll() }
-        addKey.onPress = { [nowModel] in nowModel.begin() }
+        escapeKey.onPress = { [weak coordinator] in coordinator?.escape() }
         clipboardKey.onPress = { [weak self, weak coordinator] in
             guard let self, coordinator?.toggle(.clipboard) == true else { return }
             clipboard.wantsSearch = true

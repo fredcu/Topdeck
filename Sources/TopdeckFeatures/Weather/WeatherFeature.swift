@@ -35,6 +35,7 @@ public final class WeatherFeature: NotchFeature {
     @ObservationIgnored private let clock: @Sendable () -> Date
     @ObservationIgnored private var loop: Task<Void, Never>?
     @ObservationIgnored private var loadedCache = false
+    @ObservationIgnored private var lastAttempt: Date?
 
     /// `cache` is the JSON file; nil keeps nothing on disk.
     public init(
@@ -71,6 +72,21 @@ public final class WeatherFeature: NotchFeature {
         return now.timeIntervalSince(fetched) >= Self.interval
     }
 
+    /// How soon after an attempt, success or not, opening Now may try again.
+    static let retryFloor: TimeInterval = 60
+
+    /// Stale data is fetched, unless an attempt was made less than `retryFloor` ago.
+    static func shouldFetch(now: Date, fetched: Date?, lastAttempt: Date?) -> Bool {
+        let stale = fetched.map { now.timeIntervalSince($0) >= interval } ?? true
+        return stale && lastAttempt.map { now.timeIntervalSince($0) >= retryFloor } ?? true
+    }
+
+    /// A full interval after the later of the last good fetch and the last attempt.
+    static func wait(now: Date, fetched: Date?, lastAttempt: Date?) -> TimeInterval {
+        let last = max(fetched ?? .distantPast, lastAttempt ?? .distantPast)
+        return last == .distantPast ? interval : max(last.addingTimeInterval(interval).timeIntervalSince(now), 60)
+    }
+
     private func update() {
         loop?.cancel()
         loop = nil
@@ -79,10 +95,11 @@ public final class WeatherFeature: NotchFeature {
         loop = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
-                if isStale(at: clock()) { await refresh() }
-                let fetched = snapshot?.fetched ?? clock()
-                // Without data the next try is in half an hour too, so a failure doesn't hammer the service.
-                let wake = max(fetched.addingTimeInterval(Self.interval).timeIntervalSince(clock()), 60)
+                if Self.shouldFetch(now: clock(), fetched: snapshot?.fetched, lastAttempt: lastAttempt) {
+                    lastAttempt = clock()
+                    await refresh()
+                }
+                let wake = Self.wait(now: clock(), fetched: snapshot?.fetched, lastAttempt: lastAttempt)
                 do { try await Task.sleep(for: .seconds(wake)) } catch { return }
             }
         }

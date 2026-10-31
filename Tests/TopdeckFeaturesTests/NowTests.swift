@@ -149,6 +149,15 @@ struct NowAddFieldTests {
         #expect(model.kind() == .note, "a new entry chooses for itself again")
     }
 
+    @Test func escapeClosesAnOpenFieldAndOtherwiseLeavesTheDeckToClose() {
+        let model = NowModel()
+        #expect(!model.escape(), "no field: Esc is the deck's")
+        model.begin()
+        model.draft = "Gift ideas"
+        #expect(model.escape() && !model.isAdding && model.draft.isEmpty)
+        #expect(!model.escape(), "the next Esc closes the deck")
+    }
+
     @Test func aKindThatCannotBeSavedIsNotOffered() {
         let model = NowModel()
         model.draft = "Call school 3pm"

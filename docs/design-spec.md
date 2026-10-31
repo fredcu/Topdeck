@@ -78,7 +78,7 @@ Awake as chips, then add, pin and settings. Between them one slot, in priority o
 - At 620×340: no month title, two event rows, hours but no days, one lyric block, artwork 36.
 
 Add field: Return saves; an Event/Note control chooses itself from the text (a date or time is an Event) until
-picked; Tab switches; ⌘Return pins a note to the desktop; ⌘N opens it while the deck is open on Now.
+picked; Tab switches; ⌘Return pins a note to the desktop; Esc closes only the field.
 
 ## Closed notch
 

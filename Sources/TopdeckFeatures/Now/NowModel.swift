@@ -41,6 +41,13 @@ public final class NowModel {
         problem = nil
     }
 
+    /// Esc: closes the field and drops its text. False, so the deck can close, when no field is open.
+    public func escape() -> Bool {
+        guard isAdding else { return false }
+        cancel()
+        return true
+    }
+
     /// Event when the text has a date or time `EventDraft` understands, otherwise Note, until the user
     /// picks by hand. Only the kinds that can be saved are offered.
     public func kind(canEvent: Bool = true, canNote: Bool = true) -> NowEntryKind {

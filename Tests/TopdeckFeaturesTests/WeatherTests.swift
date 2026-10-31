@@ -37,8 +37,7 @@ struct WeatherDataTests {
         for code in 0...99 {
             #expect(sfSymbolExists(WeatherCondition(code: code).symbol), "\(code)")
         }
-        for name in ["thermometer.medium", "arrow.up.arrow.down", "drop", "umbrella", "sun.max", "lungs", "aqi.medium"]
-        {
+        for name in ["thermometer.medium", "arrow.up.arrow.down", "drop", "umbrella", "sun.max", "aqi.medium"] {
             #expect(sfSymbolExists(name), "\(name)")
         }
     }
@@ -177,6 +176,18 @@ struct WeatherFeatureTests {
             locator: locator, client: network.client, cache: cache ? folder.appending(path: "weather.json") : nil,
             clock: { [network] in network.now })
         return (feature, locator, network)
+    }
+
+    @Test func aFailedAttemptWaitsAFullIntervalAndReopeningCannotHammer() {
+        let now = Date(timeIntervalSince1970: 1_793_000_000)
+        let stale = now.addingTimeInterval(-3 * 3600)
+        let interval = WeatherFeature.interval
+        #expect(WeatherFeature.shouldFetch(now: now, fetched: stale, lastAttempt: nil), "stale data: fetch on open")
+        #expect(WeatherFeature.wait(now: now, fetched: stale, lastAttempt: now) == interval, "not 60 s")
+        #expect(!WeatherFeature.shouldFetch(now: now.addingTimeInterval(30), fetched: stale, lastAttempt: now))
+        #expect(WeatherFeature.shouldFetch(now: now.addingTimeInterval(60), fetched: stale, lastAttempt: now))
+        #expect(!WeatherFeature.shouldFetch(now: now, fetched: now.addingTimeInterval(-60), lastAttempt: nil))
+        #expect(WeatherFeature.wait(now: now, fetched: now.addingTimeInterval(-60), lastAttempt: nil) == interval - 60)
     }
 
     @Test func refreshingStoresTheForecastTheAirAndThePlace() async throws {
