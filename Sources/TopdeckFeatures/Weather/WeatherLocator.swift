@@ -17,7 +17,7 @@ public enum WeatherLocationError: Error, Equatable {
     case unavailable
 }
 
-/// Core Location: a one-shot request at reduced accuracy, and the geocoder for the place's name. The
+/// Core Location: a one-shot request to about a hundred metres, and the geocoder for the place's name. The
 /// system asks on first use.
 @MainActor
 public final class SystemWeatherLocator: NSObject, WeatherLocating, @preconcurrency CLLocationManagerDelegate {
@@ -28,7 +28,7 @@ public final class SystemWeatherLocator: NSObject, WeatherLocating, @preconcurre
     public override init() {
         super.init()
         manager.delegate = self
-        manager.desiredAccuracy = kCLLocationAccuracyReduced
+        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
     }
 
     public func locate() async throws -> (latitude: Double, longitude: Double) {

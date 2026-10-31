@@ -124,12 +124,14 @@ final class FakeLocator: WeatherLocating {
     var name: String? = "Hobart"
     private(set) var locates = 0
     private(set) var lookups = 0
+    private(set) var named: [(latitude: Double, longitude: Double)] = []
     func locate() async throws -> (latitude: Double, longitude: Double) {
         locates += 1
         return try result.get()
     }
     func placeName(latitude: Double, longitude: Double) async -> String? {
         lookups += 1
+        named.append((latitude, longitude))
         return name
     }
 }
@@ -204,15 +206,26 @@ struct WeatherFeatureTests {
         try? FileManager.default.removeItem(at: folder)
     }
 
-    @Test func thePlaceIsGeocodedOnceForTheSameCoordinates() async {
+    @Test func thePlaceIsNamedFromTheExactFix() async {
+        let locator = FakeLocator()
+        locator.result = .success((1.23456, 7.89012))
+        let (feature, _, network) = make(locator: locator, cache: false)
+        await feature.refresh()
+        #expect(
+            locator.named.count == 1 && locator.named[0].latitude == 1.23456 && locator.named[0].longitude == 7.89012)
+        #expect(network.urls.count == 2 && network.urls.allSatisfy { $0.absoluteString.contains("latitude=1.23") })
+        #expect(network.urls.allSatisfy { $0.absoluteString.contains("longitude=7.89") })
+    }
+
+    @Test func thePlaceIsNamedOnEveryRefresh() async {
         let (feature, locator, _) = make(cache: false)
         await feature.refresh()
         await feature.refresh()
-        #expect(locator.lookups == 1, "cached with the coordinates")
+        #expect(locator.lookups == 2, "named from each fix, not only when the rounded point moves")
         locator.result = .success((-33.87, 151.21))
         locator.name = "Sydney"
         await feature.refresh()
-        #expect(locator.lookups == 2 && feature.snapshot?.place == "Sydney")
+        #expect(locator.lookups == 3 && feature.snapshot?.place == "Sydney")
     }
 
     @Test func oneFailedCallKeepsTheLastDataAndTheOtherHalfStillShows() async throws {

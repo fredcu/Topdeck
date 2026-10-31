@@ -8,7 +8,7 @@ import TopdeckCore
 /// and fetches the forecast and the air quality when Now opens with data older than half an hour, and
 /// again every half hour while Now stays open. The last good result is shown until a newer one replaces
 /// it, kept in memory and in a small file in Caches. One call failing keeps what the other brought.
-/// Only the place, rounded to two decimals, leaves the Mac, for Open-Meteo.
+/// Open-Meteo gets the place rounded to two decimals; Apple's geocoder names it from the exact fix.
 @MainActor
 @Observable
 public final class WeatherFeature: NotchFeature {
@@ -132,12 +132,11 @@ public final class WeatherFeature: NotchFeature {
         let longitude = here.longitude.roundedCoordinate
         var next =
             snapshot ?? WeatherSnapshot(latitude: latitude, longitude: longitude, fetched: .distantPast)
-        let moved = next.latitude != latitude || next.longitude != longitude
         let client = client
         async let forecast = Self.attempt { try await client.forecast(latitude: latitude, longitude: longitude) }
         async let air = Self.attempt { try await client.airQuality(latitude: latitude, longitude: longitude) }
-        var name = next.place
-        if moved || name == nil { name = await locator.placeName(latitude: latitude, longitude: longitude) }
+        // The exact fix names the place: rounded, a point near a suburb's edge lands in the next one.
+        let name = await locator.placeName(latitude: here.latitude, longitude: here.longitude) ?? next.place
         let (forecastResult, airResult) = await (forecast, air)
         var worked = false
         if let forecastResult {

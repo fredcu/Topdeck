@@ -11,8 +11,8 @@ Topdeck is local-first.
 - Weather (Settings › Now) is on by default. While Now is open it asks macOS
   for your approximate location, once each time it refreshes, and sends it,
   rounded to two decimals (about a kilometre), to Open-Meteo (open-meteo.com),
-  a third-party weather service, with no key and no account. Apple resolves
-  the coordinates to a place name. The last result is kept in
+  a third-party weather service, with no key and no account. Apple's geocoder
+  resolves your location to a place name. The last result is kept in
   `~/Library/Caches/Topdeck`. Turning Weather off stops all of it; denying
   Location Services shows "Weather unavailable" and sends nothing.
 - Synced lyrics (Settings › Now) is off until you turn it on. Then, while the
