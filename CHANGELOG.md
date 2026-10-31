@@ -20,3 +20,4 @@
 - Monitors: set external monitors' brightness and volume over DDC, and put every display to sleep.
 - System Admin: start, stop, load, disable, and remove your launch agents, and upgrade, uninstall, and check Homebrew packages, from the notch. Off by default.
 - Window Switcher: Option-Tab (or your own shortcut) shows every window with a thumbnail; type to filter, let go to pick. Off by default.
+- Record Window and Record Screen: a three-second countdown in the closed notch, then a red dot and the clock with Pause and Stop; system audio and the microphone are switches in a popover and off to begin with. A recording is an MP4 in the Captures folder and opens in a video editor (trim, zoom that follows the cursor, crop, speed, background, audio; MP4 and GIF export) whose edits are kept beside the video.

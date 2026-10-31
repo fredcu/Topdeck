@@ -206,6 +206,40 @@ time to the reset, and a tick where even use would have the bar by now. A tool t
 "Checking…", "Sign in" or "Unavailable", with the reason in its tooltip, never zeros. Tool colours are tokens:
 Claude `#F2A773`, Codex `#8FD6A4`, Antigravity `#8FB8FF`, Cline `#E7A6F0`, Grok `#C9D0DE`, any other neutral.
 
+## Video editor
+
+Board `Editor3`. A normal window (960×506 to begin with, 820×480 at the least, resizable) in the deck's dark colours
+(`body` behind, `card` for the picture's box, `control` for the pills), opened by Edit Video (a file picker that starts in
+Captures), by a click on a recording in Tools, and by Stop. One window per video; a video already open comes forward.
+Selection is the Tools accent, not the board's purple: pills, the selected segment, the slider fill, the crop frame.
+The trim frame and its handles are `Tint.yellow`, as on the board.
+
+- Title bar, 48 high: the file's name at the left (after the traffic lights), then the GIF and MP4 pills and Export.
+  Export opens a popover with the size (Original, 1080p, 720p, 480p) and quality (High, Medium, Low) chips, Save As… and
+  Export. Export writes `<name> edited.mp4` (or `.gif`, then ` 2`, ` 3`…) next to the source, never over it; Save As… starts
+  in that folder. A banner over the picture's top shows the progress with Cancel, then the file's name with Reveal.
+  A GIF starts at 720p and is never larger than that unless a bigger size is picked; MP4 starts at the source's size.
+- Picture, left: the edit drawn by the same renderer the export uses (crop, zoom, rounded corners, background), fitted in
+  a `card` box; click or Space plays and pauses, and playback stops at the trim's end and runs a speed segment at its
+  rate. With the Crop tool out it shows the whole picture with the crop rectangle on it to drag by its corners and body.
+- Settings, right, 204 wide: Zoom then Background, as on the board, then Crop, Speed and Audio (Audio only when the file
+  has sound); the tool that is out comes to the top with its name in the accent, so nothing scrolls to find it.
+  Zoom: add at the playhead (+), delete, Scale (1× to 4×), Follow cursor (only when the recording kept the pointer),
+  otherwise a small picture to click or drag the target on. Background: no background, the board's three gradients and
+  one solid, Padding and Corners (in units of a 1000-wide frame, so the preview and the export agree at any size; they
+  are dimmed with no background). Crop: 16:9, 4:3, 1:1, 9:16, and reset. Speed: add at the playhead, delete,
+  0.25× to 8× chips. Audio: each track by name (System audio, Microphone), its level and a mute button.
+- Timeline: the tool pills and the position ("0:42 / 1:36") above a 50 high strip of 16 frames; the part the trim leaves
+  out is dimmed, the kept part outlined with a handle at each end (at least half a second between them), the playhead a
+  2 point line, dragged or clicked on the strip. Under it the zoom row (12 high), and a speed row once there is a speed
+  segment or the Speed tool is out. A segment is a block to click, drag, or stretch at its ends; it stops at its
+  neighbours and the trim, and none overlap.
+- Space plays and pauses, Delete removes the picked segment, Command-Z and Shift-Command-Z undo and redo (a drag or a
+  slider is one step), the arrows step a frame (a second with Shift).
+- Non-destructive: the edit is `<name>.topdeck-edit.json` beside the video, written a moment after each change and when
+  the window closes or Topdeck quits, and removed when there is nothing in it. It is ignored when the video's length no
+  longer matches. The recorded pointer is `<name>.topdeck-cursor.json`, which also names the audio tracks.
+
 ## Closed notch states for recording
 
 Counting down: `●  |  3`. Recording: `●  |  1:42`, and with the pointer on it `●  |  ⏸ ⏹` in the same width, so

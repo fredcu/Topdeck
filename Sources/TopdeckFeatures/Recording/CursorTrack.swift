@@ -22,8 +22,13 @@ public struct CursorTrack: Codable, Equatable, Sendable {
     }
 
     public var samples: [Sample]
+    /// What the file's audio tracks are, in order: "system", "microphone". Empty when it has none.
+    public var audio: [String] = []
 
-    public init(samples: [Sample] = []) { self.samples = samples }
+    public init(samples: [Sample] = [], audio: [String] = []) {
+        self.samples = samples
+        self.audio = audio
+    }
 
     /// Samples taken a second, and the least change worth keeping (a fraction of the picture).
     static let rate = 30.0
@@ -69,17 +74,19 @@ public struct CursorTrack: Codable, Equatable, Sendable {
     // MARK: File
 
     /// `[time, x, y]` triples, rounded: a minute of a moving pointer is some 30 KB.
-    private enum CodingKeys: String, CodingKey { case version, samples }
+    private enum CodingKeys: String, CodingKey { case version, samples, audio }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let rows = try container.decode([[Double]].self, forKey: .samples)
         samples = rows.compactMap { $0.count == 3 ? Sample(time: $0[0], x: $0[1], y: $0[2]) : nil }
+        audio = try container.decodeIfPresent([String].self, forKey: .audio) ?? []
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(1, forKey: .version)
+        if !audio.isEmpty { try container.encode(audio, forKey: .audio) }
         func round(_ value: Double, _ places: Double) -> Double { (value * places).rounded() / places }
         try container.encode(
             samples.map { [round($0.time, 1000), round($0.x, 10_000), round($0.y, 10_000)] }, forKey: .samples)
@@ -90,11 +97,10 @@ public struct CursorTrack: Codable, Equatable, Sendable {
         video.deletingPathExtension().appendingPathExtension("topdeck-cursor.json")
     }
 
+    /// The recorded track, which may hold no usable pointer (`isUsable`) and only name the audio.
     public static func load(for video: URL) -> CursorTrack? {
-        guard let data = try? Data(contentsOf: url(for: video)),
-            let track = try? JSONDecoder().decode(CursorTrack.self, from: data), track.isUsable
-        else { return nil }
-        return track
+        guard let data = try? Data(contentsOf: url(for: video)) else { return nil }
+        return try? JSONDecoder().decode(CursorTrack.self, from: data)
     }
 
     public func save(for video: URL) throws {

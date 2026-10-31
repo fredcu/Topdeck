@@ -101,6 +101,8 @@ public final class RecordingController {
     @ObservationIgnored private var clock = RecordingClock()
     @ObservationIgnored private var target: RecordingTarget?
     @ObservationIgnored private var engine: RecordingEngine?
+    /// What the file's audio tracks are, for the editor's labels.
+    @ObservationIgnored private var recordedAudio: [String] = []
     @ObservationIgnored private var cursor: CursorRecorder?
     @ObservationIgnored private var countdownTask: Task<Void, Never>?
     @ObservationIgnored private var heartbeatTask: Task<Void, Never>?
@@ -180,6 +182,7 @@ public final class RecordingController {
         }
         self.engine = engine
         self.target = target
+        recordedAudio = (taken.systemAudio ? ["system"] : []) + (taken.microphone ? ["microphone"] : [])
         clock.begin(at: services.now())
         state = .recording
         _ = power.hold(screenOn: true)
@@ -284,15 +287,16 @@ public final class RecordingController {
         state = .stopping
         heartbeatTask?.cancel()
         onOngoing?(nil)
-        let track = cursor?.stop()
+        var track = cursor?.stop() ?? CursorTrack()
         cursor = nil
+        track.audio = recordedAudio
         services.stopClicks()
         let url = await engine?.stop()
         engine = nil
         power.releaseAll()
         state = .idle
         if let url {
-            if let track, track.isUsable { try? track.save(for: url) }
+            if track.isUsable || !track.audio.isEmpty { try? track.save(for: url) }
             onSaved?(url, failure == nil)
         } else if failure == nil {
             say("Nothing was recorded", symbol: "exclamationmark.triangle.fill")

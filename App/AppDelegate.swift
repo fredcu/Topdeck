@@ -421,6 +421,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Stops every feature, including the media helper process and the camera.
         features.update(notches: [], enabled: [])
         capture.recorder.stopForQuit()  // so a recording's file is whole
+        capture.saveVideoEdits()
         pinnedNotes.stop()
         commandBar.stop()
         inputSwitch.stop()

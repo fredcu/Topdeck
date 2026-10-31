@@ -72,7 +72,7 @@ public final class CaptureFeature: NotchFeature {
     @ObservationIgnored public var onBegin: (() -> Void)?
     /// Whether the tab is on; the shortcuts do nothing while it's off.
     @ObservationIgnored public var isEnabled: () -> Bool = { true }
-    /// Opens a video in the editor. Without one, a video opens in its own app.
+    /// Replaces the video editor: a test's stand-in. Nil opens the real one.
     @ObservationIgnored public var openEditor: ((URL) -> Void)?
     /// Window and screen recording.
     public let recorder: RecordingController
@@ -91,6 +91,7 @@ public final class CaptureFeature: NotchFeature {
     @ObservationIgnored private var sampler: NSColorSampler?
     @ObservationIgnored private var editors: [ObjectIdentifier: MarkupWindow] = [:]
     @ObservationIgnored private var pins: [ObjectIdentifier: PinnedImage] = [:]
+    @ObservationIgnored private var videoEditors: [URL: VideoEditorWindow] = [:]
 
     /// `folder` is where captures are kept: Topdeck's Captures folder unless a test gives its own.
     public convenience init(defaults: UserDefaults = .standard, folder: URL? = nil) {
@@ -176,9 +177,27 @@ public final class CaptureFeature: NotchFeature {
 
     // MARK: Video
 
-    /// Opens a video in the editor, or in its own app when there is none.
+    /// Opens a video in the video editor, or brings forward the window it is already open in.
     public func openVideo(_ url: URL) {
-        if let openEditor { openEditor(url) } else { NSWorkspace.shared.open(url) }
+        if let openEditor { return openEditor(url) }
+        let key = url.standardizedFileURL
+        if let open = videoEditors[key] {
+            open.window.makeKeyAndOrderFront(nil)
+            NSApp.activate()
+            return
+        }
+        let editor = VideoEditorWindow(url: url)
+        editor.onExported = { [weak self] _ in self?.reloadRecents() }
+        editor.onClose = { [weak self] in
+            Task { @MainActor in self?.videoEditors[key] = nil }
+        }
+        videoEditors[key] = editor
+        editor.show()
+    }
+
+    /// Writes every open editor's edit now, for quitting.
+    public func saveVideoEdits() {
+        for editor in videoEditors.values { editor.model.flush() }
     }
 
     /// Asks for a video, starting in the Captures folder, and opens it in the editor.
@@ -332,8 +351,8 @@ public final class CaptureFeature: NotchFeature {
     /// Moves a capture to the Trash, where it can be put back.
     public func delete(_ capture: RecentCapture) {
         try? FileManager.default.trashItem(at: capture.url, resultingItemURL: nil)
-        // A recording's cursor track and edits go with it.
-        for sidecar in [CursorTrack.url(for: capture.url)]
+        // A recording's cursor track and its edits go with it.
+        for sidecar in [CursorTrack.url(for: capture.url), EditSidecar.url(for: capture.url)]
         where FileManager.default.fileExists(atPath: sidecar.path) {
             try? FileManager.default.trashItem(at: sidecar, resultingItemURL: nil)
         }
