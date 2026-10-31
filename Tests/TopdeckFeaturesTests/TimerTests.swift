@@ -183,6 +183,82 @@ struct TimerFeatureTests {
         #expect(!timer.keepsAwake && assertions.held.isEmpty)
     }
 
+    private let boot = Date(timeIntervalSince1970: 500)
+
+    /// A timer over a shared defaults suite, as a relaunch would make; it booted at `boot`.
+    private func relaunched(
+        _ defaults: UserDefaults, _ assertions: FakeAssertions, boot: Date? = nil
+    ) -> TimerFeature {
+        TimerFeature(
+            workspace: NotificationCenter(), defaults: defaults, assertions: assertions.power,
+            bootTime: { boot ?? self.boot })
+    }
+
+    private func suite() -> UserDefaults { UserDefaults(suiteName: "TimerTests-\(UUID())") ?? .standard }
+
+    @Test func aTimedKeepAwakeComesBackAfterARelaunch() {
+        let defaults = suite()
+        relaunched(defaults, FakeAssertions()).keepAwake(for: 3600, now: start)
+        let assertions = FakeAssertions()
+        let timer = relaunched(defaults, assertions)
+        var ongoing: [Activity?] = []
+        timer.onOngoing = { ongoing.append($0) }
+        timer.restoreAwake(now: start + 600)
+        #expect(timer.awakeUntil == start + 3600 && !assertions.held.isEmpty)
+        #expect(ongoing.last??.countdown == start + 3600)
+    }
+
+    @Test func anExpiredKeepAwakeIsClearedNotRestored() {
+        let defaults = suite()
+        relaunched(defaults, FakeAssertions()).keepAwake(for: 3600, now: start)
+        let assertions = FakeAssertions()
+        let timer = relaunched(defaults, assertions)
+        timer.restoreAwake(now: start + 3600)
+        #expect(!timer.keepsAwake && assertions.created.isEmpty)
+        #expect(defaults.object(forKey: "timer.awakeUntil") == nil && defaults.object(forKey: "timer.awakeBoot") == nil)
+    }
+
+    @Test func aRestartClearsKeepAwakeEvenWithoutAnEnd() {
+        let defaults = suite()
+        relaunched(defaults, FakeAssertions()).keepAwake(for: nil, now: start)
+        let assertions = FakeAssertions()
+        let timer = relaunched(defaults, assertions, boot: boot + 9000)
+        timer.restoreAwake(now: start + 600)
+        #expect(!timer.keepsAwake && assertions.created.isEmpty)
+        #expect(defaults.object(forKey: "timer.awakeUntil") == nil && defaults.object(forKey: "timer.awakeBoot") == nil)
+    }
+
+    @Test func anIndefiniteKeepAwakeComesBackInTheSameBoot() {
+        let defaults = suite()
+        relaunched(defaults, FakeAssertions()).keepAwake(for: nil, now: start)
+        let timer = relaunched(defaults, FakeAssertions())
+        timer.restoreAwake(now: start + 100_000)
+        #expect(timer.awakeUntil == .distantFuture && timer.holdsAssertion)
+    }
+
+    @Test func turningOffOrSleepingForgetsTheStoredKeepAwake() async {
+        let defaults = suite()
+        let workspace = NotificationCenter()
+        let timer = TimerFeature(
+            workspace: workspace, defaults: defaults, assertions: FakeAssertions().power, bootTime: { self.boot })
+        timer.keepAwake(for: nil, now: start)
+        #expect(defaults.object(forKey: "timer.awakeUntil") as? Date == .distantFuture)
+        timer.allowSleep()
+        #expect(defaults.object(forKey: "timer.awakeUntil") == nil && defaults.object(forKey: "timer.awakeBoot") == nil)
+        timer.keepAwake(for: 3600, now: start)
+        workspace.post(name: NSWorkspace.willSleepNotification, object: nil)
+        #expect(await eventually { !timer.keepsAwake })
+        #expect(defaults.object(forKey: "timer.awakeUntil") == nil && defaults.object(forKey: "timer.awakeBoot") == nil)
+    }
+
+    @Test func aRefusedAssertionStoresNothing() {
+        let defaults = suite()
+        let assertions = FakeAssertions()
+        assertions.refuses = true
+        relaunched(defaults, assertions).keepAwake(for: nil, now: start)
+        #expect(defaults.object(forKey: "timer.awakeUntil") == nil)
+    }
+
     /// A calendar on GMT, so the tests read the same in every time zone.
     private var gmt: Calendar {
         var calendar = Calendar(identifier: .gregorian)
