@@ -253,6 +253,22 @@ struct NotchReducerTests {
         #expect(closed.restingActivity == meeting, "and it's back when the notch closes")
     }
 
+    @Test func aRecordingIsHoveredForItsButtonsAndOnlyClickedOpen() {
+        let recording = Activity(
+            feature: .capture, symbol: "record.circle", title: "Recording", duration: .seconds(1),
+            recording: .running(since: .now))
+        var state = after(.show, .setOngoing(recording))
+        #expect(state.handle(.pointerEntered).isEmpty, "no hover dwell: the deck would cover Pause and Stop")
+        #expect(state.presentation == .compact && state.pointerInside && state.restingActivity == recording)
+        _ = state.handle(.pointerExited)
+        #expect(!state.pointerInside && state.presentation == .compact)
+        #expect(after(.show, .setOngoing(recording), .clicked).presentation == .expanded(space: .tools))
+        #expect(
+            after(.show, .setOngoing(recording), .pointerEntered, .clicked).presentation == .expanded(space: .tools))
+        // Anything else still opens on hover.
+        #expect(after(.show, .setOngoing(meeting), .pointerEntered).presentation == .hoverArmed)
+    }
+
     @Test func oneShotActivitiesShowOverAnOngoingOne() {
         var state = after(.show, .setOngoing(meeting), .activity(song))
         #expect(state.presentation == .transient(song) && state.restingActivity == nil)

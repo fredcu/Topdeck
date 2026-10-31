@@ -4,16 +4,18 @@ import KeyboardShortcuts
 import Observation
 import SwiftUI
 import TopdeckCore
+import UniformTypeIdentifiers
 
 /// Screen capture tools: an area screenshot to mark up, a scrolling capture, text and QR codes read
 /// from an area, a colour picker, and images pinned on screen. Captures stay on this Mac: they go to
 /// the clipboard, or to the Shelf from a file in Topdeck's own folder. Screen Recording is asked for
-/// the first time a tool needs it, not before.
+/// the first time a tool needs it, not before. Window and screen recordings are the same tools with a
+/// countdown and a clock (`RecordingController`), and they open the video editor when they are stopped.
 @MainActor
 @Observable
 public final class CaptureFeature: NotchFeature {
     public enum Tool: String, CaseIterable, Identifiable, Sendable {
-        case screenshot, window, screen, scrolling, text, qrCode, color, pin
+        case screenshot, window, screen, scrolling, text, qrCode, color, pin, recordWindow, recordScreen
 
         public var id: Self { self }
 
@@ -27,6 +29,8 @@ public final class CaptureFeature: NotchFeature {
             case .qrCode: "QR Code"
             case .color: "Color"
             case .pin: "Pin"
+            case .recordWindow: "Record Window"
+            case .recordScreen: "Record Screen"
             }
         }
 
@@ -40,8 +44,11 @@ public final class CaptureFeature: NotchFeature {
             case .qrCode: "qrcode.viewfinder"
             case .color: "eyedropper"
             case .pin: "pin"
+            case .recordWindow, .recordScreen: "record.circle"
             }
         }
+
+        var isRecording: Bool { self == .recordWindow || self == .recordScreen }
     }
 
     public let id = FeatureID.capture
@@ -65,6 +72,10 @@ public final class CaptureFeature: NotchFeature {
     @ObservationIgnored public var onBegin: (() -> Void)?
     /// Whether the tab is on; the shortcuts do nothing while it's off.
     @ObservationIgnored public var isEnabled: () -> Bool = { true }
+    /// Opens a video in the editor. Without one, a video opens in its own app.
+    @ObservationIgnored public var openEditor: ((URL) -> Void)?
+    /// Window and screen recording.
+    public let recorder: RecordingController
 
     static let colorsKey = "capture.colors"
     static let askedKey = "capture.askedForScreenRecording"
@@ -82,9 +93,16 @@ public final class CaptureFeature: NotchFeature {
     @ObservationIgnored private var pins: [ObjectIdentifier: PinnedImage] = [:]
 
     /// `folder` is where captures are kept: Topdeck's Captures folder unless a test gives its own.
-    public init(defaults: UserDefaults = .standard, folder: URL? = nil) {
+    public convenience init(defaults: UserDefaults = .standard, folder: URL? = nil) {
+        self.init(
+            defaults: defaults, folder: folder,
+            recorder: RecordingController(defaults: defaults, folder: { folder ?? CaptureFiles.folder }))
+    }
+
+    init(defaults: UserDefaults, folder: URL?, recorder: RecordingController) {
         self.defaults = defaults
         self.folder = folder
+        self.recorder = recorder
         colors = defaults.stringArray(forKey: Self.colorsKey) ?? []
         // Each tool's shortcut works from any app, with the notch closed.
         for tool in Tool.allCases {
@@ -93,6 +111,7 @@ public final class CaptureFeature: NotchFeature {
                 run(tool)
             }
         }
+        recorder.onSaved = { [weak self] url, open in self?.recordingSaved(url, opening: open) }
     }
 
     public var view: some View { CaptureView(capture: self) }
@@ -100,6 +119,11 @@ public final class CaptureFeature: NotchFeature {
     private var capturesFolder: URL { folder ?? CaptureFiles.folder }
 
     public func run(_ tool: Tool) {
+        // A second press of a Record tile ends the recording, or cancels its countdown.
+        if tool.isRecording, recorder.isActive {
+            recorder.stop()
+            return
+        }
         guard !overlay.isActive, !windowPicker.isActive, session == nil, sampler == nil else { return }
         onBegin?()
         if tool == .color {
@@ -113,8 +137,59 @@ public final class CaptureFeature: NotchFeature {
         switch tool {
         case .window: pickWindow()
         case .screen: captureScreen()
+        case .recordWindow: pickWindowToRecord()
+        case .recordScreen: recordScreen()
         default: pickArea(for: tool)
         }
+    }
+
+    // MARK: Recording
+
+    /// The window highlight and pick overlay, then the countdown.
+    private func pickWindowToRecord() {
+        windowPicker.begin { [weak self] picked, _, _ in self?.recorder.begin(.window(picked.id)) }
+    }
+
+    /// The only display, or the one the user picks from a menu when there are several (the one under the
+    /// pointer, where the deck is, first).
+    private func recordScreen() {
+        let pointer = NSEvent.mouseLocation
+        let screens = NSScreen.screens.sorted { a, _ in a.frame.contains(pointer) }
+        let displays = screens.compactMap { screen in screen.displayID.map { (screen.localizedName, $0) } }
+        guard displays.count > 1 else {
+            if let only = displays.first { recorder.begin(.screen(only.1)) }
+            return
+        }
+        let chooser = DisplayMenu { [weak self] id in self?.recorder.begin(.screen(id)) }
+        chooser.show(displays)
+    }
+
+    /// Escape during the countdown. False when there is none.
+    @discardableResult
+    public func cancelRecordingCountdown() -> Bool { recorder.cancelCountdown() }
+
+    /// A recording was saved: it joins the recent captures, and the editor opens on it unless it ended in a failure.
+    private func recordingSaved(_ url: URL, opening: Bool) {
+        reloadRecents()
+        if opening { openVideo(url) }
+    }
+
+    // MARK: Video
+
+    /// Opens a video in the editor, or in its own app when there is none.
+    public func openVideo(_ url: URL) {
+        if let openEditor { openEditor(url) } else { NSWorkspace.shared.open(url) }
+    }
+
+    /// Asks for a video, starting in the Captures folder, and opens it in the editor.
+    public func editVideo() {
+        onBegin?()
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.mpeg4Movie, .quickTimeMovie, .movie]
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = capturesFolder
+        NSApp.activate()
+        if panel.runModal() == .OK, let url = panel.url { openVideo(url) }
     }
 
     private func pickWindow() {
@@ -230,6 +305,7 @@ public final class CaptureFeature: NotchFeature {
 
     /// Opens a recent capture: a picture in the editor, a recording or GIF in its own app.
     public func open(_ capture: RecentCapture) {
+        if capture.kind == .mp4 { return openVideo(capture.url) }
         guard capture.kind == .png, let image = CaptureLibrary.image(at: capture.url) else {
             NSWorkspace.shared.open(capture.url)
             return
@@ -256,6 +332,11 @@ public final class CaptureFeature: NotchFeature {
     /// Moves a capture to the Trash, where it can be put back.
     public func delete(_ capture: RecentCapture) {
         try? FileManager.default.trashItem(at: capture.url, resultingItemURL: nil)
+        // A recording's cursor track and edits go with it.
+        for sidecar in [CursorTrack.url(for: capture.url)]
+        where FileManager.default.fileExists(atPath: sidecar.path) {
+            try? FileManager.default.trashItem(at: sidecar, resultingItemURL: nil)
+        }
         thumbnails.forget(capture)
         recents.removeAll { $0.id == capture.id }
         reloadRecents()
@@ -384,4 +465,25 @@ extension KeyboardShortcuts.Name {
         let name = "capture" + tool.rawValue.prefix(1).uppercased() + tool.rawValue.dropFirst()
         return Self(name, initial: tool == .screenshot ? .init(.s, modifiers: [.control, .option]) : nil)
     }
+}
+
+/// A menu of displays, shown at the pointer: Record Screen with several to choose from.
+@MainActor
+private final class DisplayMenu: NSObject {
+    private let chosen: (CGDirectDisplayID) -> Void
+
+    init(chosen: @escaping (CGDirectDisplayID) -> Void) { self.chosen = chosen }
+
+    func show(_ displays: [(String, CGDirectDisplayID)]) {
+        let menu = NSMenu()
+        for (name, id) in displays {
+            let item = NSMenuItem(title: name, action: #selector(pick(_:)), keyEquivalent: "")
+            item.target = self
+            item.tag = Int(id)
+            menu.addItem(item)
+        }
+        menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+
+    @objc private func pick(_ item: NSMenuItem) { chosen(CGDirectDisplayID(item.tag)) }
 }

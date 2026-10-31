@@ -13,6 +13,8 @@ struct ClosedContent: Equatable {
         case icon(DeckIcon)
         /// An SF Symbol the deck has no icon for.
         case symbol(String)
+        /// A recording's red dot.
+        case recordDot
     }
 
     /// Its state, right of the camera.
@@ -28,6 +30,8 @@ struct ClosedContent: Equatable {
         case text(String)
         /// A count of what needs you.
         case badge(Int)
+        /// A recording's count, clock, or (with the pointer on it) Pause and Stop.
+        case recording(RecordingPhase)
     }
 
     /// How the leading icon and label are colored.
@@ -51,6 +55,11 @@ struct ClosedContent: Equatable {
     // `Activity` once more than these few need their own look.
     init(_ activity: Activity) {
         spoken = activity.title
+        if let recording = activity.recording {
+            leading = .recordDot
+            trailing = .recording(recording)
+            return
+        }
         let symbol = activity.symbol
         let waiting = activity.feature == .agents && symbol == "hand.raised.fill"
         let finished = activity.feature == .agents && symbol == "checkmark.circle.fill"
@@ -89,12 +98,24 @@ struct ClosedContent: Equatable {
         }
     }
 
+    /// A held recording's length: "0:42", or "1:02:03" past the hour.
+    static func clockText(_ seconds: TimeInterval) -> String {
+        let total = max(0, Int(seconds))
+        let (hours, minutes, rest) = (total / 3600, total / 60 % 60, total % 60)
+        return hours > 0
+            ? "\(hours):\(String(format: "%02d", minutes)):\(String(format: "%02d", rest))"
+            : "\(minutes):\(String(format: "%02d", rest))"
+    }
+
     /// Measured in the fonts the notch draws them in.
     private static var labelFont: NSFont { .systemFont(ofSize: 13, weight: .semibold) }
     private static var countdownFont: NSFont { .monospacedDigitSystemFont(ofSize: 13, weight: .semibold) }
     private static let iconSide: CGFloat = 16
     static let artworkSide: CGFloat = 24
     static let meterWidth: CGFloat = 92
+    /// A recording's clock, which Pause and Stop take the place of under the pointer: the wider of the two.
+    static let recordingWidth: CGFloat = 56
+    static let recordingButton: CGFloat = 24
     /// The Join button's label, and the gap between it and the minutes.
     private static var joinFont: NSFont { .systemFont(ofSize: 12, weight: .semibold) }
     static let joinPadding: CGFloat = 9
@@ -130,6 +151,7 @@ struct ClosedContent: Equatable {
         case .icon: Self.iconSide
         case .text(let text): Self.width(text, Self.labelFont)
         case .badge(let count): count > 9 ? 22 : 16
+        case .recording: Self.recordingWidth
         }
     }
 }

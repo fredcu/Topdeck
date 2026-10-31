@@ -96,7 +96,7 @@
 ### Tools、Agents 与 Mac（第三轮第三批）
 
 - [ ] Tools：第一行 Area、Window、Screen、Scrolling、Text 都能截图；Window 能高亮并点选窗口，Screen 截整块屏幕且不含刘海
-- [ ] Tools：Record Window、Record Screen、Edit Video 是灰的，悬停提示 “Coming next”，没有 Record Area
+- [ ] Tools：Record Window、Record Screen、Edit Video 可点，没有 Record Area
 - [ ] Tools：最近截图是真实缩略图，带 PNG 角标和时间；点击在编辑器里打开，拖出去是文件，右键有 Copy、Reveal、Delete（进废纸篓）
 - [ ] Tools：Timer、Keep Awake、Pick Colour、Shortcuts 点开是弹出层，原有控件都在；最近颜色在 Pick Colour 的弹出层里；Sleep Screen 一点就熄屏
 - [ ] Tools：700×430 与 620×340 都不挤，小尺寸下缩略图变矮
@@ -110,6 +110,28 @@
 - [ ] Agents：配额块里 5h、W、M 的条、剩余百分比、重置时间和“均匀用量”刻度；读不到的工具显示 Checking…、Sign in 或 Unavailable，不是 0
 - [ ] Agents：Cline 有 tokens 和费用；Cline CLI 已登录时才有配额条
 - [ ] 价格表最多一天取一次（只访问 PRIVACY.md 里列的地址）
+
+### 录屏（第三轮第四批）
+
+只用自己的屏幕和窗口试，不要对着含有隐私的内容。
+
+- [ ] Record Window：高亮并点选窗口后，刘海里倒数 3、2、1，按 Esc 能取消，取消后什么也没录
+- [ ] Record Screen：只有一块显示器时直接倒数；接多块显示器时在指针处弹出显示器菜单
+- [ ] Record Tile 角上的小按钮打开弹出层：System audio、Microphone 默认关，Show clicks 默认开，重启后记得
+- [ ] 第一次打开 Microphone 录制时系统询问麦克风权限；拒绝后照样录屏，刘海提示一次麦克风已关
+- [ ] 录制中刘海（收起时）是红点加已录时长；指针放上去变成 Pause 和 Stop，悬停不会展开面板，点刘海才展开到 Tools
+- [ ] 暂停后红点变空心、时长不走；继续后文件里没有暂停的那段
+- [ ] 录制中，播放音乐时刘海显示的是录制而不是音乐条；系统开启“减弱动态效果”后不动
+- [ ] 画面里没有 Topdeck 自己的任何窗口（刘海、面板、浮动便签）；打开 Show clicks 时点击处有橘色圆环（整屏录制）
+- [ ] 开着 System audio 录一段有声音的视频，声音在文件里；开着 Microphone 说话，声音在另一条音轨里
+- [ ] Stop 后文件保存在 Captures 里，名字是 “Screen Recording 日期 at 时间.mp4”（窗口是 “Window Recording …”），最近列表里有 MP4 角标和缩略图，视频编辑器自动打开
+- [ ] 录制中 Tools 的两个 Record 磁贴都显示 Stop，点一下就结束
+- [ ] 录制中系统不熄屏（`pmset -g assertions` 里有 Topdeck 的条目），结束后条目消失
+- [ ] 录窗口时关掉那个窗口：录制干净地结束，已录的文件保留，刘海只提示一次，编辑器不自动打开
+- [ ] 录制中到“隐私与安全性 › 屏幕录制”里关掉 Topdeck：录制结束并保留文件，只提示一次
+- [ ] 磁盘剩余很少时（小于 200 MB）录制自动结束并保留文件
+- [ ] 录制中退出 Topdeck：文件是完整的，能播放
+- [ ] 删除一条录制：视频和旁边的 .json 一起进废纸篓
 
 ## 一般验收
 

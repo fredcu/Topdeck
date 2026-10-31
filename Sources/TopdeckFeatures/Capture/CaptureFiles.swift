@@ -27,16 +27,31 @@ enum CaptureFiles {
         return "Screenshot \(formatter.string(from: date))"
     }
 
+    /// "Screen Recording 2026-10-30 at 14.03.22", or "Window Recording …", the way macOS names its own.
+    static func recordingName(window: Bool, at date: Date, timeZone: TimeZone = .current) -> String {
+        name(at: date, timeZone: timeZone).replacingOccurrences(
+            of: "Screenshot", with: window ? "Window Recording" : "Screen Recording")
+    }
+
+    /// `<name>.<ext>` in `folder`, adding " 2", " 3"… while a capture already has the name. The folder is made if
+    /// it isn't there. The name is not taken until something is written to it.
+    static func uniqueURL(named name: String, extension ext: String, in folder: URL) throws -> URL {
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        var url = folder.appending(path: "\(name).\(ext)")
+        var number = 2
+        while FileManager.default.fileExists(atPath: url.path)
+            || FileManager.default.fileExists(atPath: url.path + ".partial")
+        {
+            url = folder.appending(path: "\(name) \(number).\(ext)")
+            number += 1
+        }
+        return url
+    }
+
     /// Writes `data` as `<name>.png` in `folder`, adding " 2", " 3"… when a capture already has the
     /// name. Returns where it went.
     static func save(_ data: Data, named name: String, in folder: URL) throws -> URL {
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        var url = folder.appending(path: "\(name).png")
-        var number = 2
-        while FileManager.default.fileExists(atPath: url.path) {
-            url = folder.appending(path: "\(name) \(number).png")
-            number += 1
-        }
+        let url = try uniqueURL(named: name, extension: "png", in: folder)
         try data.write(to: url, options: .withoutOverwriting)
         return url
     }

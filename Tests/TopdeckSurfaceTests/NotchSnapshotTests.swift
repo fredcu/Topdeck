@@ -48,6 +48,10 @@ private let finished = Activity(
     feature: .agents, symbol: "checkmark.circle.fill", title: "Build", duration: .seconds(3))
 private let oneWaiting = Activity(feature: .agents, symbol: "hand.raised.fill", title: "Topdeck", duration: .zero)
 
+private func recording(_ phase: RecordingPhase) -> Activity {
+    Activity(feature: .capture, symbol: "record.circle", title: "Recording", duration: .seconds(1), recording: phase)
+}
+
 private let snapshotCases: [(name: String, metrics: NotchMetrics, events: [NotchEvent])] = [
     ("compact", notched, [.show]),
     ("hover", notched, [.show, .pointerEntered]),
@@ -75,6 +79,11 @@ private let snapshotCases: [(name: String, metrics: NotchMetrics, events: [Notch
     ("closed-timer", notched, [.show, .setOngoing(timer)]),
     ("closed-waiting-one", notched, [.show, .setOngoing(oneWaiting)]),
     ("closed-finished", notched, [.show, .activity(finished)]),
+    ("closed-recording-countdown", notched, [.show, .setOngoing(recording(.countdown(3)))]),
+    ("closed-recording", notched, [.show, .setOngoing(recording(.running(since: .now - 102)))]),
+    ("closed-recording-hover", notched, [.show, .setOngoing(recording(.running(since: .now - 102))), .pointerEntered]),
+    ("closed-recording-paused", notched, [.show, .setOngoing(recording(.paused(elapsed: 102)))]),
+    ("pill-recording", notchless, [.show, .setOngoing(recording(.running(since: .now - 3725)))]),
     ("closed-drop", notched, [.show, .dragEntered]),
     ("pill-drop", notchless, [.show, .dragEntered]),
 ]

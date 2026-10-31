@@ -167,6 +167,32 @@ struct ClosedContentTests {
             copied.leading == .symbol("doc.on.clipboard.fill") && copied.label == "Copied" && copied.trailing == nil)
     }
 
+    @Test func aRecordingIsARedDotAndItsCountOrClock() {
+        func recording(_ phase: RecordingPhase) -> ClosedContent {
+            ClosedContent(
+                Activity(
+                    feature: .capture, symbol: "record.circle", title: "Recording", duration: .zero, recording: phase))
+        }
+        let since = Date.now - 42
+        let running = recording(.running(since: since))
+        #expect(
+            running.leading == .recordDot && running.label == nil
+                && running.trailing == .recording(.running(since: since)))
+        #expect(running.spoken == "Recording")
+        #expect(recording(.countdown(3)).trailing == .recording(.countdown(3)))
+        #expect(recording(.paused(elapsed: 61)).trailing == .recording(.paused(elapsed: 61)))
+        // The clock and the buttons that replace it under the pointer share one width, so the notch holds still.
+        for phase in [RecordingPhase.countdown(1), .running(since: since), .paused(elapsed: 5)] {
+            #expect(recording(phase).trailingWidth == ClosedContent.recordingWidth)
+        }
+        #expect(ClosedContent.recordingWidth >= 2 * ClosedContent.recordingButton + 6)
+    }
+
+    @Test func aHeldRecordingsLengthReadsLikeAClock() {
+        #expect(ClosedContent.clockText(0) == "0:00" && ClosedContent.clockText(61) == "1:01")
+        #expect(ClosedContent.clockText(3725) == "1:02:05" && ClosedContent.clockText(-4) == "0:00")
+    }
+
     @Test func widthsAreMeasuredFromWhatIsDrawn() {
         let short = content(.clipboard, "doc.on.clipboard.fill", "Copied")
         let long = content(.clipboard, "doc.on.clipboard.fill", "Copied a longer thing")

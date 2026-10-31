@@ -60,6 +60,21 @@ public enum FeatureID: String, CaseIterable, Hashable, Sendable {
     }
 }
 
+/// A screen recording as the closed notch shows it: a red dot, and the count or the clock.
+public enum RecordingPhase: Hashable, Sendable {
+    /// The seconds left before it starts.
+    case countdown(Int)
+    /// Recording, since this moment (moved forward by every pause, so the clock reads what was recorded).
+    case running(since: Date)
+    /// Held, with what was recorded so far.
+    case paused(elapsed: TimeInterval)
+}
+
+/// What the closed notch's recording controls ask for.
+public enum RecordingControl: Hashable, Sendable {
+    case pause, resume, stop
+}
+
 /// A live activity shown on the compact notch: one-shot, such as a track change, a file drop, or
 /// the volume changing, or ongoing, such as a meeting about to start, until its feature clears it.
 public struct Activity: Hashable, Sendable {
@@ -82,10 +97,14 @@ public struct Activity: Hashable, Sendable {
     public var meetingLink: URL?
     /// The colour of what's playing, taken from its cover, for the bars beside the camera.
     public var accent: ActivityTint?
+    /// A screen recording: the notch draws its dot and clock, shows Pause and Stop while the pointer is on
+    /// it, and does not open on hover, which would cover the controls.
+    public var recording: RecordingPhase?
 
     public init(
         feature: FeatureID?, symbol: String, title: String, level: Double? = nil, duration: Duration,
-        countdown: Date? = nil, artwork: Data? = nil, meetingLink: URL? = nil, accent: ActivityTint? = nil
+        countdown: Date? = nil, artwork: Data? = nil, meetingLink: URL? = nil, accent: ActivityTint? = nil,
+        recording: RecordingPhase? = nil
     ) {
         self.feature = feature
         self.symbol = symbol
@@ -96,6 +115,7 @@ public struct Activity: Hashable, Sendable {
         self.artwork = artwork
         self.meetingLink = meetingLink
         self.accent = accent
+        self.recording = recording
     }
 }
 
@@ -327,7 +347,10 @@ public struct NotchState: Hashable, Sendable {
         case (.suspended, _):
             break
 
-        // Opening. Like a live activity, an ongoing one opens the space that shows its feature.
+        // Opening. Like a live activity, an ongoing one opens the space that shows its feature, except a
+        // recording: hovering it shows Pause and Stop, and only a click opens.
+        case (.compact, .pointerEntered) where restingActivity?.recording != nil:
+            break
         case (.compact, .pointerEntered):
             aim(at: restingActivity?.feature)
             presentation = .hoverArmed

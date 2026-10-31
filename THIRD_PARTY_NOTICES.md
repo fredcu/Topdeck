@@ -1622,6 +1622,59 @@ at that commit.
    limitations under the License.
 ```
 
+## Snapzy (BSD-3-Clause)
+
+https://github.com/duongductrong/Snapzy at commit
+77d3d3feb7f46d1909dce8824f3b35d5709378a2, adapted into
+`Sources/TopdeckFeatures/Recording`: the pause timeline and the encoding settings
+(`RecordingModels.swift`), the writer that takes the frames and the sound
+(`RecordingWriter.swift`), the ScreenCaptureKit recorder (`ScreenRecorder.swift`),
+the microphone capture (`MicrophoneCapturer.swift`), the cursor sampling
+(`CursorRecorder.swift`, `CursorTrack.swift`) and the ring drawn at a click
+(`ClickHighlight.swift`), from `Snapzy/Features/Recording` and
+`Snapzy/Services/Capture`. Each adapted file names its origin in its header.
+Topdeck's changes: renamed; H.264 MP4 only; one recorder for a display or a
+window with no area selection, annotation, camera overlay, keystroke overlay,
+cloud, or localisation; the movie is written in fragments, so a recording cut
+short still plays; a failure ends the recording cleanly and keeps the file; the
+sidecar is a small JSON file of cursor positions. The video editor adapts the
+zoom and speed segments, the zoom curve, the time map, and the compositor and
+export approach from `Snapzy/Features/VideoEditor`, in
+`Sources/TopdeckFeatures/Video`, with an edit model, a single-clip timeline and
+an export pipeline of its own. "Snapzy" and its logo belong to its author;
+Topdeck doesn't use them and isn't affiliated with or endorsed by Snapzy.
+
+```text
+BSD 3-Clause License
+
+Copyright (c) 2026, Trong Duong Duc
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
 
 ## Name (License)
 https://github.com/owner/repo

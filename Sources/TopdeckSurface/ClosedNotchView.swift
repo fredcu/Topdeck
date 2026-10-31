@@ -10,6 +10,10 @@ struct ClosedNotchView: View {
     let metrics: NotchMetrics
     /// Opens a meeting's link, from the Join button.
     var join: (URL) -> Void = { _ in }
+    /// The pointer is on the notch: a recording shows Pause and Stop in place of its clock.
+    var hovered = false
+    /// Pause, resume or stop the recording, from its buttons.
+    var control: (RecordingControl) -> Void = { _ in }
 
     var body: some View {
         Group {
@@ -41,6 +45,14 @@ struct ClosedNotchView: View {
         .accessibilityLabel(content.spoken)
         .accessibilityActions {
             if let link = content.join { Button("Join meeting") { join(link) } }
+            if case .recording(.running) = content.trailing {
+                Button("Pause recording") { control(.pause) }
+                Button("Stop recording") { control(.stop) }
+            }
+            if case .recording(.paused) = content.trailing {
+                Button("Resume recording") { control(.resume) }
+                Button("Stop recording") { control(.stop) }
+            }
         }
     }
 
@@ -70,6 +82,8 @@ struct ClosedNotchView: View {
                     .font(.system(size: 12, weight: .semibold))
                     .frame(width: 16, height: 16)
                     .foregroundStyle(color(content.tone))
+            case .recordDot:
+                recordDot
             }
             if let label = content.label {
                 Text(label)
@@ -105,7 +119,76 @@ struct ClosedNotchView: View {
             Text(text).font(.system(size: 13, weight: .semibold)).foregroundStyle(Deck.secondary).lineLimit(1)
         case .badge(let count):
             DeckBadge(count)
+        case .recording(let phase):
+            recording(phase)
         }
+    }
+
+    /// A solid red dot while recording, a ring while held.
+    private var recordDot: some View {
+        var held = false
+        if case .recording(.paused) = content.trailing { held = true }
+        return Circle()
+            .fill(held ? Color.clear : Deck.Tint.record)
+            .overlay(Circle().strokeBorder(Deck.Tint.record, lineWidth: held ? 2 : 0))
+            .frame(width: 10, height: 10)
+            .frame(width: 16, height: 16)
+    }
+
+    /// The count before it starts, the clock while it runs, and Pause and Stop under the pointer.
+    @ViewBuilder private func recording(_ phase: RecordingPhase) -> some View {
+        switch phase {
+        case .countdown(let seconds):
+            clock(Text("\(seconds)"))
+        case .running(let since):
+            if hovered {
+                recordingButtons(running: true)
+            } else {
+                clock(Text(timerInterval: since...since.addingTimeInterval(99 * 3600), countsDown: false))
+            }
+        case .paused(let elapsed):
+            if hovered {
+                recordingButtons(running: false)
+            } else {
+                clock(Text(ClosedContent.clockText(elapsed)))
+            }
+        }
+    }
+
+    private func clock(_ text: Text) -> some View {
+        text.font(.system(size: 13, weight: .semibold, design: .rounded))
+            .monospacedDigit()
+            .foregroundStyle(Deck.text)
+            .lineLimit(1)
+            .frame(width: ClosedContent.recordingWidth, alignment: .trailing)
+    }
+
+    private func recordingButtons(running: Bool) -> some View {
+        HStack(spacing: 6) {
+            recordingButton(
+                running ? "pause.fill" : "play.fill", label: running ? "Pause recording" : "Resume recording"
+            ) {
+                control(running ? .pause : .resume)
+            }
+            recordingButton("stop.fill", label: "Stop recording", tint: Deck.stop) { control(.stop) }
+        }
+        .frame(width: ClosedContent.recordingWidth, alignment: .trailing)
+    }
+
+    private func recordingButton(_ symbol: String, label: String, tint: Color = Deck.text, action: @escaping () -> Void)
+        -> some View
+    {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(tint)
+                .frame(width: ClosedContent.recordingButton, height: ClosedContent.recordingButton)
+                .background(Circle().fill(Deck.control))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help(label)
+        .accessibilityLabel(label)
     }
 
     /// "4 min" in signal, and the Join button that opens the call.

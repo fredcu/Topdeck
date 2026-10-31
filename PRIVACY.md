@@ -70,6 +70,22 @@ Topdeck is local-first.
   so the Tools screen can list them; Topdeck never deletes or sends them, and
   **Delete** on a capture there moves it to the Trash. Text and QR codes are
   only copied.
+- Screen recordings (Record Window and Record Screen in Tools) use the same
+  Screen Recording permission. A recording is an MP4 in the same Captures
+  folder, with a small JSON file beside it that holds where the pointer was
+  (positions in the picture, no keystrokes), for the editor's follow-cursor
+  zoom. **System audio** and **Microphone**, two switches in the recording
+  options, are off until you turn them on and add that sound to the file:
+  system audio through ScreenCaptureKit on the Screen Recording permission, the
+  microphone only after macOS has asked for it the first time you use it
+  (denying it records without it). A recording never includes Topdeck's own
+  windows, apart from the ring that marks a click when you leave **Show clicks**
+  on. Nothing is sent anywhere: the files stay on this Mac, **Delete** moves them
+  (and the JSON files beside them) to the Trash, and Topdeck deletes none. The
+  video editor works on the file in place and writes its edits to a JSON file
+  beside it; an export is a new file next to the original. While a recording
+  runs, Topdeck keeps the display from sleeping. Recordings don't go in the
+  Clipboard history.
 - The Mac page reads the Mac's own counters (CPU, GPU, memory, disk and
   network totals, the busiest processes' names, temperatures, battery) and
   keeps the last minute in memory only while the page is on screen. It stores
@@ -78,7 +94,8 @@ Topdeck is local-first.
   to the sound, and listen to nothing. Only the Sound tab listens to your
   Mac's audio output, to set each app's volume (macOS asks for "system audio
   recording" permission the first time); it never records, stores, or sends
-  audio.
+  audio. (A screen recording with System audio on is the one other place
+  Topdeck takes in sound, and it is yours: see above.)
 - Shuffle, repeat, Music's up next and lyrics, Spotify's recently played, and,
   in the App Store edition, all of Media's controls talk to Music or Spotify
   through their own AppleScript, on this Mac. macOS asks first (Privacy &

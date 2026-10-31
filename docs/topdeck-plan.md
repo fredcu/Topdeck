@@ -154,10 +154,21 @@ Input Sources. The bars in the closed notch while music plays move to a made-up 
 Wings: Now, Shelf, Clipboard; Tools, Agents, Mac.
 
 Batch 3 of round 3 rebuilds Tools, Agents and Mac to the `Tools3`, `Agents3` and `Mac3` boards, and the
-sub-tabs are gone: Mac's old tabs are screens that slide over its page. Recording and the video editor are the
-next batch (their tiles are disabled). Cost and tokens use one path: the log scanners and `ModelPricingStore`
+sub-tabs are gone: Mac's old tabs are screens that slide over its page. Recording and the video editor are batch 4 (below). Cost and tokens use one path: the log scanners and `ModelPricingStore`
 the app already had, read back as far as the logs go ("All"), with prices fetched once a day from the same
 three public lists. Cline is a provider: tokens and cost from `~/.cline/data/sessions`, read as a stream so no
 conversation is held in memory, and its plan limits from Cline's own endpoint with the CLI's access token.
 The owner's earlier usage readers (price feed, aggregator, Cline, Codex and Grok history) were compared with
 these and not copied where the app already had the same thing.
+
+Batch 4 of round 3 (`round3-record`) adds window and screen recording and the video editor (`Editor3`), adapted from Snapzy
+(BSD-3-Clause, commit `77d3d3feb7f4`; the clone is deleted when the batch is done). Recording is ScreenCaptureKit into
+`AVAssetWriter`: H.264 MP4 at the display's scale and 60 fps, written in fragments so a recording cut short still plays,
+with the system audio and the microphone as two tracks. The countdown, clock, Pause and Stop live in the closed notch as an
+ongoing activity of Capture. A recording that ends by itself is closed, kept and announced once. The editor is a normal window
+(Trim, Zoom, Crop, Speed, Background, Audio; undo and redo; MP4 and GIF export) whose edits are a JSON sidecar beside the
+video; the edit model, timeline maths and export settings are AppKit-free and tested, and export runs off the main thread.
+
+Needs a real Mac: recording a window and a screen, the Screen Recording and microphone prompts, system audio, a revoked
+permission mid-recording, a closed window, a full disk, the notch states on a notch and a notchless display, and the editor
+against a real recording.

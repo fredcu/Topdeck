@@ -25,6 +25,8 @@ public struct NotchContent {
     public var slot: (SpaceID) -> AnyView
     /// Joins a meeting from the closed notch's Join button.
     public var join: (URL) -> Void
+    /// Pauses, resumes or stops a recording, from the closed notch's buttons.
+    public var recording: (RecordingControl) -> Void
     /// What stands at the left of the second row of a space, in place of its name: the
     /// Clipboard's filters, the Shelf's count. Nil keeps the name.
     public var leading: (SpaceID) -> AnyView?
@@ -39,6 +41,7 @@ public struct NotchContent {
         screen: @escaping (SpaceID, Set<FeatureID>) -> AnyView? = { _, _ in nil },
         slot: @escaping (SpaceID) -> AnyView = { _ in AnyView(EmptyView()) },
         join: @escaping (URL) -> Void = { NSWorkspace.shared.open($0) },
+        recording: @escaping (RecordingControl) -> Void = { _ in },
         leading: @escaping (SpaceID) -> AnyView? = { _ in nil }
     ) {
         self.feature = feature
@@ -50,6 +53,7 @@ public struct NotchContent {
         self.screen = screen
         self.slot = slot
         self.join = join
+        self.recording = recording
         self.leading = leading
     }
 }
@@ -92,14 +96,20 @@ struct NotchView: View {
                 )
                 .transition(.opacity)
             } else if case .transient(let activity) = presentation {
-                ClosedNotchView(content: ClosedContent(activity), metrics: metrics, join: content.join)
-                    .transition(.opacity)
+                ClosedNotchView(
+                    content: ClosedContent(activity), metrics: metrics, join: content.join,
+                    hovered: engine.state.pointerInside, control: content.recording
+                )
+                .transition(.opacity)
             } else if presentation == .dropTarget {
                 DropTargetView()
                     .transition(.opacity)
             } else if let resting {
-                ClosedNotchView(content: ClosedContent(resting), metrics: metrics, join: content.join)
-                    .transition(.opacity)
+                ClosedNotchView(
+                    content: ClosedContent(resting), metrics: metrics, join: content.join,
+                    hovered: engine.state.pointerInside, control: content.recording
+                )
+                .transition(.opacity)
             }
         }
         .frame(width: size.width, height: size.height, alignment: .top)

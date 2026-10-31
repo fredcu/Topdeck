@@ -13,6 +13,8 @@ extension CaptureFeature.Tool {
         case .qrCode: .qrCode
         case .color: .colorPicker
         case .pin: .pin
+        case .recordWindow: .window
+        case .recordScreen: .display
         }
     }
 
@@ -74,31 +76,79 @@ struct CaptureView: View {
                     }
                 }
             }
-            // Recording and the video editor are built in a later batch.
             row(3) {
-                ToolTile(
-                    title: "Record Window", icon: .window, tint: Deck.Tint.record, compact: compact,
-                    disabledHelp: Self.soon
-                ) {}
-                ToolTile(
-                    title: "Record Screen", icon: .display, tint: Deck.Tint.record, compact: compact,
-                    disabledHelp: Self.soon
-                ) {}
-                ToolTile(
-                    title: "Edit Video", icon: .film, tint: Deck.Accent.clipboard, compact: compact,
-                    disabledHelp: Self.soon
-                ) {}
+                RecordTile(capture: capture, tool: .recordWindow, compact: compact)
+                RecordTile(capture: capture, tool: .recordScreen, compact: compact)
+                ToolTile(title: "Edit Video", icon: .film, tint: Deck.Accent.clipboard, compact: compact) {
+                    capture.editVideo()
+                }
             }
             RecentCaptures(capture: capture, compact: compact)
         }
         .frame(maxHeight: .infinity, alignment: .top)
     }
 
-    static let soon = "Coming next"
     @Environment(\.deckAccent) private var accent
 
     private func row<Content: View>(_ count: Int, @ViewBuilder _ content: () -> Content) -> some View {
         HStack(spacing: 8) { content() }.frame(height: compact ? 56 : 80)
+    }
+}
+
+/// Record Window or Record Screen: a tile that starts the recording, and ends it while one is on. A small
+/// button in its corner opens what the recording takes along.
+struct RecordTile: View {
+    let capture: CaptureFeature
+    let tool: CaptureFeature.Tool
+    var compact = false
+    @State private var showsOptions = false
+    @Environment(\.deckAccent) private var accent
+
+    var body: some View {
+        let active = capture.recorder.isActive
+        ToolTile(
+            title: active ? "Stop" : tool.tileTitle, icon: tool.icon, tint: active ? Deck.stop : Deck.Tint.record,
+            compact: compact
+        ) {
+            capture.run(tool)
+        }
+        .accessibilityLabel(active ? "Stop recording" : tool.title)
+        .overlay(alignment: .topTrailing) {
+            if !active {
+                Button {
+                    showsOptions.toggle()
+                } label: {
+                    DeckIconView(.more, size: 12)
+                        .foregroundStyle(Deck.secondary)
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Recording options")
+                .deckPopover(isPresented: $showsOptions) {
+                    RecordingOptionsView(recorder: capture.recorder).environment(\.deckAccent, accent)
+                }
+            }
+        }
+    }
+}
+
+/// What a recording takes along: the Mac's sound, the microphone, and a ring where the mouse clicks.
+struct RecordingOptionsView: View {
+    @Bindable var recorder: RecordingController
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Deck.Metric.gap) {
+            Toggle("System audio", isOn: $recorder.options.systemAudio)
+            Toggle("Microphone", isOn: $recorder.options.microphone)
+            Toggle("Show clicks", isOn: $recorder.options.showClicks)
+        }
+        .toggleStyle(.switch)
+        .controlSize(.small)
+        .tint(Deck.go)
+        .deckText(.body)
+        .padding(Deck.Metric.cardPadding)
+        .frame(width: 200)
     }
 }
 

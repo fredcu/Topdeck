@@ -4,7 +4,7 @@ Approved design: the artboards in `docs/design/`, one `.dc.html` file each, styl
 `docs/design/deck.css`. They are the source of truth for layout, sizes, colours and copy; open them
 in a browser if it helps. This file states what the boards can't. Round 3 (`NowColor3`, `NowPlay3`,
 `NoteAdd3`) sets the colours and Now; `Shelf3` and `Clipboard3` set those two spaces; `Agents3`, `Tools3` and
-`Mac3` set those three; `Editor3` shows where the editor goes and is built in a later batch. Where an older board disagrees with a
+`Mac3` set those three; `Editor3` sets the video editor. Where an older board disagrees with a
 round 3 one, round 3 wins. App icon: `docs/design/icon-paper.svg`.
 
 ## Tokens
@@ -147,8 +147,7 @@ also copied stays one item (the pictures are matched by a fingerprint of their P
 ### Tools
 
 Board `Tools3`, with the owner's changes. Body, left: row one Area, Window, Screen, Scrolling, Text; row
-two Record Window, Record Screen, Edit Video, shown but disabled with a `.help` of "Coming next" (built in
-the next batch; there is no Record Area); under them the recent captures as thumbnails, as many as fit
+two Record Window, Record Screen, Edit Video (there is no Record Area; see Recording below); under them the recent captures as thumbnails, as many as fit
 (real images), each with a kind badge (PNG, MP4 or GIF) and its time. Click opens a picture in the editor,
 drag takes the file out, right-click offers Copy, Reveal and Delete (to the Trash). Every screenshot,
 including a scrolling or pinned one, is kept as a PNG in the Captures folder, which the list reads; the
@@ -157,6 +156,27 @@ Screen, Pick Colour and Shortcuts, each with a pill (the running time, the time 
 count). Timer, Keep Awake, Pick Colour and Shortcuts open their controls in a popover; the recent colours
 live in Pick Colour's. QR Code and Pin stay on their shortcuts and in the Command Bar. At 620×340 the tiles
 and thumbnails shrink.
+
+#### Recording
+
+Record Window picks a window with the Window tool's highlight and pick overlay; Record Screen records the
+only display, or asks which from a menu at the pointer when there are several. A small button in a Record
+tile's corner opens a popover with three switches, remembered: System audio and Microphone (both off to begin
+with) and Show clicks (on). While a recording is on, the two Record tiles read Stop (in the stop colour) and a
+press ends it, or cancels its countdown. Both are also commands (Record Window, Record Screen) with shortcuts in
+Settings › Capture, like the other tools.
+
+Three seconds count down in the closed notch, a red dot to the left of the camera and the number to the right;
+Esc cancels it (a global Escape is held for the three seconds only). Then the dot and the clock: Topdeck's own
+windows stay out of the picture, apart from the ring that marks a click, which is drawn in the Tools accent
+(a window recording marks no clicks: a window's picture has nowhere to put them). With the pointer on the closed notch the clock is
+replaced by Pause and Stop, and hovering does not open the deck (a click does, on Tools); paused, the dot is a ring and
+the clock holds. It is an ordinary ongoing activity of the Capture feature and sits above music (and the
+network's speed) like any newer one. Stop saves `Screen Recording <date> at <time>.mp4` (or `Window Recording …`) in
+Captures, lists it with its MP4 badge and a thumbnail, and opens the editor. A recording that ends by itself (the
+permission revoked, the disk nearly full or full, the window closed, a display unplugged) is closed, kept, and
+announced once in the notch; the editor stays shut. The display is kept awake with its own power assertion,
+released when the recording ends.
 
 ### Mac
 
@@ -185,6 +205,11 @@ one per tool, a row each for 5h, W and M: a bar in the tool's colour for what is
 time to the reset, and a tick where even use would have the bar by now. A tool that cannot be read shows
 "Checking…", "Sign in" or "Unavailable", with the reason in its tooltip, never zeros. Tool colours are tokens:
 Claude `#F2A773`, Codex `#8FD6A4`, Antigravity `#8FB8FF`, Cline `#E7A6F0`, Grok `#C9D0DE`, any other neutral.
+
+## Closed notch states for recording
+
+Counting down: `●  |  3`. Recording: `●  |  1:42`, and with the pointer on it `●  |  ⏸ ⏹` in the same width, so
+the notch holds still. Paused: a ring in place of the dot, the clock held. Reduce Motion: nothing here moves.
 
 ## Settings
 

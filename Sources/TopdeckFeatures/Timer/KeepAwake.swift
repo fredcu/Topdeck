@@ -55,7 +55,10 @@ struct PowerAssertions {
         held = [:]
     }
 
-    static var live: PowerAssertions {
+    static var live: PowerAssertions { live(system: "Keep Awake, in the Timer tab", display: "Keep Awake, screen on") }
+
+    /// Assertions named `system` and `display` in `pmset -g assertions`: recording holds its own.
+    static func live(system systemName: String, display displayName: String) -> PowerAssertions {
         PowerAssertions(
             create: { kind in
                 // Named so `pmset -g assertions` says who's keeping the Mac awake.
@@ -63,9 +66,9 @@ struct PowerAssertions {
                 let name: String
                 switch kind {
                 case .system:
-                    (type, name) = (kIOPMAssertPreventUserIdleSystemSleep, "Topdeck: Keep Awake, in the Timer tab")
+                    (type, name) = (kIOPMAssertPreventUserIdleSystemSleep, "Topdeck: \(systemName)")
                 case .display:
-                    (type, name) = (kIOPMAssertPreventUserIdleDisplaySleep, "Topdeck: Keep Awake, screen on")
+                    (type, name) = (kIOPMAssertPreventUserIdleDisplaySleep, "Topdeck: \(displayName)")
                 }
                 var id: IOPMAssertionID = 0
                 let status = IOPMAssertionCreateWithName(

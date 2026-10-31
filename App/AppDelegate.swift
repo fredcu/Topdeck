@@ -51,6 +51,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let notchKey = HotKey()
     /// Escape, only while a notch the shortcut opened is still open.
     private let escapeKey = HotKey()
+    /// Escape, only while a recording's countdown runs: it cancels the recording.
+    private let recordingEscapeKey = HotKey()
     /// Starts a new note from any app, while Notes has it on.
     private let quickNoteKey = HotKey()
     /// Opens the Clipboard tab from any app, ready to search.
@@ -286,6 +288,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         notes: preferences.isEnabled(.notes) ? notes : nil, model: nowModel))
             },
             join: { [calendar] url in calendar.join(url: url) },
+            recording: { [capture] control in capture.recorder.handle(control) },
             leading: { [unowned self] space in
                 switch space {
                 case .shelf: shelf.headerLeading()
@@ -296,7 +299,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             })
         let coordinator = PanelCoordinator(preferences: preferences, content: content)
         // Esc closes an open add field first, and the deck only when there is none.
-        coordinator.takesEscape = { [nowModel] in nowModel.escape() }
+        coordinator.takesEscape = { [nowModel, capture] in nowModel.escape() || capture.cancelRecordingCountdown() }
         coordinator.onNotchesChange = { [weak self] notches in
             guard let self else { return }
             features.update(notches: notches, enabled: Set(preferences.enabledFeatures))
@@ -324,6 +327,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if preferences.isEnabled(.clipboard) { clipboard.addScreenshot(png: png) }
         }
         capture.onBegin = { [weak coordinator] in coordinator?.dismissAll() }
+        // A recording shows in the closed notch with priority over music; its countdown ends on Escape.
+        capture.recorder.onOngoing = { [weak coordinator] in coordinator?.setOngoing($0, for: .capture) }
+        capture.recorder.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
+        capture.recorder.onCountdownChange = { [recordingEscapeKey] counting in
+            recordingEscapeKey.shortcut = counting ? .escape : nil
+        }
+        recordingEscapeKey.onPress = { [capture] in capture.cancelRecordingCountdown() }
         capture.isEnabled = { [preferences] in preferences.isEnabled(.capture) }
         capture.addToShelf = { [preferences, shelf] urls in preferences.isEnabled(.shelf) && shelf.add(urls) }
         calendar.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
@@ -410,6 +420,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         // Stops every feature, including the media helper process and the camera.
         features.update(notches: [], enabled: [])
+        capture.recorder.stopForQuit()  // so a recording's file is whole
         pinnedNotes.stop()
         commandBar.stop()
         inputSwitch.stop()
