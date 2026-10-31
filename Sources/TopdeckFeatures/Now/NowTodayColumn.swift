@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
+import AppKit
 import SwiftUI
 import TopdeckSurface
 
 /// The left column: the next event that hasn't ended with a Join button when it has a link, the rest of
-/// today's events, and the notes, the most recently edited first. With nothing left today the Today
+/// today's events, and the notes, in the order Settings sets (the most recently edited first to begin with),
+/// each with a square in its colour. With nothing left today the Today
 /// section is gone and Notes moves up; with nothing at all, one line.
 struct NowTodayColumn: View {
     let calendar: CalendarFeature?
@@ -14,7 +16,7 @@ struct NowTodayColumn: View {
 
     var body: some View {
         let agenda = NowAgenda(events: calendar?.rangeEvents ?? [], now: now)
-        let recent = notes?.recent ?? []
+        let recent = notes?.visibleNotes ?? []
         VStack(alignment: .leading, spacing: 0) {
             if let next = agenda.next {
                 Text("Today").deckText(.item).frame(height: 22)
@@ -22,9 +24,9 @@ struct NowTodayColumn: View {
                 ForEach(Array(agenda.later.prefix(metrics.laterEvents))) { event in later(event) }
                 if !recent.isEmpty { DeckSeparator().padding(.vertical, 8) }
             }
-            if !recent.isEmpty {
+            if let notes, !recent.isEmpty {
                 Text("Notes").deckText(.item).frame(height: 22)
-                notesList(recent)
+                notesList(recent, notes: notes)
             }
             if agenda.next == nil, recent.isEmpty {
                 DeckEmptyLine("Nothing today")
@@ -75,30 +77,92 @@ struct NowTodayColumn: View {
 
     // MARK: Notes
 
-    private func notesList(_ recent: [Note]) -> some View {
+    private func notesList(_ recent: [Note], notes: NotesFeature) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(recent) { note in
-                    Button {
-                        openNote(note)
-                    } label: {
-                        HStack(spacing: 8) {
-                            DeckIconView(.note, size: 13).foregroundStyle(Deck.tertiary).frame(width: 14)
-                            Text(note.title).deckText(.body).lineLimit(1)
-                            Spacer(minLength: 0)
-                            if note.window != nil {
-                                DeckIconView(.pin, size: 12).foregroundStyle(Deck.tertiary)
-                            }
-                        }
-                        .frame(height: metrics.itemHeight)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(note.window != nil ? "\(note.title), pinned to the desktop" : note.title)
-                    .accessibilityHint(note.window != nil ? "Brings the note forward" : "Opens the note in Stash")
+                    NoteListRow(notes: notes, note: note, height: metrics.itemHeight, open: openNote)
                 }
             }
         }
         .fadingEdges(atStart: false)
+    }
+}
+
+/// One note in the list: a square in its colour, its title, and a pin mark when it has a window. A click
+/// opens it in a floating window; the context menu sets its colour and window, shows it in Finder, shares
+/// it, and deletes it after a confirmation.
+private struct NoteListRow: View {
+    let notes: NotesFeature
+    let note: Note
+    let height: CGFloat
+    let open: (Note) -> Void
+
+    @State private var confirmsDelete = false
+
+    var body: some View {
+        Button {
+            open(note)
+        } label: {
+            HStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(note.color?.swatch ?? Deck.control)
+                    .frame(width: 13, height: 13)
+                    .frame(width: 14)
+                Text(note.title).deckText(.body).lineLimit(1)
+                Spacer(minLength: 0)
+                if note.window != nil {
+                    DeckIconView(.pin, size: 12).foregroundStyle(Deck.tertiary)
+                }
+            }
+            .frame(height: height)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onDrag { notes.fileURL(for: note.id).flatMap { NSItemProvider(contentsOf: $0) } ?? NSItemProvider() }
+        .contextMenu { menu }
+        .deckPopover(isPresented: $confirmsDelete) {
+            VStack(alignment: .leading, spacing: Deck.Metric.gap) {
+                Text("Move \u{201C}\(note.title)\u{201D} to the Trash?").deckText(.body).lineLimit(2)
+                HStack(spacing: 8) {
+                    Button("Cancel") { confirmsDelete = false }.buttonStyle(.deck(compact: true))
+                    Button("Delete") {
+                        confirmsDelete = false
+                        notes.delete(note.id)
+                    }
+                    .buttonStyle(.deck(.accent, compact: true))
+                }
+            }
+            .padding(12)
+            .frame(width: 220, alignment: .leading)
+        }
+        .accessibilityLabel(note.window != nil ? "\(note.title), pinned" : note.title)
+        .accessibilityHint(note.window != nil ? "Brings the note forward" : "Opens the note in a window")
+        .accessibilityActions {
+            Button("Pin to Desktop") { notes.setWindow(note.id, .desktop) }
+            Button("Keep on Top") { notes.setWindow(note.id, .top) }
+            if note.window != nil { Button("Unpin") { notes.setWindow(note.id, nil) } }
+            Button("Delete") { confirmsDelete = true }
+        }
+    }
+
+    @ViewBuilder private var menu: some View {
+        Picker("Colour", selection: Binding(get: { note.color }, set: { notes.setColor(note.id, $0) })) {
+            Text("No Colour").tag(NoteColor?.none)
+            ForEach(NoteColor.allCases) { color in Text(color.name).tag(NoteColor?.some(color)) }
+        }
+        .pickerStyle(.inline)
+        Divider()
+        if note.window != .desktop { Button("Pin to Desktop") { notes.setWindow(note.id, .desktop) } }
+        if note.window != .top { Button("Keep on Top") { notes.setWindow(note.id, .top) } }
+        if note.window != nil { Button("Unpin") { notes.setWindow(note.id, nil) } }
+        Divider()
+        Button(note.isPinned ? "Stop Keeping First" : "Keep First in List") { notes.togglePin(note.id) }
+        ShareLink(item: note.text, subject: Text(note.title)) { Text("Share\u{2026}") }
+        Button("Reveal in Finder") {
+            if let url = notes.fileURL(for: note.id) { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+        }
+        Divider()
+        Button("Delete\u{2026}", role: .destructive) { confirmsDelete = true }
     }
 }

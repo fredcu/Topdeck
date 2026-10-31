@@ -204,10 +204,44 @@ struct NowAddFieldTests {
         #expect(saved.title == "Gift ideas" && saved.window == nil)
         model.begin()
         model.draft = "Trip packing list"
-        #expect(model.submit(calendar: nil, notes: notes, day: nil, pin: true))
-        #expect(notes.recent.first?.window == .desktop, "⌘Return also pins it to the desktop")
+        model.toggle(.desktop)
+        #expect(model.submit(calendar: nil, notes: notes, day: nil))
+        #expect(notes.visibleNotes.first { $0.title == "Trip packing list" }?.window == .desktop)
         notes.flush()
         try? FileManager.default.removeItem(at: folder)
+    }
+
+    @Test func aNoteTakesTheColourAndWindowPickedInTheField() throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "NowNotes-\(UUID().uuidString)")
+        let notes = NotesFeature(directory: folder, defaults: UserDefaults(suiteName: "Now.\(UUID())")!)
+        notes.phase = .foreground
+        let model = NowModel()
+        model.begin()
+        #expect(model.noteColor == nil && model.noteWindow == nil, "both off to begin with")
+        model.draft = "Wi-Fi for guests"
+        model.pick(.purple)
+        model.toggle(.top)
+        #expect(model.submit(calendar: nil, notes: notes, day: nil))
+        let saved = try #require(notes.notes.first)
+        #expect(saved.color == .purple && saved.window == .top)
+        model.begin()
+        #expect(model.noteColor == nil && model.noteWindow == nil, "the next note starts plain")
+        notes.flush()
+        try? FileManager.default.removeItem(at: folder)
+    }
+
+    @Test func desktopAndOnTopExcludeEachOtherAndEitherTurnsOffByAClickOnIt() {
+        let model = NowModel()
+        model.toggle(.desktop)
+        #expect(model.noteWindow == .desktop)
+        model.toggle(.top)
+        #expect(model.noteWindow == .top, "On Top replaces Desktop")
+        model.toggle(.top)
+        #expect(model.noteWindow == nil)
+        model.pick(.green)
+        model.pick(.green)
+        #expect(model.noteColor == nil, "picking the colour again takes it off")
+        #expect(NowModel.noteColors.count == 5)
     }
 
     @Test func anEventWithoutADateStaysInTheField() {
@@ -230,8 +264,11 @@ struct NowAddFieldTests {
         model.begin()
         model.draft = "Half a thought"
         model.picked = .note
+        model.pick(.blue)
+        model.toggle(.desktop)
         model.cancel()
         #expect(!model.isAdding && model.draft.isEmpty && model.picked == nil)
+        #expect(model.noteColor == nil && model.noteWindow == nil)
     }
 }
 

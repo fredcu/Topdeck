@@ -23,10 +23,10 @@ public enum NoteSort: String, CaseIterable, Identifiable, Sendable {
 
 /// Quick notes kept as Markdown files, one per note, named after their first line. They live in
 /// Application Support unless the user picks a folder, such as one in iCloud Drive, so they reach
-/// the iPhone's Files app or a Markdown app there. They load when the tab comes on screen, save half
-/// a second after typing stops, are written out whenever the tab goes away, and leave memory when
-/// the feature stops, except notes with a window of their own: those load at launch and keep saving
-/// while the notch is away. Empty notes are never saved.
+/// the iPhone's Files app or a Markdown app there. They load when Now comes on screen, save half
+/// a second after typing stops, are written out whenever Now goes away, and leave memory when
+/// the feature stops, except notes with a window of their own, or open in one: those load at launch
+/// and keep saving while the notch is away. Empty notes are never saved.
 @MainActor
 @Observable
 public final class NotesFeature: NotchFeature {
@@ -43,9 +43,6 @@ public final class NotesFeature: NotchFeature {
         }
     }
     public private(set) var notes: [Note] = []
-    public var selection: Note.ID?
-    /// Filters the list to notes containing this text.
-    public var search = ""
     public var sort: NoteSort {
         didSet { defaults.set(sort.rawValue, forKey: Self.sortKey) }
     }
@@ -59,10 +56,10 @@ public final class NotesFeature: NotchFeature {
     public private(set) var usesCustomFolder: Bool
     /// A short confirmation or problem. Clears itself.
     public private(set) var notice: String?
-    /// Set when a quick note starts, until the editor takes the keyboard.
-    public private(set) var wantsEditorFocus = false
     /// Called with a note's id once it has gone to the Trash.
     @ObservationIgnored public var onDelete: ((Note.ID) -> Void)?
+    /// Notes open in a window without having one of their own, which stay in memory while they are open.
+    @ObservationIgnored public var held: Set<Note.ID> = []
 
     private static let sortKey = "notes.sort"
     private static let shortcutKey = "notes.quickNoteShortcut"
@@ -88,22 +85,16 @@ public final class NotesFeature: NotchFeature {
         try? FileManager.default.createDirectory(at: self.directory, withIntermediateDirectories: true)
     }
 
-    public var view: some View { NotesView(notes: self) }
-
-    public var selected: Note? { notes.first { $0.id == selection } }
-
     /// The notes shown in windows of their own.
     public var windowed: [Note] { notes.filter { $0.window != nil } }
 
     /// Every note, the most recently edited first: what Now lists.
     public var recent: [Note] { notes.sorted { $0.modified > $1.modified } }
 
-    /// The notes the list shows: matching the search, pinned first, then in the chosen order.
+    /// The notes Now lists: kept-first notes at the top, then in the order chosen in Settings.
     public var visibleNotes: [Note] {
-        let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
-        let matching = query.isEmpty ? notes : notes.filter { $0.text.localizedCaseInsensitiveContains(query) }
         let order = self.sort
-        return matching.sorted { lhs, rhs in
+        return notes.sorted { lhs, rhs in
             if lhs.isPinned != rhs.isPinned { return lhs.isPinned }
             switch order {
             case .modified: return lhs.modified > rhs.modified
@@ -117,25 +108,12 @@ public final class NotesFeature: NotchFeature {
     public func add(_ text: String = "") -> Note.ID {
         let note = Note(id: UUID(), text: text, modified: .now)
         notes.insert(note, at: 0)
-        selection = note.id
-        search = ""
         if !text.isEmpty {
             unsaved.insert(note.id)
             scheduleSave()
         }
         return note.id
     }
-
-    /// Starts a note from the keyboard shortcut: reuses an empty selected note, and asks the editor
-    /// for the keyboard.
-    public func quickCapture() {
-        search = ""
-        if selected?.isEmpty != true { add() }
-        wantsEditorFocus = true
-    }
-
-    /// Called by the editor once it has the keyboard.
-    public func editorTookFocus() { wantsEditorFocus = false }
 
     public func update(_ id: Note.ID, text: String) {
         guard let index = notes.firstIndex(where: { $0.id == id }), notes[index].text != text else { return }
@@ -180,7 +158,7 @@ public final class NotesFeature: NotchFeature {
                 try? FileManager.default.removeItem(at: url)
             }
         }
-        if selection == id { selection = visibleNotes.first?.id }
+        held.remove(id)
         onDelete?(id)
     }
 
@@ -216,7 +194,7 @@ public final class NotesFeature: NotchFeature {
         let keys: [URLResourceKey] = [.contentModificationDateKey, .creationDateKey]
         let listing = try? FileManager.default.contentsOfDirectory(
             at: directory, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles])
-        // Ids stay the same across reloads so the selection sticks. Files from before notes were
+        // Ids stay the same across reloads so open windows keep their notes. Files from before notes were
         // named by title are named by their id.
         let known = Dictionary(
             notes.compactMap { note in note.fileName.map { ($0, note.id) } }, uniquingKeysWith: { first, _ in first })
@@ -243,7 +221,6 @@ public final class NotesFeature: NotchFeature {
         let pendingIDs = Set(pending.map(\.id))
         let pendingFiles = Set(pending.compactMap(\.fileName))
         notes = pending + stored.filter { !pendingIDs.contains($0.id) && !pendingFiles.contains($0.fileName ?? "") }
-        if selected == nil { selection = visibleNotes.first?.id }
     }
 
     /// Writes every unsaved note now, renaming a file Topdeck named when its title changed; a note
@@ -285,15 +262,42 @@ public final class NotesFeature: NotchFeature {
         unsaved = []
     }
 
-    /// Lets go of every note but those with windows, and edits not yet written.
+    /// Lets go of every note but those with windows or open in one, and edits not yet written.
     private func keepOnlyWindowed() {
-        notes = notes.filter { $0.window != nil || unsaved.contains($0.id) }
+        notes = notes.filter { $0.window != nil || held.contains($0.id) || unsaved.contains($0.id) }
     }
 
     /// Shows the given notes as they'd load from disk. For tests and snapshots only.
     func show(notes: [Note]) {
         self.notes = notes
-        selection = visibleNotes.first?.id
+    }
+
+    /// Reads the folder and keeps the note in the file named `fileName` in memory, for the Command Bar to
+    /// open in a window without the notch. Returns its id, or nil when there is no such file.
+    public func hold(fileName: String) -> Note.ID? {
+        load()
+        guard let id = notes.first(where: { $0.fileName == fileName })?.id else {
+            if phase == .stopped { keepOnlyWindowed() }
+            return nil
+        }
+        held.insert(id)
+        if phase == .stopped { keepOnlyWindowed() }
+        return id
+    }
+
+    /// Every note in the folder as the Command Bar searches them: the file's name, the title, and the
+    /// start of the text. Read from disk, so notes are found while Now is away; edits not yet saved are
+    /// written first.
+    public func searchIndex() -> [NoteSearchEntry] {
+        flush()
+        let listing =
+            (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
+        return listing.filter { $0.pathExtension.lowercased() == "md" }.compactMap { url in
+            guard let contents = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+            let note = Note(id: UUID(), text: Note.splitFrontMatter(contents).body, modified: .now)
+            return NoteSearchEntry(
+                fileName: url.lastPathComponent, title: note.title, excerpt: String(note.text.prefix(240)))
+        }
     }
 
     private func change(_ id: Note.ID, _ apply: (inout Note) -> Void) {
@@ -361,7 +365,7 @@ public final class NotesFeature: NotchFeature {
         usesCustomFolder = custom
         notes = []
         unsaved = []
-        selection = nil
+        held = []
         loadWindowed()
     }
 
@@ -371,5 +375,19 @@ public final class NotesFeature: NotchFeature {
         var stale = false
         let options: URL.BookmarkResolutionOptions = ShelfFeature.sandboxed ? .withSecurityScope : []
         return try? URL(resolvingBookmarkData: bookmark, options: options, bookmarkDataIsStale: &stale)
+    }
+}
+
+/// A note as the Command Bar finds it.
+public struct NoteSearchEntry: Equatable, Sendable {
+    public let fileName: String
+    public let title: String
+    /// The start of the text, flattened to one line.
+    public let excerpt: String
+
+    public init(fileName: String, title: String, excerpt: String) {
+        self.fileName = fileName
+        self.title = title
+        self.excerpt = excerpt.split(whereSeparator: \.isNewline).joined(separator: " ")
     }
 }

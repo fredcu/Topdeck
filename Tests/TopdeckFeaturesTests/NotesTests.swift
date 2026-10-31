@@ -23,7 +23,7 @@ struct NotesFeatureTests {
         let relaunched = NotesFeature(directory: folder)
         relaunched.phase = .foreground
         #expect(relaunched.notes.map(\.text) == ["Groceries\n- milk"])
-        #expect(relaunched.selected?.title == "Groceries")
+        #expect(relaunched.notes.first?.title == "Groceries")
     }
 
     @Test func typingSavesAfterAShortPause() async throws {
@@ -46,7 +46,7 @@ struct NotesFeatureTests {
         #expect(files().isEmpty)
     }
 
-    @Test func deletingANoteRemovesItsFileAndMovesTheSelection() {
+    @Test func deletingANoteRemovesItsFile() {
         let notes = NotesFeature(directory: folder)
         notes.phase = .foreground
         let first = notes.add()
@@ -56,7 +56,7 @@ struct NotesFeatureTests {
         notes.phase = .background
         notes.delete(second)
         #expect(files() == ["one.md"])
-        #expect(notes.selection == first)
+        #expect(notes.notes.map(\.id) == [first])
     }
 
     @Test func stoppingWritesEverythingAndReleasesMemory() {
@@ -151,7 +151,7 @@ struct NotesFeatureTests {
         #expect(rule.text == "---\nJust text\n---\n" && rule.color == nil)
     }
 
-    @Test func pinnedNotesComeFirstAndSearchFilters() throws {
+    @Test func keptFirstNotesComeFirstThenTheChosenOrder() throws {
         let now = Date.now
         let defaults = try #require(UserDefaults(suiteName: "NotesTests.\(UUID().uuidString)"))
         let notes = NotesFeature(directory: folder, defaults: defaults)
@@ -163,20 +163,30 @@ struct NotesFeatureTests {
         #expect(notes.visibleNotes.map(\.title) == ["Pinned and old", "Newest", "Middle"])
         notes.sort = .title
         #expect(notes.visibleNotes.map(\.title) == ["Pinned and old", "Middle", "Newest"])
-        notes.search = "MILK"
-        #expect(notes.visibleNotes.map(\.title) == ["Middle"])
     }
 
-    @Test func nowListsTheMostRecentlyEditedFirst() {
-        let notes = NotesFeature(directory: folder)
-        let now = Date.now
-        notes.show(notes: [
-            Note(id: UUID(), text: "Old pinned", modified: now - 3600, isPinned: true),
-            Note(id: UUID(), text: "Newest", modified: now),
-            Note(id: UUID(), text: "Middle", modified: now - 60),
-        ])
-        notes.sort = .title
-        #expect(notes.recent.map(\.title) == ["Newest", "Middle", "Old pinned"], "neither pin nor sort setting counts")
+    @Test func theCommandBarFindsNotesWithoutTheNotchAndOpensThemInAWindow() throws {
+        let defaults = try #require(UserDefaults(suiteName: "NotesTests.\(UUID().uuidString)"))
+        let writer = NotesFeature(directory: folder, defaults: defaults)
+        writer.phase = .foreground
+        writer.update(writer.add(), text: "Gift ideas\nfor the *garden*")
+        writer.update(writer.add(), text: "Trip packing list")
+        writer.phase = .stopped
+        let notes = NotesFeature(directory: folder, defaults: defaults)
+        #expect(notes.notes.isEmpty, "nothing loaded, as when Now is away")
+        let index = notes.searchIndex()
+        #expect(index.map(\.title).sorted() == ["Gift ideas", "Trip packing list"])
+        let gift = try #require(index.first { $0.title == "Gift ideas" })
+        #expect(gift.excerpt == "Gift ideas for the *garden*", "one line of the text, searchable")
+        let id = try #require(notes.hold(fileName: gift.fileName))
+        #expect(notes.notes.map(\.id) == [id], "held in memory for its window, and only it")
+        notes.phase = .stopped
+        #expect(notes.notes.map(\.id) == [id], "stopping Notes keeps a note that is open")
+        notes.held = []
+        notes.phase = .background
+        notes.phase = .stopped
+        #expect(notes.notes.isEmpty)
+        #expect(notes.hold(fileName: "missing.md") == nil)
     }
 
     @Test func choosingAFolderMovesTheNotesThere() throws {

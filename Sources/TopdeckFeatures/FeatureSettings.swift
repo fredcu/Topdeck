@@ -69,7 +69,7 @@ private struct NotesSettings: View {
             }
             Toggle(isOn: $notes.quickNoteShortcut) {
                 Text("Control-Option-N starts a new note")
-                Text("Opens the notch on Notes from any app, ready to type.")
+                Text("Opens the notch on Now from any app, ready to type.")
             }
         }
     }

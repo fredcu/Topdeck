@@ -8,3 +8,8 @@ extension CommandBar {
         Section { KeyboardShortcuts.Recorder("Open the command bar", name: .commandBar) }
     }
 }
+
+extension CommandBar {
+    /// Its shortcut as keys, such as "\u{2325}Space", where one is set.
+    public var shortcutText: String? { KeyboardShortcuts.getShortcut(for: .commandBar)?.description }
+}

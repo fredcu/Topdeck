@@ -4,8 +4,9 @@ import SwiftUI
 import TopdeckCore
 import TopdeckSurface
 
-/// A window for each note taken out of the notch, on the desktop or on top. The windows edit the same
-/// notes as the notch, so they open at launch and keep saving while `FeatureHost` has Notes stopped.
+/// A window for each note taken out of the notch, on the desktop or on top, and for a note opened from Now's
+/// list, which floats on top until it is closed and has no window of its own in the file. The windows edit
+/// the same notes as the notch, so they open at launch and keep saving while `FeatureHost` has Notes stopped.
 /// Moving or resizing one stores its frame for that display only; a window whose display is unplugged
 /// moves to a screen that's there, and goes back when its display returns.
 @MainActor
@@ -13,6 +14,8 @@ public final class PinnedNoteWindows: NSObject, NSWindowDelegate {
     private let notes: NotesFeature
     private let frames: NoteFrameStore
     private var windows: [Note.ID: PinnedNoteWindow] = [:]
+    /// Windows of notes opened from the list, which close without the note losing anything.
+    private var opened: Set<Note.ID> = []
     /// Set while Topdeck moves windows itself, so only the user's moves are stored.
     private var placing = false
     private var screenObserver: NSObjectProtocol?
@@ -41,6 +44,20 @@ public final class PinnedNoteWindows: NSObject, NSWindowDelegate {
         notes.flush()
     }
 
+    /// Opens a note in a floating window to read and edit, or brings its window forward when it has one.
+    /// Closing the window keeps the note.
+    public func present(_ id: Note.ID) {
+        if bringForward(id) { return }
+        guard notes.notes.contains(where: { $0.id == id }) else { return }
+        notes.held.insert(id)
+        opened.insert(id)
+        let window = makeWindow(for: id, mode: .top)
+        window.isOpenedFromList = true
+        place(window, index: windows.count)
+        window.orderFrontRegardless()
+        window.makeKey()
+    }
+
     /// Brings a note's window forward and gives it the keyboard; false when it has none.
     // ponytail: a desktop note stays below other apps' windows, as its level says; it comes in front of
     // other desktop notes only. Raise it to the floating level for a moment if that isn't enough.
@@ -57,25 +74,52 @@ public final class PinnedNoteWindows: NSObject, NSWindowDelegate {
         watchFolder()
         let windowed = notes.windowed
         let ids = Set(windowed.map(\.id))
-        for (id, window) in windows where !ids.contains(id) {
+        let existing = Set(notes.notes.map(\.id))
+        // A note opened from the list stays open until its window closes or the note is gone.
+        for (id, window) in windows where !ids.contains(id) && !(opened.contains(id) && existing.contains(id)) {
+            forget(id)
             window.close()
-            windows[id] = nil
         }
         for (index, note) in windowed.enumerated() {
             guard let mode = note.window else { continue }
             if let window = windows[note.id] {
+                // A note opened from the list that was then pinned keeps its window, now as a pinned one.
+                if opened.remove(note.id) != nil {
+                    window.isOpenedFromList = false
+                    notes.held.remove(note.id)
+                }
                 window.mode = mode
                 window.title = note.title
                 continue
             }
-            let window = PinnedNoteWindow(notes: notes, id: note.id)
-            window.mode = mode
+            let window = makeWindow(for: note.id, mode: mode)
             window.title = note.title
-            window.delegate = self
-            windows[note.id] = window
             place(window, index: index)
             window.orderFrontRegardless()
         }
+        for id in opened { windows[id]?.title = notes.notes.first { $0.id == id }?.title ?? "" }
+    }
+
+    private func makeWindow(for id: Note.ID, mode: NoteWindow) -> PinnedNoteWindow {
+        let window = PinnedNoteWindow(notes: notes, id: id) { [weak self] in self?.closeOpened(id) }
+        window.mode = mode
+        window.title = notes.notes.first { $0.id == id }?.title ?? ""
+        window.delegate = self
+        windows[id] = window
+        return window
+    }
+
+    /// The close button of a note opened from the list: the window goes, the note stays.
+    private func closeOpened(_ id: Note.ID) {
+        guard opened.contains(id) else { return }
+        windows[id]?.close()
+        forget(id)
+    }
+
+    private func forget(_ id: Note.ID) {
+        windows[id] = nil
+        opened.remove(id)
+        notes.held.remove(id)
     }
 
     /// Reads the notes again when the folder changes, so a window shows what iCloud or a Markdown app
@@ -124,7 +168,10 @@ public final class PinnedNoteWindows: NSObject, NSWindowDelegate {
     }
 
     private func record(_ notification: Notification) {
-        guard !placing, let window = notification.object as? PinnedNoteWindow, let screen = window.screen else {
+        // A note opened from the list has no window of its own to remember.
+        guard !placing, let window = notification.object as? PinnedNoteWindow, !window.isOpenedFromList,
+            let screen = window.screen
+        else {
             return
         }
         let connected = Set(NSScreen.screens.map(\.displayUUID))
@@ -134,12 +181,19 @@ public final class PinnedNoteWindows: NSObject, NSWindowDelegate {
     public func windowDidMove(_ notification: Notification) { record(notification) }
 
     public func windowDidEndLiveResize(_ notification: Notification) { record(notification) }
+
+    public func windowWillClose(_ notification: Notification) {
+        guard let window = notification.object as? PinnedNoteWindow, window.isOpenedFromList else { return }
+        forget(window.noteID)
+    }
 }
 
 /// A borderless panel for one note. It takes the keyboard when clicked, without bringing Topdeck
 /// forward, so typing, Chinese input included, goes to its text view.
 final class PinnedNoteWindow: NSPanel {
     let noteID: Note.ID
+    /// Opened from Now's list rather than pinned: Escape and the bar's close button close it.
+    var isOpenedFromList = false
 
     var mode: NoteWindow = .desktop {
         didSet {
@@ -148,7 +202,7 @@ final class PinnedNoteWindow: NSPanel {
         }
     }
 
-    init(notes: NotesFeature, id: Note.ID) {
+    init(notes: NotesFeature, id: Note.ID, close: @escaping () -> Void) {
         noteID = id
         super.init(
             contentRect: NSRect(origin: .zero, size: NoteWindowPlacement.defaultSize),
@@ -161,7 +215,7 @@ final class PinnedNoteWindow: NSPanel {
         hasShadow = true
         hidesOnDeactivate = false
         minSize = NSSize(width: 140, height: 90)
-        let content = PinnedNoteHostingView(rootView: PinnedNoteView(notes: notes, id: id))
+        let content = PinnedNoteHostingView(rootView: PinnedNoteView(notes: notes, id: id, close: close))
         content.sizingOptions = []  // the user sizes the window, not the text
         contentView = content
         applyMode()
@@ -170,8 +224,11 @@ final class PinnedNoteWindow: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 
-    /// Escape never closes a pinned note; an input method composing text gets it first anyway.
-    override func cancelOperation(_ sender: Any?) {}
+    /// Escape never closes a pinned note, but it closes one opened from the list; an input method
+    /// composing text gets it first anyway.
+    override func cancelOperation(_ sender: Any?) {
+        if isOpenedFromList { close() }
+    }
 
     /// On the desktop: just above the icons, below every app's windows, on every Space, and left in
     /// place by Mission Control. On top: above other windows, full-screen apps included.
@@ -197,12 +254,13 @@ private final class PinnedNoteHostingView<Content: View>: NSHostingView<Content>
 private struct PinnedNoteView: View {
     let notes: NotesFeature
     let id: Note.ID
+    let close: () -> Void
 
     var body: some View {
         if let note = notes.notes.first(where: { $0.id == id }) {
             PinnedNoteSurface(
                 text: Binding(get: { note.text }, set: { notes.update(id, text: $0) }), color: note.color,
-                mode: note.window, setMode: { notes.setWindow(id, $0) })
+                mode: note.window, setMode: { notes.setWindow(id, $0) }, close: note.window == nil ? close : nil)
         }
     }
 }
@@ -213,13 +271,16 @@ struct PinnedNoteSurface: View {
     let color: NoteColor?
     let mode: NoteWindow?
     let setMode: (NoteWindow?) -> Void
+    /// Closes the window of a note opened from the list; nil for a pinned note, which is unpinned instead.
+    let close: (() -> Void)?
     @State private var hovering: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(
         text: Binding<String>, color: NoteColor?, mode: NoteWindow?, hovering: Bool = false,
-        setMode: @escaping (NoteWindow?) -> Void
+        setMode: @escaping (NoteWindow?) -> Void, close: (() -> Void)? = nil
     ) {
+        self.close = close
         _text = text
         self.color = color
         self.mode = mode
@@ -257,7 +318,11 @@ struct PinnedNoteSurface: View {
             ForEach(NoteWindow.allCases) { option in
                 barButton(option.icon, label: option.name, on: mode == option) { setMode(option) }
             }
-            barButton(.arrowUpRight, label: "Back to Notch", on: false) { setMode(nil) }
+            if let close {
+                barButton(.close, label: "Close", on: false, action: close)
+            } else {
+                barButton(.arrowUpRight, label: "Back to Notch", on: false) { setMode(nil) }
+            }
         }
         .padding(.horizontal, 4)
         .frame(height: 26)
@@ -321,6 +386,20 @@ extension NoteWindow {
 }
 
 extension NoteColor {
+    /// The colour of the note's square in Now's list and of the dot that picks it.
+    public var swatch: Color {
+        switch self {
+        case .red: Deck.Note.red
+        case .orange: Deck.Note.orange
+        case .yellow: Deck.Note.yellow
+        case .green: Deck.Note.green
+        case .mint: Deck.Note.mint
+        case .blue: Deck.Note.blue
+        case .purple: Deck.Note.purple
+        case .pink: Deck.Note.pink
+        }
+    }
+
     /// The note's paper: a light colour in every appearance, since it sits on the desktop.
     var paper: Color {
         switch self {

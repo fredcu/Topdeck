@@ -105,8 +105,9 @@ private struct MeetingBar: View {
     }
 }
 
-/// The add field: a line of plain words that becomes an event or a note. Return saves, ⌘Return on a note
-/// also pins it to the desktop, Tab switches Event and Note, and clicking away closes it.
+/// The add field: a line of plain words that becomes an event or a note. Return saves, Tab switches Event
+/// and Note, and clicking away closes it. With Note chosen the field also offers the note's colour in five
+/// dots and, as two toggles that exclude each other, a window on the desktop or on top.
 struct NowAddField: View {
     let calendar: CalendarFeature?
     let notes: NotesFeature?
@@ -114,6 +115,13 @@ struct NowAddField: View {
 
     @FocusState private var focused: Bool
     @State private var didFocus = false
+    /// The slot's width, which decides whether the Event/Note control has room beside a note's options.
+    @State private var slotWidth: CGFloat = .infinity
+    @Environment(\.deckAccent) private var accent
+
+    /// The width below which the control goes: at the smallest deck a note's colours and windows take the
+    /// room, and Tab still switches.
+    static let roomForKindControl: CGFloat = 440
 
     private var canEvent: Bool { calendar?.access == .granted }
     private var canNote: Bool { notes != nil }
@@ -129,12 +137,7 @@ struct NowAddField: View {
                 .takesKeyboard(true)
                 .accessibilityLabel("New item")
                 .onChange(of: model.draft) { model.edited() }
-                .onSubmit { save(pin: false) }
-                .onKeyPress(keys: [.return]) { press in
-                    guard press.modifiers.contains(.command) else { return .ignored }
-                    save(pin: true)
-                    return .handled
-                }
+                .onSubmit(save)
                 .onKeyPress(.tab) {
                     model.toggleKind(canEvent: canEvent, canNote: canNote)
                     return .handled
@@ -145,13 +148,20 @@ struct NowAddField: View {
                 ForEach(
                     NowModel.chips(for: model.draft, on: calendar?.selectedDay), id: \.self
                 ) { DeckValueChip($0) }
+            } else {
+                noteOptions
             }
-            if canEvent, canNote {
+            if canEvent, canNote, slotWidth >= Self.roomForKindControl || kind == .event {
                 DeckSegmented(NowEntryKind.allCases, selection: kind, compact: true, title: \.title) {
                     model.picked = $0
                 }
                 .padding(.leading, 4)
             }
+        }
+        .onGeometryChange(for: CGFloat.self) {
+            $0.size.width
+        } action: {
+            slotWidth = $0
         }
         .onAppear { Task { @MainActor in focused = true } }
         .onChange(of: focused) { _, now in
@@ -160,7 +170,56 @@ struct NowAddField: View {
         }
     }
 
-    private func save(pin: Bool) {
-        model.submit(calendar: canEvent ? calendar : nil, notes: notes, day: calendar?.selectedDay, pin: pin)
+    // MARK: Note options
+
+    /// Five colour dots, a hairline, then Desktop and On Top.
+    private var noteOptions: some View {
+        HStack(spacing: 8) {
+            ForEach(NowModel.noteColors) { color in dot(color) }
+            Rectangle().fill(Deck.hairline).frame(width: 1, height: 18).accessibilityHidden(true)
+            windowToggle(.desktop, icon: .display, label: "Desktop")
+            windowToggle(.top, icon: .onTop, label: "On Top")
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private func dot(_ color: NoteColor) -> some View {
+        let chosen = model.noteColor == color
+        return Button {
+            model.pick(color)
+        } label: {
+            Circle()
+                .fill(color.swatch)
+                .frame(width: 15, height: 15)
+                .padding(3.5)
+                .overlay { if chosen { Circle().strokeBorder(Deck.text, lineWidth: 1.5).padding(1) } }
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .padding(-3.5)
+        .help(color.name)
+        .accessibilityLabel(color.name)
+        .accessibilityAddTraits(chosen ? .isSelected : [])
+    }
+
+    private func windowToggle(_ window: NoteWindow, icon: DeckIcon, label: String) -> some View {
+        let on = model.noteWindow == window
+        return Button {
+            model.toggle(window)
+        } label: {
+            DeckIconView(icon, size: 14)
+                .foregroundStyle(on ? accent : Deck.secondary)
+                .frame(width: 28, height: 24)
+                .background(Capsule().fill(on ? accent.tint() : Deck.control))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help(label)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    private func save() {
+        model.submit(calendar: canEvent ? calendar : nil, notes: notes, day: calendar?.selectedDay)
     }
 }

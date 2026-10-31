@@ -30,12 +30,16 @@ struct FeatureLifecycleTests {
         var session: [NotchState] = [Self.notch(.show)]
         session += FeatureID.allCases.map { Self.notch(.show, .showFeature($0)) }
         session += [Self.notch(.show, .activity(song)), Self.notch(.show, .suspend(.screenLocked)), Self.notch(.show)]
+        var wrote = false
         for state in session {
             host.update(notches: [state], enabled: enabled)
             for feature in features {
                 #expect(feature.phase == state.phase(for: feature.id), "\(feature.id) at \(state.presentation)")
             }
-            if state.onScreen == [.notes] { notes.update(notes.add(), text: "written during the session") }
+            if state.onScreen.contains(.notes), !wrote {
+                wrote = true
+                notes.update(notes.add(), text: "written during the session")
+            }
         }
 
         #expect(media.isListening, "media keeps a cheap listener in the background")

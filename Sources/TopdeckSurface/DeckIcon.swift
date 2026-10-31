@@ -10,7 +10,7 @@ public enum DeckIcon: String, CaseIterable, Sendable {
         calendar, clock, hand, terminal, cpu, volume, microphone, display, disk, network, capture, qrCode,
         recognizeText, colorPicker, scrollingCapture, moon, bolt, chevronRight, chevronDown, note, arrowUpRight, grid,
         battery, thermometer, shield, stack, list, app, markupArrow, markupRectangle, markupOval, markupPen,
-        markupHighlighter, markupMosaic, undo, markupNumber, cursor
+        markupHighlighter, markupMosaic, undo, markupNumber, cursor, onTop
 
     /// The icon's shapes, on a 24 by 24 grid.
     var shapes: String {
@@ -80,6 +80,7 @@ public enum DeckIcon: String, CaseIterable, Sendable {
         case .undo: #"<path d='M8 6L4 10l4 4M4 10h10a5 5 0 0 1 0 10h-3'/>"#
         case .markupNumber: #"<circle cx='12' cy='12' r='9'/><path d='M10 9l2-1v8'/>"#
         case .cursor: #"<path d='M6 3l13 9-6 1-3 6z'/>"#
+        case .onTop: #"<rect x='8' y='4' width='13' height='10' rx='2'/><path d='M5 9v9a2 2 0 0 0 2 2h9'/>"#
         }
     }
 }

@@ -20,8 +20,16 @@ public final class NowModel {
     public var draft = ""
     /// The kind picked by hand for this entry; nil while the field chooses as the text is typed.
     public var picked: NowEntryKind?
+    /// The colour a new note gets; nil for none. Only a note has one.
+    public var noteColor: NoteColor?
+    /// The window a new note opens in: on the desktop, on top, or none. Never both.
+    public private(set) var noteWindow: NoteWindow?
     /// A problem saving, shown where the chips are. Clears itself as the text changes.
     public private(set) var problem: String?
+
+    /// The colours the add field offers, in order. A note may have any of `NoteColor`; these are the
+    /// five the field shows.
+    public static let noteColors: [NoteColor] = [.yellow, .orange, .green, .blue, .purple]
 
     public init() {}
 
@@ -29,8 +37,20 @@ public final class NowModel {
     public func begin() {
         draft = ""
         picked = nil
+        noteColor = nil
+        noteWindow = nil
         problem = nil
         isAdding = true
+    }
+
+    /// Picks a colour for the note; picking the same one again takes it off.
+    public func pick(_ color: NoteColor) {
+        noteColor = noteColor == color ? nil : color
+    }
+
+    /// Turns a window for the note on; turning the one that is on off. Desktop and On Top exclude each other.
+    public func toggle(_ window: NoteWindow) {
+        noteWindow = noteWindow == window ? nil : window
     }
 
     /// Closes the field and keeps nothing.
@@ -38,6 +58,8 @@ public final class NowModel {
         isAdding = false
         draft = ""
         picked = nil
+        noteColor = nil
+        noteWindow = nil
         problem = nil
     }
 
@@ -75,10 +97,10 @@ public final class NowModel {
         return draft.isAllDay ? [date] : [date, draft.start.formatted(.dateTime.hour().minute())]
     }
 
-    /// Saves the entry: an event through `calendar`, or a note whose first line is the text, which
-    /// `pin` also puts on the desktop. Closes the field on success; on failure the text stays.
+    /// Saves the entry: an event through `calendar`, or a note whose first line is the text, with the
+    /// colour and window picked. Closes the field on success; on failure the text stays.
     @discardableResult
-    public func submit(calendar: CalendarFeature?, notes: NotesFeature?, day: Date?, pin: Bool = false) -> Bool {
+    public func submit(calendar: CalendarFeature?, notes: NotesFeature?, day: Date?) -> Bool {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return false }
         switch kind(canEvent: calendar != nil, canNote: notes != nil) {
@@ -90,7 +112,8 @@ public final class NowModel {
         case .note:
             guard let notes else { return false }
             let id = notes.add(text)
-            if pin { notes.setWindow(id, .desktop) }
+            if let noteColor { notes.setColor(id, noteColor) }
+            if let noteWindow { notes.setWindow(id, noteWindow) }
         }
         cancel()
         return true

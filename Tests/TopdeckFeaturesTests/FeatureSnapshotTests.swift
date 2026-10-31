@@ -130,25 +130,6 @@ struct FeatureSnapshotTests {
         network.phase = .stopped
     }
 
-    @Test func notesWithAFewNotes() throws {
-        let notes = NotesFeature(
-            directory: FileManager.default.temporaryDirectory.appending(path: "N-\(UUID())"),
-            defaults: UserDefaults(suiteName: "N-\(UUID())")!)
-        notes.phase = .foreground
-        try render(notes.view, name: "notes-empty")
-        for text in ["Groceries\n- oat milk\n- coffee", "Ideas for the notch", "Meeting notes\nShip Phase 4"] {
-            notes.update(notes.add(), text: text)
-        }
-        try render(notes.view, name: "notes")
-        notes.search = "milk"  // search stays open while it has text
-        try render(notes.view, name: "notes-searching")
-        notes.search = ""
-        let id = notes.add()
-        notes.update(id, text: "Trip\n- [ ] passport\n- [x] tickets\n- socks")
-        notes.setColor(id, .mint)
-        try render(notes.view, name: "notes-checklist")
-    }
-
     /// One monitor with both controls, one without speakers, one that doesn't answer DDC; then none.
     @Test func monitorsWithAndWithoutDDC() async throws {
         let channels: [CGDirectDisplayID: any DDCChannel] = [
