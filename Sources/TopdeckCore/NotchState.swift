@@ -3,8 +3,8 @@ import Foundation
 
 /// A feature that can own the expanded notch.
 public enum FeatureID: String, CaseIterable, Hashable, Sendable {
-    case media, sound, shelf, clipboard, capture, calendar, tasks, notes, shortcuts, timer, storage, network
-    case usage, agents, monitors, admin, performance
+    case media, sound, shelf, clipboard, capture, calendar, notes, shortcuts, timer, storage, network
+    case usage, agents, monitors, admin, performance, weather
 
     /// SF Symbol for the feature's page in Settings, beside System Settings' own symbols. The deck
     /// itself shows text labels and its own icons. Every name here exists on macOS 14.6, the oldest
@@ -17,7 +17,6 @@ public enum FeatureID: String, CaseIterable, Hashable, Sendable {
         case .clipboard: "list.clipboard"
         case .capture: "camera.viewfinder"
         case .calendar: Self.today
-        case .tasks: "checklist"
         case .notes: "note.text"
         case .shortcuts: "square.2.layers.3d"
         case .timer: "timer"
@@ -28,6 +27,7 @@ public enum FeatureID: String, CaseIterable, Hashable, Sendable {
         case .admin: "gearshape.2"
         case .monitors: "display.2"
         case .performance: "cpu"
+        case .weather: "cloud.sun"
         }
     }
 
@@ -45,7 +45,6 @@ public enum FeatureID: String, CaseIterable, Hashable, Sendable {
         case .clipboard: "Clipboard"
         case .capture: "Capture"
         case .calendar: "Calendar"
-        case .tasks: "Tasks"
         case .notes: "Notes"
         case .shortcuts: "Shortcuts"
         case .timer: "Timer"
@@ -56,6 +55,7 @@ public enum FeatureID: String, CaseIterable, Hashable, Sendable {
         case .admin: "System Admin"
         case .monitors: "Monitors"
         case .performance: "Performance"
+        case .weather: "Weather"
         }
     }
 }

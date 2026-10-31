@@ -57,12 +57,10 @@ public final class NotesFeature: NotchFeature {
     public private(set) var directory: URL
     /// Whether `directory` is a folder the user chose rather than the app's own.
     public private(set) var usesCustomFolder: Bool
-    /// A short confirmation or problem, such as "Sent 3 items to Tasks". Clears itself.
+    /// A short confirmation or problem. Clears itself.
     public private(set) var notice: String?
     /// Set when a quick note starts, until the editor takes the keyboard.
     public private(set) var wantsEditorFocus = false
-    /// Adds a task from a checklist item; returns whether it was added.
-    @ObservationIgnored public var onSendToTasks: ((String) -> Bool)?
     /// Called with a note's id once it has gone to the Trash.
     @ObservationIgnored public var onDelete: ((Note.ID) -> Void)?
 
@@ -96,6 +94,9 @@ public final class NotesFeature: NotchFeature {
 
     /// The notes shown in windows of their own.
     public var windowed: [Note] { notes.filter { $0.window != nil } }
+
+    /// Every note, the most recently edited first: what Now lists.
+    public var recent: [Note] { notes.sorted { $0.modified > $1.modified } }
 
     /// The notes the list shows: matching the search, pinned first, then in the chosen order.
     public var visibleNotes: [Note] {
@@ -166,24 +167,6 @@ public final class NotesFeature: NotchFeature {
     public func loadWindowed() {
         load()
         if phase == .stopped { keepOnlyWindowed() }
-    }
-
-    /// Sends a note's unticked checklist items to Tasks. Returns how many were added.
-    @discardableResult
-    public func sendToTasks(_ id: Note.ID) -> Int {
-        guard let note = notes.first(where: { $0.id == id }), let send = onSendToTasks else { return 0 }
-        let items = note.openChecklistItems
-        guard !items.isEmpty else {
-            show(notice: "No unticked checklist items")
-            return 0
-        }
-        let sent = items.filter(send).count
-        switch sent {
-        case 0: show(notice: "Allow Reminders access in the Tasks tab first")
-        case 1: show(notice: "Sent 1 item to Tasks")
-        default: show(notice: "Sent \(sent) items to Tasks")
-        }
-        return sent
     }
 
     public func delete(_ id: Note.ID) {

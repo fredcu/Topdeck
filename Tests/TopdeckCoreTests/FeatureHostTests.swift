@@ -26,17 +26,17 @@ struct FeatureHostTests {
 
     @Test func featuresFollowTheActivationPolicy() {
         let media = RecordingFeature(.media)
-        let notes = RecordingFeature(.notes)
-        let host = FeatureHost([media, notes])
+        let clipboard = RecordingFeature(.clipboard)
+        let host = FeatureHost([media, clipboard])
 
         host.update(notches: [notch(.show)], enabled: all)
-        #expect(media.phase == .background && notes.phase == .background)
+        #expect(media.phase == .background && clipboard.phase == .background)
         host.update(notches: [notch(.show, .clicked)], enabled: all)
-        #expect(media.phase == .foreground && notes.phase == .background)
-        host.update(notches: [notch(.show, .showFeature(.notes), .togglePin)], enabled: all)
-        #expect(media.phase == .background && notes.phase == .foreground)
+        #expect(media.phase == .foreground && clipboard.phase == .background)
+        host.update(notches: [notch(.show, .showFeature(.clipboard), .togglePin)], enabled: all)
+        #expect(media.phase == .background && clipboard.phase == .foreground)
         host.update(notches: [notch(.show, .suspend(.screenLocked))], enabled: all)
-        #expect(media.phase == .stopped && notes.phase == .stopped)
+        #expect(media.phase == .stopped && clipboard.phase == .stopped)
         #expect(media.history == [.background, .foreground, .background, .stopped])
     }
 

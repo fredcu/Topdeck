@@ -4,10 +4,10 @@ import Testing
 @testable import TopdeckCore
 
 struct SpaceTests {
-    @Test func theSixSpacesAreInTheSpecsOrder() {
-        #expect(SpaceID.defaultOrder.map(\.title) == ["Now", "Stash", "Plan", "Agents", "Mac", "Tools"])
+    @Test func theFiveSpacesAreInTheSpecsOrder() {
+        #expect(SpaceID.defaultOrder.map(\.title) == ["Now", "Stash", "Tools", "Agents", "Mac"])
         let wings = SpaceSet.all.wings
-        #expect(wings.left == [.now, .stash, .plan] && wings.right == [.agents, .mac, .tools])
+        #expect(wings.left == [.now, .stash, .tools] && wings.right == [.agents, .mac])
     }
 
     @Test func subTabsAreStashAgentsAndMacOnly() {
@@ -15,7 +15,7 @@ struct SpaceTests {
         #expect(SpaceSet.all.subTabs(of: .stash) == [.shelf, .clipboard, .notes])
         #expect(SpaceSet.all.subTabs(of: .agents) == [.agents, .usage])
         #expect(SpaceSet.all.subTabs(of: .mac) == [.performance, .sound, .monitors, .network, .storage, .admin])
-        #expect(SpaceSet.all.subTabs(of: .now).isEmpty && SpaceSet.all.subTabs(of: .plan).isEmpty)
+        #expect(SpaceSet.all.subTabs(of: .now).isEmpty && SpaceSet.all.subTabs(of: .tools).isEmpty)
         let titles = SpaceSet.all.subTabs(of: .mac).map { SpaceID.mac.subTabTitle($0) }
         #expect(titles == ["Performance", "Sound", "Displays", "Network", "Storage", "System"])
         #expect(SpaceID.agents.subTabTitle(.agents) == "Sessions" && SpaceID.agents.subTabTitle(.usage) == "Usage")
@@ -35,7 +35,11 @@ struct SpaceTests {
     @Test func aSubTabbedSpaceShowsOnlyTheChosenFeature() {
         #expect(SpaceSet.all.visibleFeatures(in: .stash, subTab: .notes) == [.notes])
         #expect(SpaceSet.all.visibleFeatures(in: .stash, subTab: nil).isEmpty)
-        #expect(SpaceSet.all.visibleFeatures(in: .plan, subTab: nil) == [.calendar, .tasks])
+        #expect(
+            SpaceSet.all.visibleFeatures(in: .now, subTab: nil) == [
+                .media, .agents, .calendar, .notes, .weather, .timer,
+            ],
+            "everything Now shows")
         #expect(
             SpaceSet.all.visibleFeatures(in: .mac, subTab: .sound) == [.sound, .monitors],
             "Sound shows the monitors' volume")
@@ -44,13 +48,13 @@ struct SpaceTests {
 
     @Test func aSpaceWithNothingOnIsHidden() {
         let set = SpaceSet(enabled: [.notes, .performance])
-        #expect(set.spaces == [.now, .stash, .mac], "Now stays; plan, agents and tools have nothing on")
+        #expect(set.spaces == [.now, .stash, .mac], "Now stays; agents and tools have nothing on")
         #expect(set.subTabs(of: .stash) == [.notes] && set.subTabs(of: .mac) == [.performance])
     }
 
     @Test func hiddenSpacesLeaveAndTheRestKeepTheirOrder() {
         let set = SpaceSet(
-            order: [.tools, .mac, .now, .plan, .stash, .agents], hidden: [.mac, .plan], enabled: Set(FeatureID.allCases)
+            order: [.tools, .mac, .now, .stash, .agents], hidden: [.mac], enabled: Set(FeatureID.allCases)
         )
         #expect(set.spaces == [.tools, .now, .stash, .agents])
     }
@@ -65,17 +69,17 @@ struct SpaceTests {
             let set = SpaceSet(hidden: hidden, enabled: Set(FeatureID.allCases))
             return (set.wings.left, set.wings.right)
         }
-        #expect(wings([.tools]) == ([.now, .stash, .plan], [.agents, .mac]))
-        #expect(wings([.tools, .mac]) == ([.now, .stash], [.plan, .agents]))
+        #expect(wings([.tools]) == ([.now, .stash], [.agents, .mac]))
+        #expect(wings([.tools, .mac]) == ([.now, .stash], [.agents]))
         let one = SpaceSet(hidden: Set(SpaceID.allCases).subtracting([.mac]), enabled: Set(FeatureID.allCases))
         #expect(one.wings.left == [.mac] && one.wings.right.isEmpty)
     }
 
     @Test func aFeatureOpensItsHomeOrAnotherSpaceThatHoldsIt() {
         let all = Set(FeatureID.allCases)
-        #expect(SpaceSet.all.target(for: .calendar) == .plan)
-        #expect(SpaceSet(hidden: [.plan], enabled: all).target(for: .calendar) == .now)
-        #expect(SpaceSet(hidden: [.plan, .now], enabled: all).target(for: .calendar) == nil)
+        #expect(SpaceSet.all.target(for: .calendar) == .now && SpaceSet.all.target(for: .weather) == .now)
+        #expect(SpaceSet(hidden: [.now], enabled: all).target(for: .calendar) == nil)
+        #expect(SpaceSet(hidden: [.stash], enabled: all).target(for: .notes) == .now, "Now shows notes too")
         #expect(SpaceSet(hidden: [.mac], enabled: all).target(for: .sound) == nil)
     }
 }

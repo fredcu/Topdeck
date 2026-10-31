@@ -163,6 +163,14 @@ public final class MediaFeature: NotchFeature {
 
     public var view: some View { MediaView(media: self) }
 
+    /// Shows a track as if it were playing, with working controls. For tests and snapshots only.
+    func show(_ now: NowPlaying?, artwork: NSImage? = nil, synced: SyncedLyrics? = nil) {
+        nowPlaying = now
+        self.artwork = artwork
+        self.synced = synced
+        source = .adapter
+    }
+
     /// Whether a now-playing source (helper process or notifications) is running.
     var isListening: Bool { stream != nil || !notificationTokens.isEmpty }
 

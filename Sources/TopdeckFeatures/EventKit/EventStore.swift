@@ -4,8 +4,8 @@ import EventKit
 import SwiftUI
 import TopdeckSurface
 
-/// One EventKit store for Calendar and Tasks, created the first time either one needs it, so
-/// enabled-but-unopened tabs cost nothing.
+/// The EventKit store for Calendar, created the first time it needs it, so an enabled-but-unopened
+/// feature costs nothing.
 @MainActor
 public final class EventStore {
     public init() {}

@@ -16,7 +16,7 @@ body:
         - Media
         - Shelf
         - Calendar
-        - Tasks (Reminders)
+        - Weather
         - Notes
         - Shortcuts
         - Timer / stopwatch
@@ -40,7 +40,7 @@ body:
     attributes:
       label: Steps to reproduce
       placeholder: |
-        1. Open the Calendar tab
+        1. Open Now
         2. …
     validations:
       required: true

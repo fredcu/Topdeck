@@ -167,23 +167,16 @@ struct NotesFeatureTests {
         #expect(notes.visibleNotes.map(\.title) == ["Middle"])
     }
 
-    @Test func uncheckedChecklistItemsGoToTasks() {
-        let text = "# Trip\n- [ ] passport\n- [x] tickets\n- socks\n  * [ ]  adapter \n- [ ]\n- [ ]x\n1. pack"
-        let note = Note(id: UUID(), text: text, modified: .now)
-        #expect(note.openChecklistItems == ["passport", "adapter"], "ticked, plain, empty, and malformed are left")
-        #expect(!Note(id: UUID(), text: "- [x] done\n- socks", modified: .now).hasOpenChecklist)
-
+    @Test func nowListsTheMostRecentlyEditedFirst() {
         let notes = NotesFeature(directory: folder)
-        notes.phase = .foreground
-        var sent: [String] = []
-        notes.onSendToTasks = {
-            sent.append($0)
-            return true
-        }
-        let id = notes.add()
-        notes.update(id, text: text)
-        #expect(notes.sendToTasks(id) == 2)
-        #expect(sent == ["passport", "adapter"])
+        let now = Date.now
+        notes.show(notes: [
+            Note(id: UUID(), text: "Old pinned", modified: now - 3600, isPinned: true),
+            Note(id: UUID(), text: "Newest", modified: now),
+            Note(id: UUID(), text: "Middle", modified: now - 60),
+        ])
+        notes.sort = .title
+        #expect(notes.recent.map(\.title) == ["Newest", "Middle", "Old pinned"], "neither pin nor sort setting counts")
     }
 
     @Test func choosingAFolderMovesTheNotesThere() throws {

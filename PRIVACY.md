@@ -4,10 +4,17 @@ Topdeck is local-first.
 
 - No accounts, analytics, telemetry, or device fingerprinting.
 - The network is used only for the AI Usage providers you turn on, for
-  uploads to your own Cloudflare R2 bucket (both below), for Synced lyrics when
-  you turn it on, and when you run a Homebrew action in System Admin. With no
-  provider on, no upload started, Synced lyrics off, and no Homebrew action
-  run, none of them touches the network.
+  uploads to your own Cloudflare R2 bucket (both below), for Weather (below),
+  for Synced lyrics when you turn it on, and when you run a Homebrew action in
+  System Admin. With no provider on, no upload started, Weather off, Synced
+  lyrics off, and no Homebrew action run, none of them touches the network.
+- Weather (Settings › Now) is on by default. While Now is open it asks macOS
+  for your approximate location, once each time it refreshes, and sends it,
+  rounded to two decimals (about a kilometre), to Open-Meteo (open-meteo.com),
+  a third-party weather service, with no key and no account. Apple resolves
+  the coordinates to a place name. The last result is kept in
+  `~/Library/Caches/Topdeck`. Turning Weather off stops all of it; denying
+  Location Services shows "Weather unavailable" and sends nothing.
 - Synced lyrics (Settings › Now) is off until you turn it on. Then, while the
   notch shows what's playing, the title, artist, and length of the
   track go to lrclib.net, a free third-party service, to find its lyrics, and
@@ -19,7 +26,7 @@ Topdeck is local-first.
   language.
 - Everything Topdeck creates (settings, notes, shelf items) stays on your Mac,
   unless you choose a notes folder that syncs, such as one in iCloud Drive.
-- System permissions (Calendar, Reminders, Camera, and so on) are requested only
+- System permissions (Calendar, Location, Camera, and so on) are requested only
   when you enable the feature that needs them. Denying one disables only that
   feature.
 - Replacing the macOS volume display is off until you turn it on. It asks for

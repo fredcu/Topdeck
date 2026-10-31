@@ -3,7 +3,7 @@
 ## [0.1.0]
 
 - Topdeck starts from ILoveNotch 1.4.0, without Mirror, Android sharing, the App Store edition or Sparkle.
-- A new deck: pure black and flush with the notch, 700 by 430 to begin with. Six spaces sit in two wings beside the camera: Now, Stash and Plan on the left, Agents, Mac and Tools on the right, with sub-tabs for Stash, Agents and Mac. Settings reorders and hides them. Now shows what's playing, the agent waiting, the next event and task, the timer and Keep Awake, only while they have something. The Glass theme, the tab row and the app drawer are gone.
+- A new deck: pure black and flush with the notch, 700 by 430 to begin with. Six spaces sit in two wings beside the camera: Now, Stash and Tools on the left, Agents and Mac on the right, with sub-tabs for Stash, Agents and Mac. Settings reorders and hides them. Now shows what's playing, the agent waiting, the day's events and notes, a month, the weather, the timer and Keep Awake. The Glass theme, the tab row and the app drawer are gone.
 - The closed notch shows what an activity is to the left of the camera and its state to the right, and a file dragged near becomes a drop target for the shelf.
 - A new app icon and menu bar glyph.
 - Windows: shortcuts for halves, thirds, quarters, almost maximize and the next display, drag to snap, and saved

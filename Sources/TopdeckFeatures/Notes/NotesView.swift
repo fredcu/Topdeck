@@ -5,7 +5,7 @@ import TopdeckSurface
 
 /// The notes tab: a list of notes beside an editor card. Hovering a note shows its pin and delete
 /// buttons. The segmented control under the text says where the note shows (the notch, on the desktop,
-/// or on top of other windows), and the dots next to it set its color. Search, sort, send to Tasks,
+/// or on top of other windows), and the dots next to it set its color. Search, sort,
 /// share and new note are in the deck's second row. Clicking into a field gives the notch keyboard
 /// focus; Escape or clicking elsewhere hands it back.
 struct NotesView: View {
@@ -170,9 +170,6 @@ struct NotesActions: View {
             .help("Sort notes")
             .accessibilityLabel("Sort")
             if let note = notes.selected {
-                if note.hasOpenChecklist {
-                    DeckIconButton(.check, label: "Send unticked items to Tasks") { _ = notes.sendToTasks(note.id) }
-                }
                 ShareLink(item: note.text, subject: Text(note.title)) { DeckIconView(.share) }
                     .buttonStyle(.deckIcon())
                     .help("Share to Notes, Mail, Messages, and more")
@@ -248,9 +245,6 @@ private struct NoteRow: View {
                 ForEach(NoteColor.allCases) { color in Text(color.name).tag(NoteColor?.some(color)) }
             }
             .pickerStyle(.menu)
-            if note.hasOpenChecklist {
-                Button("Send Unticked Items to Tasks") { _ = notes.sendToTasks(note.id) }
-            }
             Button("Show in Finder") {
                 if let url = notes.fileURL(for: note.id) { NSWorkspace.shared.activateFileViewerSelecting([url]) }
             }

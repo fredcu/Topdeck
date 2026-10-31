@@ -124,8 +124,8 @@ struct NotchReducerTests {
         // The panel still has the keyboard, so leaving focus here would need a visible hand-back.
         let unpinned = after(.show, .clicked, .beginTextInput, .selectSpace(.stash))
         #expect(unpinned.presentation == .focused(space: .stash, pinned: false))
-        let pinned = after(.show, .clicked, .togglePin, .beginTextInput, .selectSpace(.plan), .endTextInput)
-        #expect(pinned.presentation == .pinned(space: .plan))
+        let pinned = after(.show, .clicked, .togglePin, .beginTextInput, .selectSpace(.tools), .endTextInput)
+        #expect(pinned.presentation == .pinned(space: .tools))
         let dragged = after(.show, .clicked, .beginTextInput, .dragEntered)
         #expect(dragged.presentation == .focused(space: .stash, pinned: false))
         #expect(dragged.subTab(in: .stash) == .shelf)
@@ -134,7 +134,8 @@ struct NotchReducerTests {
     }
 
     @Test func theLastSpaceIsRemembered() {
-        #expect(after(.show, .clicked, .selectSpace(.plan), .dismiss, .clicked).presentation == .expanded(space: .plan))
+        #expect(
+            after(.show, .clicked, .selectSpace(.tools), .dismiss, .clicked).presentation == .expanded(space: .tools))
         #expect(after(.show).lastSpace == .now, "Now is the default")
     }
 
@@ -149,7 +150,7 @@ struct NotchReducerTests {
         _ = state.handle(.dismiss)
         _ = state.handle(.clicked)
         #expect(state.presentation == .expanded(space: .stash) && state.subTab(in: .stash) == .notes)
-        #expect(state.subTab(in: .now) == nil && state.subTab(in: .plan) == nil, "no sub-tabs, nothing to remember")
+        #expect(state.subTab(in: .now) == nil && state.subTab(in: .tools) == nil, "no sub-tabs, nothing to remember")
     }
 
     @Test func aSubTabForAFeatureThatIsOffIsNotChosenOrKept() {
@@ -169,13 +170,13 @@ struct NotchReducerTests {
         #expect(clipboard.presentation == .expanded(space: .stash) && clipboard.subTab(in: .stash) == .clipboard)
         #expect(after(.show, .showFeature(.timer)).presentation == .expanded(space: .tools))
         #expect(after(.show, .clicked, .togglePin, .showFeature(.sound)).presentation == .pinned(space: .mac))
-        let hidden = after(.show, .setSpaces(SpaceSet(hidden: [.plan], enabled: Set(FeatureID.allCases))))
+        let hidden = after(.show, .setSpaces(SpaceSet(hidden: [.stash], enabled: Set(FeatureID.allCases))))
         var found = hidden
-        _ = found.handle(.showFeature(.calendar))
+        _ = found.handle(.showFeature(.notes))
         #expect(found.presentation == .expanded(space: .now), "a hidden home gives way to another space that shows it")
-        var elsewhere = hidden
-        _ = elsewhere.handle(.showFeature(.tasks))
-        #expect(elsewhere.presentation == .expanded(space: .now), "tasks is on Now too")
+        var weather = hidden
+        _ = weather.handle(.showFeature(.weather))
+        #expect(weather.presentation == .expanded(space: .now), "weather lives on Now")
         var nowhere = after(
             .show, .setSpaces(SpaceSet(hidden: [.mac], enabled: Set(FeatureID.allCases))), .selectSpace(.stash),
             .dismiss)
@@ -211,8 +212,8 @@ struct NotchReducerTests {
         #expect(after(.show, .setSpaces(only()), .activity(volume)).presentation == .transient(volume))
         let retabbed = after(.show, .activity(volume), .setSpaces(only(.notes)))
         #expect(retabbed.presentation == .transient(volume), "it has no feature to lose")
-        let opened = after(.show, .clicked, .selectSpace(.plan), .dismiss, .activity(volume), .clicked)
-        #expect(opened.presentation == .expanded(space: .plan), "a system activity opens the last space")
+        let opened = after(.show, .clicked, .selectSpace(.tools), .dismiss, .activity(volume), .clicked)
+        #expect(opened.presentation == .expanded(space: .tools), "a system activity opens the last space")
         var hovered = after(.show, .activity(volume))
         _ = hovered.handle(.pointerEntered)
         _ = hovered.handle(.deadline(.hoverDwell))
@@ -234,8 +235,8 @@ struct NotchReducerTests {
         _ = hovered.handle(.pointerEntered)
         #expect(hovered.restingActivity == meeting, "hovered, it stays in view, so the pointer stays on it")
         _ = hovered.handle(.deadline(.hoverDwell))
-        #expect(hovered.presentation == .expanded(space: .plan))
-        #expect(after(.show, .setOngoing(meeting), .clicked).presentation == .expanded(space: .plan))
+        #expect(hovered.presentation == .expanded(space: .now))
+        #expect(after(.show, .setOngoing(meeting), .clicked).presentation == .expanded(space: .now))
         let closed = after(.show, .setOngoing(meeting), .clicked, .dismiss)
         #expect(closed.restingActivity == meeting, "and it's back when the notch closes")
     }
@@ -316,14 +317,14 @@ struct NotchReducerTests {
     @Test func hidingTheOpenSpaceMovesToTheFirstOneOnShow() {
         let hidden = SpaceSet(hidden: [.now, .stash], enabled: Set(FeatureID.allCases))
         let pinned = after(.show, .clicked, .selectSpace(.stash), .togglePin, .setSpaces(hidden))
-        #expect(pinned.presentation == .pinned(space: .plan))
-        #expect(pinned.lastSpace == .plan)
-        let off = after(.show, .clicked, .selectSpace(.plan), .setSpaces(only(.media)))
-        #expect(off.presentation == .expanded(space: .now), "plan has nothing on, so it left")
+        #expect(pinned.presentation == .pinned(space: .tools))
+        #expect(pinned.lastSpace == .tools)
+        let off = after(.show, .clicked, .selectSpace(.tools), .setSpaces(only(.media)))
+        #expect(off.presentation == .expanded(space: .now), "tools has nothing on, so it left")
     }
 
     @Test func spacesAndFeaturesThatAreOffNeverOpenOrRaiseActivities() {
-        #expect(after(.show, .setSpaces(only(.notes)), .selectSpace(.plan)).presentation == .expanded(space: .now))
+        #expect(after(.show, .setSpaces(only(.notes)), .selectSpace(.tools)).presentation == .expanded(space: .now))
         #expect(after(.show, .setSpaces(only(.notes)), .activity(song)).presentation == .compact)
         #expect(after(.show, .activity(song), .setSpaces(only(.notes))).presentation == .compact)
         #expect(after(.show, .setSpaces(only()), .clicked).presentation == .expanded(space: .now), "Now always opens")
@@ -332,8 +333,8 @@ struct NotchReducerTests {
     @Test func whatIsOnScreenFollowsTheSpaceAndItsSubTab() {
         func features(_ events: NotchEvent...) -> Set<FeatureID> { after(events).onScreen }
         #expect(features(.show).isEmpty)
-        #expect(features(.show, .clicked) == [.media, .agents, .calendar, .tasks, .timer], "everything Now shows")
-        #expect(features(.show, .selectSpace(.plan), .clicked) == [.calendar, .tasks])
+        #expect(
+            features(.show, .clicked) == [.media, .agents, .calendar, .notes, .weather, .timer], "everything Now shows")
         #expect(features(.show, .showFeature(.notes)) == [.notes], "one tab at a time")
         #expect(features(.show, .showFeature(.notes), .selectSubTab(.shelf)) == [.shelf])
         #expect(features(.show, .selectSpace(.tools)) == [.capture, .timer, .shortcuts])
@@ -347,7 +348,8 @@ struct NotchReducerTests {
         #expect(phases(after(.show)).values.allSatisfy { $0 == .background })
         #expect(phases(after()).values.allSatisfy { $0 == .stopped })
         let now = phases(after(.show, .clicked))
-        #expect(Set(now.filter { $0.value == .foreground }.keys) == [.media, .agents, .calendar, .tasks, .timer])
+        #expect(
+            Set(now.filter { $0.value == .foreground }.keys) == [.media, .agents, .calendar, .notes, .weather, .timer])
         let clipboard = phases(after(.show, .showFeature(.clipboard)))
         #expect(Set(clipboard.filter { $0.value == .foreground }.keys) == [.clipboard])
         #expect(clipboard[.shelf] == .background && clipboard[.media] == .background)

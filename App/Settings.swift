@@ -182,7 +182,6 @@ extension SettingsSelection.Page {
             switch space {
             case .now: "clock"
             case .stash: "square.3.layers.3d"
-            case .plan: "calendar"
             case .agents: "terminal"
             case .mac: "cpu"
             case .tools: "camera.viewfinder"

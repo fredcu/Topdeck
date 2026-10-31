@@ -56,39 +56,45 @@ public enum DeckButtonKind: Sendable {
     case outline
 }
 
-/// A text button, 32 high with a 9 point radius; `compact` is the small one inside a row, and `fill`
-/// stretches it, background and all, across the width it's given (the boards' `flex: 1`).
+/// A text button, 32 high with a 9 point radius; `compact` is the small one inside a row, `slot` the 28
+/// high one in Now's request bar, and `fill` stretches it, background and all, across the width it's
+/// given (the boards' `flex: 1`).
 public struct DeckButtonStyle: ButtonStyle {
     let kind: DeckButtonKind
     let compact: Bool
     let fill: Bool
+    let slot: Bool
 
-    public init(_ kind: DeckButtonKind = .standard, compact: Bool = false, fill: Bool = false) {
+    public init(_ kind: DeckButtonKind = .standard, compact: Bool = false, fill: Bool = false, slot: Bool = false) {
         self.kind = kind
         self.compact = compact
         self.fill = fill
+        self.slot = slot
     }
 
     public func makeBody(configuration: Configuration) -> some View {
-        Rendered(kind: kind, compact: compact, fill: fill, configuration: configuration)
+        Rendered(kind: kind, compact: compact, fill: fill, slot: slot, configuration: configuration)
     }
 
     private struct Rendered: View {
         let kind: DeckButtonKind
         let compact: Bool
         let fill: Bool
+        let slot: Bool
         let configuration: ButtonStyleConfiguration
         @Environment(\.isEnabled) private var enabled
 
         var body: some View {
-            let shape = RoundedRectangle(cornerRadius: compact ? 7 : Deck.Radius.control, style: .continuous)
+            let small = compact || slot
+            let shape = RoundedRectangle(
+                cornerRadius: compact && !slot ? 7 : Deck.Radius.control, style: .continuous)
             configuration.label
-                .font(.system(size: compact ? 12 : 13, weight: .semibold))
+                .font(.system(size: small ? 12 : 13, weight: .semibold))
                 .foregroundStyle(kind == .primary || kind == .accent ? Deck.onFill : Deck.text)
                 .lineLimit(1)
-                .padding(.horizontal, compact ? 9 : 13)
+                .padding(.horizontal, slot ? 11 : compact ? 9 : 13)
                 .frame(maxWidth: fill ? .infinity : nil)
-                .frame(height: compact ? 23 : Deck.Metric.buttonHeight)
+                .frame(height: slot ? 28 : compact ? 23 : Deck.Metric.buttonHeight)
                 .background(shape.fill(background))
                 .overlay { if kind == .outline { shape.strokeBorder(Deck.hairline, lineWidth: 1) } }
                 .contentShape(shape)
@@ -140,10 +146,10 @@ public struct DeckIconButtonStyle: ButtonStyle {
 
 extension ButtonStyle where Self == DeckButtonStyle {
     /// The deck's text button.
-    public static func deck(_ kind: DeckButtonKind = .standard, compact: Bool = false, fill: Bool = false)
-        -> DeckButtonStyle
-    {
-        DeckButtonStyle(kind, compact: compact, fill: fill)
+    public static func deck(
+        _ kind: DeckButtonKind = .standard, compact: Bool = false, fill: Bool = false, slot: Bool = false
+    ) -> DeckButtonStyle {
+        DeckButtonStyle(kind, compact: compact, fill: fill, slot: slot)
     }
 }
 
@@ -337,16 +343,22 @@ public struct DeckSubTabs<ID: Hashable>: View {
     }
 }
 
-/// A small group of options in a tray, one selected: where a note shows, which provider.
+/// A small group of options in a tray, one selected: where a note shows, which provider. `compact` is
+/// the 26 point tray that sits inside a field, on a black `tray`.
 public struct DeckSegmented<ID: Hashable>: View {
     let items: [ID]
     let selection: ID?
     let title: (ID) -> String
     let select: (ID) -> Void
+    let compact: Bool
 
-    public init(_ items: [ID], selection: ID?, title: @escaping (ID) -> String, select: @escaping (ID) -> Void) {
+    public init(
+        _ items: [ID], selection: ID?, compact: Bool = false, title: @escaping (ID) -> String,
+        select: @escaping (ID) -> Void
+    ) {
         self.items = items
         self.selection = selection
+        self.compact = compact
         self.title = title
         self.select = select
     }
@@ -360,10 +372,10 @@ public struct DeckSegmented<ID: Hashable>: View {
                     Text(title(item))
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(item == selection ? Deck.text : Deck.tertiary)
-                        .padding(.horizontal, 10)
-                        .frame(height: 26)
+                        .padding(.horizontal, compact ? 9 : 10)
+                        .frame(height: compact ? 22 : 26)
                         .background(
-                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            RoundedRectangle(cornerRadius: compact ? 6 : 7, style: .continuous)
                                 .fill(item == selection ? Deck.control : .clear)
                         )
                         .contentShape(Rectangle())
@@ -373,7 +385,9 @@ public struct DeckSegmented<ID: Hashable>: View {
             }
         }
         .padding(2)
-        .background(RoundedRectangle(cornerRadius: Deck.Radius.control, style: .continuous).fill(Deck.cardRaised))
+        .background(
+            RoundedRectangle(cornerRadius: compact ? 8 : Deck.Radius.control, style: .continuous)
+                .fill(compact ? Deck.deck : Deck.cardRaised))
     }
 }
 
@@ -784,5 +798,228 @@ public struct DeckFlow: Layout {
                 at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y), anchor: .topLeading,
                 proposal: .unspecified)
         }
+    }
+}
+
+// MARK: Now
+
+/// The time, large, in Now's second row. Time only, no date; it moves on each minute.
+public struct DeckClock: View {
+    public init() {}
+
+    public var body: some View {
+        TimelineView(.everyMinute) { context in
+            Text(context.date.formatted(.dateTime.hour().minute())).deckText(.clock).lineLimit(1)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// A one-pixel vertical line between Now's columns.
+public struct DeckRule: View {
+    public init() {}
+
+    public var body: some View {
+        Rectangle().fill(Deck.hairline).frame(width: 1).accessibilityHidden(true)
+    }
+}
+
+/// A figure with a small icon before it, such as the weather's humidity: the icon is an SF Symbol.
+/// `label` is the spoken name and the tooltip, since the icon alone doesn't say what it is.
+public struct DeckMetricCell: View {
+    let symbol: String
+    let value: String
+    let label: String
+
+    public init(symbol: String, value: String, label: String) {
+        self.symbol = symbol
+        self.value = value
+        self.label = label
+    }
+
+    public var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: symbol)
+                .font(.system(size: 12, weight: .regular))
+                .foregroundStyle(Deck.tertiary)
+                .frame(width: 14)
+            Text(value).deckText(.figure).lineLimit(1).fixedSize()
+        }
+        .help(label)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue(value)
+    }
+}
+
+/// A thin position bar with a round knob, 14 high: drag or click along it, or use the arrow keys when
+/// it has the keyboard and VoiceOver's adjust actions. While dragging, `scrub` holds the fraction under
+/// the pointer so the readouts around it can follow, and `commit` is called once, on release. Keys and
+/// VoiceOver commit at once, a `step` at a time.
+public struct DeckScrubber: View {
+    let value: Double
+    @Binding var scrub: Double?
+    let label: String
+    let spoken: String
+    let step: Double
+    let isEnabled: Bool
+    let commit: (Double) -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @FocusState private var focused: Bool
+
+    private static let knob: CGFloat = 12
+
+    /// `value` is the position as a fraction. `spoken` is what VoiceOver reads, such as "1:02 of 3:58".
+    public init(
+        value: Double, scrub: Binding<Double?>, label: String, spoken: String, step: Double, isEnabled: Bool = true,
+        commit: @escaping (Double) -> Void
+    ) {
+        self.value = value
+        _scrub = scrub
+        self.label = label
+        self.spoken = spoken
+        self.step = step
+        self.isEnabled = isEnabled
+        self.commit = commit
+    }
+
+    private static func clamp(_ fraction: Double) -> Double { min(max(fraction, 0), 1) }
+
+    public var body: some View {
+        let fraction = Self.clamp(scrub ?? value)
+        GeometryReader { proxy in
+            let travel = max(proxy.size.width - Self.knob, 1)
+            let x = Self.knob / 2 + travel * fraction
+            ZStack(alignment: .leading) {
+                Capsule().fill(Deck.control).frame(height: 4)
+                Capsule().fill(Deck.text).frame(width: x, height: 4)
+                Circle()
+                    .fill(Deck.text)
+                    .frame(width: Self.knob, height: Self.knob)
+                    .overlay(Circle().stroke(Deck.secondary, lineWidth: 1.5).padding(-3).opacity(focused ? 1 : 0))
+                    .offset(x: x - Self.knob / 2)
+            }
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { drag in scrub = Self.clamp((drag.location.x - Self.knob / 2) / travel) }
+                    .onEnded { drag in
+                        commit(Self.clamp((drag.location.x - Self.knob / 2) / travel))
+                        scrub = nil
+                    },
+                isEnabled: isEnabled)
+        }
+        .frame(height: 14)
+        .animation(reduceMotion || scrub != nil ? nil : .linear(duration: 0.25), value: value)
+        .opacity(isEnabled ? 1 : 0.4)
+        .focusable(isEnabled)
+        .focused($focused)
+        .focusEffectDisabled()
+        .onKeyPress(.leftArrow) { nudge(-step) }
+        .onKeyPress(.rightArrow) { nudge(step) }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue(spoken)
+        .accessibilityAdjustableAction { direction in
+            _ = nudge(direction == .increment ? step : -step)
+        }
+    }
+
+    private func nudge(_ delta: Double) -> KeyPress.Result {
+        guard isEnabled else { return .ignored }
+        commit(Self.clamp(value + delta))
+        return .handled
+    }
+}
+
+// MARK: Popovers
+
+/// How many popovers are open over the deck. A popover is a window of its own, so a click in it would
+/// read as a click away from the deck and the pointer over it as leaving; while one is open the deck
+/// treats both as still on the deck.
+@MainActor
+public enum DeckPopovers {
+    public private(set) static var open = 0
+
+    fileprivate static func opened() { open += 1 }
+    fileprivate static func closed() { open = max(open - 1, 0) }
+}
+
+extension View {
+    /// A popover below the view, dark like the deck, that keeps the deck open while it shows.
+    public func deckPopover<Content: View>(
+        isPresented: Binding<Bool>, @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
+        popover(isPresented: isPresented, arrowEdge: .bottom) {
+            content()
+                .environment(\.colorScheme, .dark)
+                .onAppear { DeckPopovers.opened() }
+                .onDisappear { DeckPopovers.closed() }
+        }
+    }
+}
+
+/// The bar in Now's second row, 34 high: a request that needs you (amber outline on a warm black) or
+/// the add field (a raised box). It fills the width it's given.
+public struct DeckSlot<Content: View>: View {
+    let needsYou: Bool
+    let content: Content
+
+    public init(needsYou: Bool = false, @ViewBuilder content: () -> Content) {
+        self.needsYou = needsYou
+        self.content = content()
+    }
+
+    public var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+        HStack(spacing: needsYou ? 10 : 8) { content }
+            .padding(.leading, needsYou ? 12 : 11)
+            .padding(.trailing, needsYou ? 3 : 5)
+            .frame(maxWidth: .infinity)
+            .frame(height: 34)
+            .background(shape.fill(needsYou ? Deck.signalFill : Deck.cardRaised))
+            .overlay(shape.strokeBorder(needsYou ? Deck.signal.opacity(0.55) : Deck.hairline, lineWidth: 1))
+    }
+}
+
+/// A small value in the add field, such as the date it understood: 24 high, a 7 point radius.
+public struct DeckValueChip: View {
+    let text: String
+
+    public init(_ text: String) { self.text = text }
+
+    public var body: some View {
+        Text(text)
+            .deckText(.figure)
+            .lineLimit(1)
+            .padding(.horizontal, 8)
+            .frame(height: 24)
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Deck.control))
+            .fixedSize()
+    }
+}
+
+/// A running timer or Keep Awake beside the actions: a 26 high capsule with a figure, and an optional
+/// icon before it.
+public struct DeckStatusChip<Content: View>: View {
+    let icon: DeckIcon?
+    let content: Content
+
+    public init(icon: DeckIcon? = nil, @ViewBuilder content: () -> Content) {
+        self.icon = icon
+        self.content = content()
+    }
+
+    public var body: some View {
+        HStack(spacing: 5) {
+            if let icon { DeckIconView(icon, size: 12) }
+            content.deckText(.figure).lineLimit(1)
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 26)
+        .background(Capsule().fill(Deck.control))
+        .fixedSize()
     }
 }

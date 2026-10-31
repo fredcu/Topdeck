@@ -29,53 +29,14 @@ extension CalendarFeature {
         return Group {
             AccessRow(access: calendar.access, pane: "Privacy_Calendars", request: calendar.requestAccess)
             Toggle("Show all-day events", isOn: $calendar.showsAllDay)
-            Toggle(isOn: $calendar.showsTasks) {
-                Text("Show tasks due today")
-                Text("Lists open reminders due today or overdue under your events, once Tasks has access.")
-            }
             Toggle(isOn: $calendar.countsDownToMeetings) {
                 Text("Count down to meetings")
                 Text(
                     "Five minutes before a meeting with a Zoom, Google Meet, Teams, Webex, Whereby, Jitsi, or "
-                        + "FaceTime link, the closed notch counts down to it. Join from the Calendar tab.")
+                        + "FaceTime link, the closed notch counts down to it. Join from Now.")
             }
         }
         .onAppear(perform: calendar.refreshAccess)
-    }
-}
-
-extension TasksFeature {
-    public var settingsView: some View {
-        @Bindable var tasks = self
-        return Group {
-            AccessRow(access: tasks.access, pane: "Privacy_Reminders", request: tasks.requestAccess)
-            Picker("List", selection: $tasks.listID) {
-                Text("All lists").tag(String?.none)
-                ForEach(tasks.lists) { list in
-                    Text(list.title).tag(String?.some(list.id))
-                }
-            }
-            .help("New tasks go to this list, or to your default list when showing all lists.")
-            Toggle("Group by list instead of due date", isOn: $tasks.groupsByList)
-            Toggle(isOn: $tasks.alertsAtDueTime) {
-                Text("Alert at the due time")
-                Text("New tasks with a time get an alert, which Reminders shows on your iPhone, iPad, and Mac.")
-            }
-            Toggle(isOn: $tasks.alertsInNotch) {
-                Text("Show due tasks on the notch")
-                Text("When a task's time comes, the notch shows it with Done and Snooze.")
-            }
-            Picker("Block time for", selection: $tasks.blockMinutes) {
-                ForEach([15, 30, 45, 60, 90], id: \.self) { minutes in
-                    Text("\(minutes) minutes").tag(minutes)
-                }
-            }
-            .help("How long the Calendar event is when you block time for a task.")
-        }
-        .onAppear {
-            tasks.refreshAccess()
-            tasks.loadLists()
-        }
     }
 }
 

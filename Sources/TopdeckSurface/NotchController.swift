@@ -33,7 +33,7 @@ final class NotchController {
         engine.onPresentationChange = { [weak self] old, new in self?.render(from: old, to: new) }
         engine.pointerCheck = { [weak self] in
             PointerCheck(
-                isInside: self?.notchFrame().contains(NSEvent.mouseLocation) ?? false,
+                isInside: self?.notchFrame().contains(NSEvent.mouseLocation) ?? false || DeckPopovers.open > 0,
                 isButtonDown: NSEvent.pressedMouseButtons != 0)
         }
 
@@ -127,7 +127,7 @@ final class NotchController {
         }
         let local = NSEvent.addLocalMonitorForEvents(matching: clicks) { [weak self] event in
             MainActor.assumeIsolated {
-                if let self, event.window !== self.panel { self.engine.send(.clickedOutside) }
+                if let self, event.window !== self.panel, DeckPopovers.open == 0 { self.engine.send(.clickedOutside) }
             }
             return event
         }

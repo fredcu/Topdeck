@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-/// A screen of the deck. Six of them replace the old tab row: three in the left wing, three in the
+/// A screen of the deck. Five of them replace the old tab row: three in the left wing, two in the
 /// right. Each holds one or more features' views; a space with sub-tabs shows one feature at a time.
 public enum SpaceID: String, CaseIterable, Codable, Hashable, Identifiable, Sendable {
-    case now, stash, plan, agents, mac, tools
+    case now, stash, tools, agents, mac
 
     public var id: Self { self }
 
@@ -12,7 +12,6 @@ public enum SpaceID: String, CaseIterable, Codable, Hashable, Identifiable, Send
         switch self {
         case .now: "Now"
         case .stash: "Stash"
-        case .plan: "Plan"
         case .agents: "Agents"
         case .mac: "Mac"
         case .tools: "Tools"
@@ -26,9 +25,8 @@ public enum SpaceID: String, CaseIterable, Codable, Hashable, Identifiable, Send
     /// all of them on one screen.
     public var features: [FeatureID] {
         switch self {
-        case .now: [.media, .agents, .calendar, .tasks, .timer]
+        case .now: [.media, .agents, .calendar, .notes, .weather, .timer]
         case .stash: [.shelf, .clipboard, .notes]
-        case .plan: [.calendar, .tasks]
         case .agents: [.agents, .usage]
         case .mac: [.performance, .sound, .monitors, .network, .storage, .admin]
         case .tools: [.capture, .timer, .shortcuts]
@@ -39,7 +37,7 @@ public enum SpaceID: String, CaseIterable, Codable, Hashable, Identifiable, Send
     public var hasSubTabs: Bool {
         switch self {
         case .stash, .agents, .mac: true
-        case .now, .plan, .tools: false
+        case .now, .tools: false
         }
     }
 
@@ -60,9 +58,8 @@ extension FeatureID {
     /// goes. Features that several spaces show (Calendar, Timer) belong to the one with their full view.
     public var home: SpaceID {
         switch self {
-        case .media: .now
+        case .media, .calendar, .weather: .now
         case .shelf, .clipboard, .notes: .stash
-        case .calendar, .tasks: .plan
         case .agents, .usage: .agents
         case .sound, .monitors, .network, .storage, .admin, .performance: .mac
         case .capture, .shortcuts, .timer: .tools

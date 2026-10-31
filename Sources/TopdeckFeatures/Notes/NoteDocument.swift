@@ -121,24 +121,6 @@ public struct Note: Identifiable, Equatable, Sendable {
 
     public var isEmpty: Bool { text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
-    /// The checklist items not yet ticked, like "passport" from "- [ ] passport", in order. Empty
-    /// ones are left out.
-    public var openChecklistItems: [String] {
-        text.split(separator: "\n").compactMap { line in
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            guard let marker = trimmed.first, "-*+".contains(marker), trimmed.dropFirst().hasPrefix(" [ ]") else {
-                return nil
-            }
-            let rest = trimmed.dropFirst(5)
-            guard rest.isEmpty || rest.first == " " else { return nil }  // "- [ ]x" isn't a checkbox
-            let item = rest.trimmingCharacters(in: .whitespaces)
-            return item.isEmpty ? nil : item
-        }
-    }
-
-    /// Whether the note has checklist items not yet ticked.
-    public var hasOpenChecklist: Bool { !openChecklistItems.isEmpty }
-
     /// What goes on disk: front matter, when there's anything for it, then the text.
     var fileContents: String {
         var fields: [String] = []

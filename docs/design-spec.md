@@ -25,7 +25,7 @@ radii or font sizes in feature views.
 | stop | `#FF6961` |
 
 Radii: deck 30, card 16, control 9, pill full. Card padding 14, gap 10, deck side padding 14.
-Type: Rounded 44 and 28 for timers and metrics, Bold 20 titles, Semibold 15 items, Regular 13 body,
+Type: Rounded 44 and 28 for timers and metrics, Rounded 34 for Now's clock, Rounded 32/26/20 for the weather's temperature, Bold 15/13 for the lyric line, Semibold 12 for figures, Bold 20 titles, Semibold 15 items, Regular 13 body,
 Regular 12 detail, Mono 12 commands. Use system fonts and tabular digits.
 
 Signal means "needs you": waiting agents, a meeting about to start, the active warning. Nothing
@@ -43,15 +43,14 @@ decorative uses it. Go and stop are for state, not decoration.
 
 ## Spaces
 
-`Now`, `Stash`, `Plan` in the left wing; `Agents`, `Mac`, `Tools` in the right. They replace the
+`Now`, `Stash`, `Tools` in the left wing; `Agents`, `Mac` in the right. They replace the
 tab row, the app drawer and the tab editor. Users can reorder and hide spaces in Settings. Labels are
 text, with no icon. Agents shows a signal badge with the waiting count.
 
 | Space | Sub-tabs | Features |
 |---|---|---|
-| Now | none | Media, Agents waiting, next Calendar event, first Task, Timer, Keep Awake |
+| Now | none | Calendar, Notes, Weather, Media, Agents waiting, Timer, Keep Awake |
 | Stash | Shelf, Clipboard, Notes | shelf, clipboard, notes |
-| Plan | none | calendar and tasks on one screen |
 | Agents | Sessions, Usage | agents, usage |
 | Mac | Performance, Sound, Displays, Network, Storage, System | performance, sound, monitors, network, storage, admin |
 | Tools | none | capture, timer, keep awake, shortcuts |
@@ -61,9 +60,25 @@ default. Each space remembers its last sub-tab. Keep `FeatureID` and `FeatureHos
 the phase of each feature it shows, so every feature on screen is `.foreground`, including all the
 ones Now shows.
 
-Now's cards appear only when they have something: an empty slot closes up, and with nothing to show
-the deck shows the date and clock only. Now's agent card is the oldest waiting request and uses the
-same answer rules as the Agents space.
+### Now
+
+Boards: `NowToday`, `NowPlaying`, `NowAlert`, `NowAdd`, `NowFree`, `NowMin`. Three columns on the black deck,
+no cards, split by hairlines: left 176, middle 214, right the rest at 700 wide; 150 and 192 at 620. Column gap
+14, side padding 18. The second row is 46 high: the clock (Rounded 34) at the left, the running timer and Keep
+Awake as chips, then add, pin and settings. Between them one slot, in priority order: an agent request
+(same answer rules as Agents), a meeting about to start (30 minutes), the add field. Rows below never move.
+
+- Left: Today (next event not yet ended, with Join; the rest of today), then Notes, most recent first, a pin
+  mark for notes on the desktop. With nothing left today, Notes moves up; with nothing at all, "Nothing today".
+- Middle: month grid (six weeks, system first weekday, dots, today filled white), then the events from
+  tomorrow for a week; a picked day is ringed and lists that day.
+- Right: weather (place, condition, temperature, six figures, five hours, five days); while something plays,
+  the place and figures, then the player with a thin scrubber and the lyric lines. Open-Meteo is linked beside
+  its data, as its licence requires.
+- At 620×340: no month title, two event rows, hours but no days, one lyric block, artwork 36.
+
+Add field: Return saves; an Event/Note control chooses itself from the text (a date or time is an Event) until
+picked; Tab switches; ⌘Return pins a note to the desktop; ⌘N opens it while the deck is open on Now.
 
 ## Closed notch
 

@@ -21,7 +21,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let clipboard = ClipboardFeature()
     private let capture = CaptureFeature()
     private let calendar: CalendarFeature
-    private let tasks: TasksFeature
+    /// The weather where you are, in Now.
+    private let weather = WeatherFeature(locator: SystemWeatherLocator())
+    /// The add field in Now's second row, which the plus, ⌘N and the body share.
+    private let nowModel = NowModel()
     private let notes = NotesFeature()
     /// Notes taken out of the notch, in windows of their own.
     private lazy var pinnedNotes = PinnedNoteWindows(notes: notes)
@@ -54,13 +57,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let quickNoteKey = HotKey()
     /// Opens the Clipboard tab from any app, ready to search.
     private let clipboardKey = HotKey()
+    /// ⌘N, only while a deck is open on Now: opens its add field.
+    private let addKey = HotKey()
     /// Gives each app its own keyboard input source. Not a tab: it works while the notch is away.
     private let inputSwitch = InputSwitcher()
 
     override init() {
-        let eventStore = EventStore()  // shared, and only created when Calendar or Tasks first needs it
-        calendar = CalendarFeature(eventStore: eventStore)
-        tasks = TasksFeature(eventStore: eventStore)
+        calendar = CalendarFeature(eventStore: EventStore())
         super.init()
     }
     private var coordinator: PanelCoordinator?
@@ -83,8 +86,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var featureList: [any NotchFeature] {
         [
-            media, shelf, clipboard, capture, calendar, tasks, notes, shortcuts, timer, storage, network, usage,
-            agents, monitors, admin, performance,
+            media, shelf, clipboard, capture, calendar, notes, shortcuts, timer, storage, network, usage,
+            agents, monitors, admin, performance, weather,
         ]
     }
 
@@ -165,8 +168,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return AnyView(shelf.view)
         case .clipboard: return AnyView(clipboard.view)
         case .capture: return AnyView(capture.view)
-        case .calendar: return AnyView(calendar.view)
-        case .tasks: return AnyView(tasks.view)
+        case .calendar, .weather: return AnyView(EmptyView())  // Now draws them
         case .notes: return AnyView(notes.view)
         case .shortcuts: return AnyView(shortcuts.view)
         case .timer: return AnyView(timer.view)
@@ -185,11 +187,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The spaces that draw their whole body from the features that are on.
     private func screen(for space: SpaceID, enabled: Set<FeatureID>) -> AnyView? {
         switch space {
-        case .plan:
-            return AnyView(
-                PlanScreen(
-                    calendar: enabled.contains(.calendar) ? calendar : nil,
-                    tasks: enabled.contains(.tasks) ? tasks : nil))
         case .tools:
             return AnyView(
                 ToolsScreen(
@@ -216,7 +213,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .clipboard: return section(clipboard.settingsView)
         case .capture: return section(capture.settingsView)
         case .calendar: return section(calendar.settingsView)
-        case .tasks: return section(tasks.settingsView)
+        case .weather: return nil
         case .shortcuts: return section(shortcuts.settingsView)
         case .notes: return section(notes.settingsView)
         case .network: return section(network.settingsView)
@@ -247,16 +244,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             now: { [unowned self] in
                 AnyView(
                     NowView(
-                        media: media, agents: agents, calendar: calendar, tasks: tasks, timer: timer,
-                        open: { [weak self] in self?.coordinator?.open($0) }))
+                        media: preferences.isEnabled(.media) ? media : nil,
+                        calendar: preferences.isEnabled(.calendar) ? calendar : nil,
+                        notes: preferences.isEnabled(.notes) ? notes : nil,
+                        weather: preferences.isEnabled(.weather) ? weather : nil,
+                        model: nowModel, openNote: { [weak self] in self?.open($0) }))
             },
             badge: { [unowned self] in $0 == .agents ? waitingAgents : 0 },
             actions: { [unowned self] space, feature in
-                if space == .plan {
+                if space == .now {
                     return AnyView(
-                        PlanAddField(
-                            calendar: preferences.isEnabled(.calendar) ? calendar : nil,
-                            tasks: preferences.isEnabled(.tasks) ? tasks : nil))
+                        NowActions(
+                            timer: preferences.isEnabled(.timer) ? timer : nil, model: nowModel,
+                            canAdd: preferences.isEnabled(.calendar) || preferences.isEnabled(.notes)))
                 }
                 switch feature {
                 case .shelf: return AnyView(shelf.headerActions)
@@ -269,9 +269,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             dropFiles: { [preferences, shelf] urls in preferences.isEnabled(.shelf) && shelf.add(urls) },
             openSettings: { [weak self] in self?.settings.show() },
             screen: { [unowned self] space, enabled in screen(for: space, enabled: enabled) },
-            titleAccessory: { [unowned self] space in
-                guard space == .plan, preferences.isEnabled(.calendar) else { return AnyView(EmptyView()) }
-                return AnyView(PlanDayChips(calendar: calendar))
+            slot: { [unowned self] space in
+                guard space == .now else { return AnyView(EmptyView()) }
+                // An agent waiting for an answer comes first, then a meeting about to start, then the field.
+                let agent =
+                    preferences.isEnabled(.agents)
+                    ? AgentRequestBar(agents: agents, open: { [weak self] in self?.coordinator?.open($0) })
+                        .map { AnyView($0) }
+                    : nil
+                return AnyView(
+                    NowSlot(
+                        agent: agent, calendar: preferences.isEnabled(.calendar) ? calendar : nil,
+                        notes: preferences.isEnabled(.notes) ? notes : nil, model: nowModel))
             },
             join: { [calendar] url in calendar.join(url: url) })
         let coordinator = PanelCoordinator(preferences: preferences, content: content)
@@ -279,12 +288,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             features.update(notches: notches, enabled: Set(preferences.enabledFeatures))
             if !notches.contains(where: { $0.presentation.openSpace != nil }) { escapeKey.shortcut = nil }
+            addKey.shortcut = notches.contains { $0.presentation.openSpace == .now } ? .addItem : nil
         }
         notchKey.onPress = { [weak self, weak coordinator] in
             guard let self, coordinator?.toggleNotch() == true else { return }
             escapeKey.shortcut = .escape
         }
         escapeKey.onPress = { [weak coordinator] in coordinator?.dismissAll() }
+        addKey.onPress = { [nowModel] in nowModel.begin() }
         clipboardKey.onPress = { [weak self, weak coordinator] in
             guard let self, coordinator?.toggle(.clipboard) == true else { return }
             clipboard.wantsSearch = true
@@ -308,8 +319,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         network.onOngoing = { [weak coordinator] in coordinator?.setOngoing($0, for: .network) }
         shortcuts.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         admin.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
-        tasks.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
-        notes.onSendToTasks = { [tasks] in tasks.add($0) }
         pinnedNotes.start()
         inputSwitch.resume()
         quickNoteKey.onPress = { [weak self] in self?.startQuickNote() }
@@ -397,6 +406,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         battery.stop()
         accessories.stop()
         volumeKeys.stop()
+    }
+
+    /// A note from Now's list: in Stash › Notes, or, for one pinned to the desktop, its own window.
+    private func open(_ note: Note) {
+        if note.window != nil, pinnedNotes.bringForward(note.id) { return }
+        notes.search = ""
+        notes.selection = note.id
+        coordinator?.show(.notes)
     }
 
     /// Opens the notch on Notes with a new note, ready to type. The tab gets a moment to come on

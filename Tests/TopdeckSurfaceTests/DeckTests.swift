@@ -37,7 +37,7 @@ struct DeckTokenTests {
     }
 
     @Test func theTypeScaleIsTheSpecs() {
-        #expect(DeckTextStyle.allCases.map(\.size) == [44, 28, 20, 15, 13, 12, 12, 12])
+        #expect(DeckTextStyle.allCases.map(\.size) == [44, 28, 20, 15, 13, 12, 12, 12, 34, 32, 26, 20, 12, 15, 13])
     }
 
     /// Text must meet 4.5:1 on the surface it sits on. Black on signal is a badge; the rest is on a card.
@@ -142,10 +142,8 @@ struct ClosedContentTests {
 }
 
 struct SpaceHeadlineTests {
-    @Test func nowNamesTheDayAndTheRestUseTheirTitle() {
-        let saturday = Date(timeIntervalSince1970: 1_793_000_000)  // 2026-10-26 ... any fixed day
-        #expect(SpaceID.now.headline(on: saturday) == saturday.formatted(.dateTime.weekday(.wide)))
-        #expect(SpaceID.plan.headline() == "Today" && SpaceID.tools.headline() == "Tools")
+    @Test func aSpaceWithoutSubTabsIsTitledByName() {
+        #expect(SpaceID.tools.headline() == "Tools")
     }
 }
 

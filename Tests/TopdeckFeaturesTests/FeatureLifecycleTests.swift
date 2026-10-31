@@ -18,11 +18,10 @@ struct FeatureLifecycleTests {
         let media = MediaFeature(bundle: Bundle(for: LifecycleMarker.self), defaults: defaults)
         let shelf = ShelfFeature(storeURL: folder.appending(path: "shelf.json"))
         let calendar = CalendarFeature(eventStore: eventStore, defaults: defaults)
-        let tasks = TasksFeature(eventStore: eventStore, defaults: defaults)
         let notes = NotesFeature(directory: folder.appending(path: "Notes"))
         let shortcuts = ShortcutsFeature(defaults: defaults)
         let timer = TimerFeature()
-        let features: [any NotchFeature] = [media, shelf, calendar, tasks, notes, shortcuts, timer]
+        let features: [any NotchFeature] = [media, shelf, calendar, notes, shortcuts, timer]
         let host = FeatureHost(features)
         let enabled = Set(FeatureID.allCases)
         let song = Activity(feature: .media, symbol: "music.note", title: "Song", duration: .seconds(1))
@@ -45,7 +44,6 @@ struct FeatureLifecycleTests {
         #expect(features.allSatisfy { $0.phase == .stopped })
         #expect(!media.isListening && media.nowPlaying == nil && !media.audio.isRunning)
         #expect(!calendar.isObserving && calendar.events.isEmpty)
-        #expect(!tasks.isObserving && tasks.tasks.isEmpty)
         #expect(notes.notes.isEmpty, "notes leave memory")
         #expect(
             try FileManager.default.contentsOfDirectory(atPath: folder.appending(path: "Notes").path).count == 1,

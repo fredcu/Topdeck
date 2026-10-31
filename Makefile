@@ -7,7 +7,7 @@ SWIFT_SOURCES := App Sources Tests Package.swift
 # The commit a build comes from, with "+" when the checkout has uncommitted changes (shown in the menu).
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null)$(shell git diff --quiet HEAD -- 2>/dev/null || echo +)
 # Signs with your Apple Development certificate when you have one. macOS ties permissions (Calendar,
-# Reminders, folders) to the signature, and an ad-hoc one changes with every build, so updates would
+# Location, folders) to the signature, and an ad-hoc one changes with every build, so updates would
 # ask again each time. Without a certificate (CI, most contributors) builds stay ad-hoc signed.
 SIGNING_IDENTITY ?= $(shell security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '/Apple Development/ {print $$2; exit}')
 # Manual style on every target, including SwiftPM's resource bundles, so none of them asks for a team.

@@ -149,57 +149,6 @@ struct FeatureSnapshotTests {
         try render(notes.view, name: "notes-checklist")
     }
 
-    @Test func tasksWithACompletedSection() throws {
-        let tasks = TasksFeature(eventStore: EventStore(), defaults: UserDefaults(suiteName: "T-\(UUID())")!)
-        let now = Date.now
-        tasks.show(
-            tasks: [
-                TaskItem(id: "1", title: "Send the invoice", due: now - 3600),
-                TaskItem(id: "2", title: "Book flights", due: now + 86_400),
-                TaskItem(id: "3", title: "Water the plants"),
-            ],
-            completed: [
-                TaskItem(id: "4", title: "Ship Phase 4", completed: now - 600),
-                TaskItem(id: "5", title: "Renew passport", completed: now - 90_000),
-            ])
-        tasks.showsCompleted = true
-        try render(tasks.view, name: "tasks")
-        tasks.show(
-            tasks: [TaskItem(id: "6", title: "Stand-up", due: now, hasTime: true, priority: .high)], completed: [],
-            alerting: TaskItem(id: "6", title: "Stand-up", due: now, hasTime: true))
-        try render(tasks.view, name: "tasks-alert")
-    }
-
-    @Test func calendarWithEventsAndTasks() throws {
-        let calendar = CalendarFeature(eventStore: EventStore(), defaults: UserDefaults(suiteName: "C-\(UUID())")!)
-        let now = Date.now
-        calendar.show(
-            events: [
-                DayEvent(
-                    id: "1", title: "Design review", start: now - 1800, end: now + 1800,
-                    color: RGB(red: 0.3, green: 0.6, blue: 1)),
-                DayEvent(id: "2", title: "Gym", start: now + 7200, end: now + 10_800),
-            ],
-            dueTasks: [TaskItem(id: "3", title: "Pay rent", due: Calendar.current.startOfDay(for: now))])
-        try render(calendar.view, name: "calendar")
-        try render(CalendarView(calendar: calendar, editing: "2"), name: "calendar-editing")
-        calendar.show(events: [DayEvent(id: "2", title: "Gym", start: now + 7200, end: now + 10_800)])
-        let small = CalendarView(calendar: calendar, editing: "2")
-        try render(small, name: "calendar-editing-smallest", size: Self.smallest)
-    }
-
-    @Test func calendarWithAMeetingToJoin() throws {
-        let calendar = CalendarFeature(eventStore: EventStore(), defaults: UserDefaults(suiteName: "C-\(UUID())")!)
-        let now = Date.now
-        let meet = MeetingLink(URL(string: "https://meet.google.com/abc-defg-hij")!)
-        calendar.show(events: [
-            DayEvent(id: "1", title: "Standup", start: now - 7200, end: now - 6300, meeting: meet),
-            DayEvent(id: "2", title: "Design review", start: now + 240, end: now + 3840, meeting: meet),
-            DayEvent(id: "3", title: "Lunch with Sam", start: now + 7200, end: now + 10_800),
-        ])
-        try render(calendar.view, name: "calendar-meeting")
-    }
-
     /// One monitor with both controls, one without speakers, one that doesn't answer DDC; then none.
     @Test func monitorsWithAndWithoutDDC() async throws {
         let channels: [CGDirectDisplayID: any DDCChannel] = [
@@ -228,10 +177,7 @@ struct FeatureSnapshotTests {
         monitors.phase = .stopped
     }
 
-    @Test func eventKitTabsBeforeAccess() throws {
-        let store = EventStore()
-        try render(CalendarFeature(eventStore: store).view, name: "calendar-no-access")
-        try render(TasksFeature(eventStore: store).view, name: "tasks-no-access")
+    @Test func shortcutsWhileLoading() throws {
         try render(ShortcutsFeature().view, name: "shortcuts-loading")
     }
 

@@ -67,11 +67,10 @@ public struct DayEvent: Identifiable, Hashable, Sendable {
     }
 }
 
-/// Today's events from the user's calendars, with the tasks due today beneath them and a field to
-/// add an event. It asks for access only when the user taps the button, and reads the agenda (one
-/// bounded day-long query, plus one for due reminders when Reminders access is already allowed)
-/// only while the tab is on screen, refreshing on EventKit's change notification rather than
-/// polling. With access, it also counts down to the next meeting with a video link while the tab is
+/// The user's calendars for Now: today's events, and the events of the month grid on screen and of
+/// the week ahead, from one bounded query. It asks for access only when the user taps the button,
+/// and reads events only while Now is on screen, refreshing on EventKit's change notification rather
+/// than polling. With access, it also counts down to the next meeting with a video link while Now is
 /// off screen: one bounded query for it and one deadline, looked at again when the calendars change.
 @MainActor
 @Observable
@@ -84,31 +83,19 @@ public final class CalendarFeature: NotchFeature {
         }
     }
     public private(set) var access = EventAccess(.event)
+    /// Today's events in agenda order.
     public private(set) var events: [DayEvent] = []
-    /// The events of the day Plan shows: today's, unless a later day's chip is picked.
-    public private(set) var dayEvents: [DayEvent] = []
-    /// Which day Plan shows, in days from today. Today for everything but Plan's agenda.
-    public var dayOffset = 0 {
-        didSet {
-            guard dayOffset != oldValue else { return }
-            reload()
-        }
-    }
-    /// Open reminders due today or overdue, when Reminders access is allowed.
-    public private(set) var dueTasks: [TaskItem] = []
+    /// Every event from the first day of the month grid to its last, and the week ahead, in agenda
+    /// order: the dots under the grid, the list of the days after today, and a picked day's list.
+    public private(set) var rangeEvents: [DayEvent] = []
+    /// The day picked in the month grid, as its start; nil for none.
+    public var selectedDay: Date?
     /// A short confirmation or problem after adding an event. Clears itself.
     public private(set) var notice: String?
     /// Per-feature setting: include all-day events.
     public var showsAllDay: Bool {
         didSet {
             defaults.set(showsAllDay, forKey: Self.allDayKey)
-            reload()
-        }
-    }
-    /// Per-feature setting: list the tasks due today under the events.
-    public var showsTasks: Bool {
-        didSet {
-            defaults.set(showsTasks, forKey: Self.showsTasksKey)
             reload()
         }
     }
@@ -124,14 +111,11 @@ public final class CalendarFeature: NotchFeature {
     /// The countdown to the next meeting, or nil when there's none to show.
     @ObservationIgnored public var onOngoing: ((Activity?) -> Void)?
 
-    // ponytail: overdue reminders can pile up, so the agenda shows a bounded number.
-    nonisolated static let dueTaskLimit = 20
     // ponytail: a fixed five minutes' warning; a picker in Calendar's settings if people want more.
     static let lead: TimeInterval = 5 * 60
     /// How far ahead the next meeting is looked for; the countdown looks again when this runs out.
     static let horizon: TimeInterval = 24 * 3600
     private static let allDayKey = "calendar.showsAllDay"
-    private static let showsTasksKey = "calendar.showsTasks"
     private static let countdownKey = "calendar.countsDownToMeetings"
     @ObservationIgnored private let eventStore: EventStore
     @ObservationIgnored private let defaults: UserDefaults
@@ -147,11 +131,8 @@ public final class CalendarFeature: NotchFeature {
         self.eventStore = eventStore
         self.defaults = defaults
         showsAllDay = defaults.object(forKey: Self.allDayKey) as? Bool ?? true
-        showsTasks = defaults.object(forKey: Self.showsTasksKey) as? Bool ?? true
         countsDownToMeetings = defaults.object(forKey: Self.countdownKey) as? Bool ?? true
     }
-
-    public var view: some View { CalendarView(calendar: self) }
 
     /// Whether the feature is listening for calendar changes.
     var isObserving: Bool { changes != nil }
@@ -165,13 +146,14 @@ public final class CalendarFeature: NotchFeature {
     /// Re-reads access, which may have changed in System Settings.
     public func refreshAccess() { access = EventAccess(.event) }
 
-    /// Adds an event typed as "Lunch with Sam tomorrow 1pm for 90 min" to the default calendar.
-    /// Returns whether it was added; text without a date or time is left for the user to finish.
+    /// Adds an event typed as "Lunch with Sam tomorrow 1pm for 90 min" to the default calendar. A time
+    /// with no day of its own, or text with no date at all, falls on `day` when there is one. Returns
+    /// whether it was added; text without a date or time is left for the user to finish.
     @discardableResult
-    public func addEvent(_ text: String) -> Bool {
+    public func addEvent(_ text: String, on day: Date? = nil) -> Bool {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, access == .granted else { return false }
-        guard let draft = EventDraft.parse(text) else {
+        guard let draft = EventDraft.parse(text, on: day) else {
             show(notice: "Add when it happens, like \u{201C}tomorrow 1pm\u{201D}")
             return false
         }
@@ -233,6 +215,7 @@ public final class CalendarFeature: NotchFeature {
             return
         }
         events.removeAll { $0.id == event.id }
+        rangeEvents.removeAll { $0.id == event.id }
         show(notice: "Deleted \u{201C}\(event.title)\u{201D}")
         watchMeetings()
     }
@@ -246,26 +229,12 @@ public final class CalendarFeature: NotchFeature {
         return store.events(matching: around).first { DayEvent.id(for: $0) == event.id }
     }
 
-    /// Ticks off a task listed under today's events.
-    public func complete(_ task: TaskItem) {
-        let store = eventStore.store
-        guard let reminder = store.calendarItem(withIdentifier: task.id) as? EKReminder else { return }
-        reminder.isCompleted = true
-        do {
-            try store.save(reminder, commit: true)
-            dueTasks.removeAll { $0.id == task.id }
-        } catch {
-            Log.features.error("Couldn't complete a reminder: \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
-    /// Shows the given agenda as if access were granted. For tests and snapshots only.
-    func show(events: [DayEvent], dueTasks: [TaskItem] = []) {
+    /// Shows the given events as if access were granted: `today` for the Today list, `range` for the
+    /// grid and the lists under it. For tests and snapshots only.
+    func show(today: [DayEvent], range: [DayEvent]? = nil) {
         access = .granted
-        self.events = events
-        dayOffset = 0
-        dayEvents = events
-        self.dueTasks = dueTasks
+        events = today
+        rangeEvents = range ?? today
     }
 
     private func show(notice text: String) {
@@ -306,8 +275,8 @@ public final class CalendarFeature: NotchFeature {
         NSPasteboard.general.setString(meeting.url.absoluteString, forType: .string)
     }
 
-    /// Listens for calendar changes while the agenda is on screen or a countdown may be needed, and
-    /// holds today's events only while they're on screen.
+    /// Listens for calendar changes while Now is on screen or a countdown may be needed, and holds
+    /// the events only while they're on screen.
     private func update() {
         refreshAccess()
         let listens = access == .granted && (phase == .foreground || phase == .background && countsDownToMeetings)
@@ -328,10 +297,9 @@ public final class CalendarFeature: NotchFeature {
             reload()
         } else {
             events = []
-            dayEvents = []
-            dueTasks = []
+            rangeEvents = []
         }
-        if phase == .stopped { dayOffset = 0 }
+        if phase == .stopped { selectedDay = nil }
         watchMeetings()
     }
 
@@ -339,40 +307,16 @@ public final class CalendarFeature: NotchFeature {
         guard access == .granted, phase == .foreground else { return }
         let calendar = Calendar.current
         let start = calendar.startOfDay(for: .now)
-        guard let end = calendar.date(byAdding: .day, value: 1, to: start) else { return }
-        events = agenda(from: start, to: end)
-        if dayOffset == 0 {
-            dayEvents = events
-        } else if let first = calendar.date(byAdding: .day, value: dayOffset, to: start),
-            let last = calendar.date(byAdding: .day, value: 1, to: first)
-        {
-            dayEvents = agenda(from: first, to: last)
-        }
+        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: start) else { return }
+        let range = CalendarMonth.loadedRange(for: .now, calendar: calendar)
         let store = eventStore.store
-        // Tasks come along only when Reminders access was already given in the Tasks tab.
-        guard showsTasks, EventAccess(.reminder) == .granted else {
-            dueTasks = []
-            return
-        }
-        let due = store.predicateForIncompleteReminders(withDueDateStarting: nil, ending: end, calendars: nil)
-        // @Sendable: EventKit calls back on its own queue (see TasksFeature.reload).
-        store.fetchReminders(matching: due) { @Sendable [weak self] reminders in
-            let items = (reminders ?? []).map(TaskItem.init).sorted(by: TaskItem.order)
-            let bounded = Array(items.prefix(Self.dueTaskLimit))
-            Task { @MainActor in
-                guard let self, self.phase == .foreground else { return }
-                self.dueTasks = bounded
-            }
-        }
-    }
-
-    /// The day's events in agenda order.
-    private func agenda(from start: Date, to end: Date) -> [DayEvent] {
-        let store = eventStore.store
-        return store.events(matching: store.predicateForEvents(withStart: start, end: end, calendars: nil))
-            .map(DayEvent.init)
-            .filter { showsAllDay || !$0.isAllDay }
-            .sorted(by: DayEvent.agendaOrder)
+        rangeEvents = store.events(
+            matching: store.predicateForEvents(withStart: range.lowerBound, end: range.upperBound, calendars: nil)
+        )
+        .map(DayEvent.init)
+        .filter { showsAllDay || !$0.isAllDay }
+        .sorted(by: DayEvent.agendaOrder)
+        events = rangeEvents.filter { $0.start < tomorrow && $0.end > start }
     }
 
     // MARK: Meeting countdown

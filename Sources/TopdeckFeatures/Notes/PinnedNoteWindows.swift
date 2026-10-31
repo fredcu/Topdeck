@@ -41,6 +41,17 @@ public final class PinnedNoteWindows: NSObject, NSWindowDelegate {
         notes.flush()
     }
 
+    /// Brings a note's window forward and gives it the keyboard; false when it has none.
+    // ponytail: a desktop note stays below other apps' windows, as its level says; it comes in front of
+    // other desktop notes only. Raise it to the floating level for a moment if that isn't enough.
+    @discardableResult
+    public func bringForward(_ id: Note.ID) -> Bool {
+        guard let window = windows[id] else { return false }
+        window.orderFrontRegardless()
+        window.makeKey()
+        return true
+    }
+
     /// Opens, updates, and closes windows to match the notes that have one.
     private func sync() {
         watchFolder()

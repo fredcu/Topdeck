@@ -8,7 +8,7 @@ import TopdeckCore
 public struct NotchContent {
     /// A feature's view, for the space that shows it.
     public var feature: (FeatureID) -> AnyView
-    /// What Now shows: its cards, or the date and clock when there's nothing.
+    /// What Now shows under its second row: its three columns.
     public var now: () -> AnyView
     /// The count on a space's label in its wing: agents waiting. Zero shows none.
     public var badge: (SpaceID) -> Int
@@ -17,11 +17,12 @@ public struct NotchContent {
     /// Files dropped on the notch; returns whether they were accepted.
     public var dropFiles: ([URL]) -> Bool
     public var openSettings: () -> Void
-    /// A space that draws its whole body itself, from the features that are on: Plan and Tools. Nil
-    /// for the others, which show their feature's view (or Now's cards).
+    /// A space that draws its whole body itself, from the features that are on: Tools. Nil for the
+    /// others, which show their feature's view (or Now's columns).
     public var screen: (SpaceID, Set<FeatureID>) -> AnyView?
-    /// What follows the title in the second row of a space without sub-tabs: Plan's day chips.
-    public var titleAccessory: (SpaceID) -> AnyView
+    /// What fills the middle of the second row of a space without sub-tabs: on Now, the one slot between
+    /// the clock and the actions.
+    public var slot: (SpaceID) -> AnyView
     /// Joins a meeting from the closed notch's Join button.
     public var join: (URL) -> Void
 
@@ -33,7 +34,7 @@ public struct NotchContent {
         dropFiles: @escaping ([URL]) -> Bool,
         openSettings: @escaping () -> Void,
         screen: @escaping (SpaceID, Set<FeatureID>) -> AnyView? = { _, _ in nil },
-        titleAccessory: @escaping (SpaceID) -> AnyView = { _ in AnyView(EmptyView()) },
+        slot: @escaping (SpaceID) -> AnyView = { _ in AnyView(EmptyView()) },
         join: @escaping (URL) -> Void = { NSWorkspace.shared.open($0) }
     ) {
         self.feature = feature
@@ -43,7 +44,7 @@ public struct NotchContent {
         self.dropFiles = dropFiles
         self.openSettings = openSettings
         self.screen = screen
-        self.titleAccessory = titleAccessory
+        self.slot = slot
         self.join = join
     }
 }

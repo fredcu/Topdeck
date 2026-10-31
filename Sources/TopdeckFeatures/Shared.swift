@@ -156,12 +156,15 @@ public struct RGB: Hashable, Sendable {
 
 extension View {
     /// Fades scrolling content out at its edges instead of cutting it off, so a long list reads as
-    /// continuing past the fold.
-    public func fadingEdges(_ axis: Axis = .vertical, length: CGFloat = 12) -> some View {
+    /// continuing past the fold. A list that starts right under its heading fades only at the end.
+    public func fadingEdges(_ axis: Axis = .vertical, length: CGFloat = 12, atStart: Bool = true) -> some View {
         mask {
             if axis == .vertical {
                 VStack(spacing: 0) {
-                    LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom).frame(height: length)
+                    if atStart {
+                        LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                            .frame(height: length)
+                    }
                     Color.black
                     LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom).frame(height: length)
                 }

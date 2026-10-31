@@ -75,6 +75,8 @@ public final class HotKey {
 extension KeyShortcut {
     /// Escape, alone, for closing what a shortcut opened.
     public static let escape = KeyShortcut(keyCode: UInt32(kVK_Escape), modifiers: 0, key: "⎋")
+    /// Command-N, which opens Now's add field while a deck is open on Now.
+    public static let addItem = KeyShortcut(keyCode: UInt32(kVK_ANSI_N), modifiers: command, key: "N")
     /// Control-Option-N, which starts a new note.
     public static let newNote = KeyShortcut(keyCode: UInt32(kVK_ANSI_N), modifiers: control | option, key: "N")
 

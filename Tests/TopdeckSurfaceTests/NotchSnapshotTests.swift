@@ -65,7 +65,6 @@ private let snapshotCases: [(name: String, metrics: NotchMetrics, events: [Notch
     ("expanded-media", notched, [.show, .clicked]),
     ("pinned-notes", notched, [.show, .showFeature(.notes), .togglePin]),
     ("expanded-mac", notched, [.show, .showFeature(.sound)]),
-    ("expanded-plan", notched, [.show, .selectSpace(.plan)]),
     ("expanded-tools", notched, [.show, .selectSpace(.tools)]),
     ("pill-compact", notchless, [.show]),
     ("pill-expanded", notchless, [.show, .showFeature(.shelf)]),
@@ -120,7 +119,7 @@ struct NotchSnapshotTests {
     @Test func hiddenSpacesLeaveTheWingsBalanced() throws {
         let preferences = Self.preferences()
         preferences.setSpace(.tools, hidden: true)
-        preferences.setSpace(.plan, hidden: true)
+        preferences.setSpace(.agents, hidden: true)
         try draw("wings-four", metrics: notched, events: [.show, .clicked], preferences: preferences, badge: 1)
     }
 

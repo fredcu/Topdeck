@@ -41,7 +41,7 @@ OmniMac (MIT), Atoll (MIT) and MacTools (GPL-3.0-only).
 ## Scope
 
 Kept from the base: notch surface, no-notch display support, Media, Shelf with AirDrop, Calendar,
-Tasks, Notes, Shortcuts, Timer, Keep Awake, Sound, AI Usage, Agents, volume HUD, Show in Notch.
+Notes, Shortcuts, Timer, Keep Awake, Sound, AI Usage, Agents, volume HUD, Show in Notch.
 Network stays for now and gets a keep-or-cut decision later.
 
 Removed: Mirror, Android Quick Share, App Store edition, Sparkle updates, equaliser, app cleaner,
@@ -130,3 +130,11 @@ the Mac.
 - Synced lyrics (`lyrics-lrclib`, LRCLIB) in the Now card with a real player.
 
 The window switcher defaults to Option-Tab because Command-Tab needs an event tap.
+
+## Now space
+
+Now is rebuilt to the NowToday, NowPlaying, NowAlert, NowAdd, NowFree and NowMin boards. The Plan space and
+the Reminders feature (Tasks, due alerts, time blocking, the Reminders permission) are removed; the
+owner's Apple Reminders data is untouched. Calendar lives in Now, and Weather is new: Core Location
+once (reduced accuracy), Apple's geocoder for the place name, and Open-Meteo for the forecast and air
+quality, with coordinates rounded to two decimals. Wings: Now, Stash, Tools and Agents, Mac.

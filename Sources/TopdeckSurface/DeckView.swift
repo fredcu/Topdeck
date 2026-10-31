@@ -78,24 +78,39 @@ struct DeckView: View {
     // MARK: Second row
 
     private func secondRow(_ set: SpaceSet, subTab: FeatureID?) -> some View {
-        HStack(spacing: 0) {
+        HStack(alignment: space == .now ? .top : .center, spacing: 0) {
             if space.hasSubTabs {
                 DeckSubTabs(set.subTabs(of: space), selection: subTab, title: space.subTabTitle) {
                     engine.send(.selectSubTab($0))
                 }
+            } else if space == .now {
+                DeckClock()
             } else {
                 Text(space.headline()).deckText(.title).lineLimit(1)
-                content.titleAccessory(space).padding(.leading, 14)
             }
-            Spacer(minLength: Deck.Metric.gap)
+            if space == .now {
+                // The one slot between the clock and the actions: a request, a meeting, the add field.
+                // Clear behind it, so the slot keeps its width, and the actions their place, when it is empty.
+                ZStack(alignment: .leading) {
+                    Color.clear.frame(height: 1)
+                    content.slot(space)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 14)
+                .padding(.trailing, 12)
+            } else {
+                Spacer(minLength: Deck.Metric.gap)
+            }
             HStack(spacing: 2) {
                 content.actions(space, subTab)
                 DeckIconButton(.pin, label: pinned ? "Unpin" : "Keep open", on: pinned) { engine.send(.togglePin) }
                 DeckIconButton(.gear, label: "Settings") { content.openSettings() }
             }
+            .padding(.top, space == .now ? 1 : 0)
         }
-        .padding(.horizontal, 18)
-        .frame(height: Deck.Metric.subRow)
+        .padding(.horizontal, Deck.Metric.inset)
+        .padding(.top, space == .now ? 2 : 0)
+        .frame(height: space == .now ? Deck.Metric.nowRow : Deck.Metric.subRow, alignment: .top)
     }
 
     // MARK: Body
@@ -107,14 +122,14 @@ struct DeckView: View {
                 .transition(.opacity)
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.15), value: page)
-        .padding(.horizontal, Deck.Metric.side)
+        .padding(.horizontal, space == .now ? Deck.Metric.inset : Deck.Metric.side)
         .padding(.bottom, Deck.Metric.side)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         // Overlay scroll bars would sit on top of lists; faded edges show there's more.
         .scrollIndicators(.never)
     }
 
-    /// Now draws its own cards, and so do the spaces with a screen of their own. A sub-tabbed space
+    /// Now draws its own columns, and so do the spaces with a screen of their own. A sub-tabbed space
     /// shows its one tab's view. The rest lay the views of the features that are on side by side.
     @ViewBuilder private func pageContent(_ page: Page, enabled: Set<FeatureID>) -> some View {
         if space == .now {
@@ -172,14 +187,8 @@ struct DeckView: View {
 }
 
 extension SpaceID {
-    /// The title at the left of the second row for a space without sub-tabs: Now names the day.
-    func headline(on date: Date = .now) -> String {
-        switch self {
-        case .now: date.formatted(.dateTime.weekday(.wide))
-        case .plan: "Today"
-        default: title
-        }
-    }
+    /// The title at the left of the second row for a space without sub-tabs.
+    func headline() -> String { title }
 }
 
 /// Three diagonal strokes that run from the right edge to the bottom edge, like a window's resize

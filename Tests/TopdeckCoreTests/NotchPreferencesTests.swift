@@ -41,38 +41,55 @@ struct NotchPreferencesTests {
 
     @Test func spacesStartInTheirDefaultOrderAllShown() {
         let preferences = NotchPreferences(defaults: defaults)
-        #expect(preferences.spaceOrder == [.now, .stash, .plan, .agents, .mac, .tools])
+        #expect(preferences.spaceOrder == [.now, .stash, .tools, .agents, .mac])
         #expect(preferences.spaceSet.spaces == SpaceID.defaultOrder)
+    }
+
+    @Test func aStoredOrderWithThePlanSpaceLoadsCleanly() {
+        defaults.set(["now", "stash", "plan", "agents", "mac", "tools"], forKey: "spaceOrder")
+        defaults.set(["plan", "mac"], forKey: "hiddenSpaces")
+        let preferences = NotchPreferences(defaults: defaults)
+        #expect(preferences.spaceOrder == [.now, .stash, .agents, .mac, .tools])
+        #expect(preferences.hiddenSpaces == [.mac])
+        #expect(preferences.spaceSet.spaces == [.now, .stash, .agents, .tools])
+    }
+
+    @Test func aStoredFeatureListWithTasksLoadsCleanly() {
+        defaults.set(["tasks", "notes"], forKey: "disabledFeatures")
+        defaults.set(FeatureID.allCases.map(\.rawValue) + ["tasks"], forKey: "seenFeatures")
+        let preferences = NotchPreferences(defaults: defaults)
+        #expect(preferences.disabledFeatures == [.notes])
+        #expect(preferences.isEnabled(.weather) && preferences.isEnabled(.calendar), "weather starts on")
     }
 
     @Test func spacesMoveAndKeepTheirPlaceWhileHidden() {
         let preferences = NotchPreferences(defaults: defaults)
         preferences.moveSpace(.tools, to: 1)
-        #expect(preferences.spaceSet.spaces == [.now, .tools, .stash, .plan, .agents, .mac])
+        #expect(preferences.spaceSet.spaces == [.now, .tools, .stash, .agents, .mac])
         preferences.setSpace(.stash, hidden: true)
-        #expect(preferences.spaceSet.spaces == [.now, .tools, .plan, .agents, .mac])
+        #expect(preferences.spaceSet.spaces == [.now, .tools, .agents, .mac])
         preferences.moveSpace(.mac, to: 99)
         preferences.moveSpace(.agents, to: -4)
-        #expect(preferences.spaceOrder == [.agents, .now, .tools, .stash, .plan, .mac], "the hidden stash stayed")
+        #expect(preferences.spaceOrder == [.agents, .now, .tools, .stash, .mac], "the hidden stash stayed")
         preferences.setSpace(.stash, hidden: false)
         let reopened = NotchPreferences(defaults: defaults)
         #expect(
-            reopened.spaceSet.spaces == [.agents, .now, .tools, .stash, .plan, .mac], "order and visibility persist")
+            reopened.spaceSet.spaces == [.agents, .now, .tools, .stash, .mac], "order and visibility persist")
     }
 
     @Test func theLastSpaceOnShowCannotBeHidden() {
         let preferences = NotchPreferences(defaults: defaults)
         for space in SpaceID.allCases { preferences.setSpace(space, hidden: true) }
-        #expect(preferences.spaceSet.spaces == [.tools], "the last one asked to hide stays")
-        #expect(preferences.hiddenSpaces == Set(SpaceID.allCases).subtracting([.tools]))
+        #expect(preferences.spaceSet.spaces == [.mac], "the last one asked to hide stays")
+        #expect(preferences.hiddenSpaces == Set(SpaceID.allCases).subtracting([.mac]))
     }
 
     @Test func aSpaceWithNothingOnIsHidden() {
         let preferences = NotchPreferences(defaults: defaults)
-        for feature in SpaceID.plan.features { preferences.setEnabled(feature, false) }
-        #expect(preferences.spaceSet.spaces == [.now, .stash, .agents, .mac, .tools], "calendar and tasks are off")
-        preferences.setEnabled(.calendar, true)
-        #expect(preferences.spaceSet.spaces.contains(.plan))
+        for feature in SpaceID.tools.features { preferences.setEnabled(feature, false) }
+        #expect(preferences.spaceSet.spaces == [.now, .stash, .agents, .mac], "capture, timer and shortcuts are off")
+        preferences.setEnabled(.timer, true)
+        #expect(preferences.spaceSet.spaces.contains(.tools))
     }
 
     @Test func aSpaceAddedByAnUpdateJoinsTheEndOfACustomOrder() {
@@ -86,7 +103,7 @@ struct NotchPreferencesTests {
     @Test func resetRestoresTheDefaults() {
         let preferences = NotchPreferences(defaults: defaults)
         preferences.moveSpace(.tools, to: 0)
-        preferences.setSpace(.plan, hidden: true)
+        preferences.setSpace(.mac, hidden: true)
         preferences.setEnabled(.shelf, false)
         preferences.showOnAllDisplays = true
         preferences.resizeExpanded(to: CGSize(width: 800, height: 400))
@@ -176,9 +193,9 @@ struct NotchPreferencesTests {
         let preferences = NotchPreferences(defaults: defaults)
         var seen: [[FeatureID]] = []
         observeContinuously { seen.append(preferences.enabledFeatures) }
-        preferences.setEnabled(.tasks, false)
+        preferences.setEnabled(.weather, false)
         #expect(await eventually { seen.count == 2 })
-        preferences.setEnabled(.tasks, true)
+        preferences.setEnabled(.weather, true)
         #expect(await eventually { seen.count == 3 })
         #expect(seen.last == defaultTabs)
     }

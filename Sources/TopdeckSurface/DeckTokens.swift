@@ -56,6 +56,12 @@ public enum Deck {
         public static let side: CGFloat = 14
         /// The second row's height.
         public static let subRow: CGFloat = 42
+        /// Now's second row, tall enough for the clock.
+        public static let nowRow: CGFloat = 46
+        /// The deck's side padding on the second row and on Now's columns.
+        public static let inset: CGFloat = 18
+        /// Between Now's columns, around their hairlines.
+        public static let columnGap: CGFloat = 14
         /// A wing's navigation pill.
         public static let navHeight: CGFloat = 27
         /// A button.
@@ -92,6 +98,20 @@ public enum DeckTextStyle: CaseIterable, Sendable {
     case caption
     /// Commands: Mono 12.
     case command
+    /// Now's clock: Rounded 34.
+    case clock
+    /// The weather's large temperature: Rounded 32.
+    case temperature
+    /// The temperature beside a player: Rounded 26.
+    case temperatureMedium
+    /// The temperature in the smallest deck's player: Rounded 20.
+    case temperatureSmall
+    /// A figure in a row of figures: Semibold 12.
+    case figure
+    /// The line being sung: Bold 15.
+    case lyric
+    /// The line being sung in the smallest deck: Bold 13.
+    case lyricSmall
 
     /// The size in points.
     public var size: CGFloat {
@@ -101,7 +121,13 @@ public enum DeckTextStyle: CaseIterable, Sendable {
         case .title: 20
         case .item: 15
         case .body: 13
-        case .detail, .caption, .command: 12
+        case .detail, .caption, .command, .figure: 12
+        case .clock: 34
+        case .temperature: 32
+        case .temperatureMedium: 26
+        case .temperatureSmall: 20
+        case .lyric: 15
+        case .lyricSmall: 13
         }
     }
 
@@ -115,6 +141,13 @@ public enum DeckTextStyle: CaseIterable, Sendable {
         case .body: .system(size: 13).monospacedDigit()
         case .detail, .caption: .system(size: 12).monospacedDigit()
         case .command: .system(size: 12, design: .monospaced)
+        case .clock: .system(size: 34, weight: .semibold, design: .rounded).monospacedDigit()
+        case .temperature: .system(size: 32, weight: .semibold, design: .rounded).monospacedDigit()
+        case .temperatureMedium: .system(size: 26, weight: .semibold, design: .rounded).monospacedDigit()
+        case .temperatureSmall: .system(size: 20, weight: .semibold, design: .rounded).monospacedDigit()
+        case .figure: .system(size: 12, weight: .semibold).monospacedDigit()
+        case .lyric: .system(size: 15, weight: .bold)
+        case .lyricSmall: .system(size: 13, weight: .bold)
         }
     }
 
