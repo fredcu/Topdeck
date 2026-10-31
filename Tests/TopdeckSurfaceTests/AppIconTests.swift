@@ -3,7 +3,7 @@ import AppKit
 import Foundation
 import Testing
 
-/// The asset catalog's icons are rendered by a script from the board's SVG; this checks the catalog
+/// The asset catalog's icons are rendered by scripts/render-icon.swift from the board's SVG; this checks the catalog
 /// holds every size the Mac asks for, at the right pixel size.
 struct AppIconTests {
     private struct Contents: Decodable {
@@ -33,19 +33,20 @@ struct AppIconTests {
         #expect(Set(contents.images.map(\.filename)).count == 10, "no size shares another's file")
     }
 
-    /// The 16 point icon drops the back card, so its top rows are the amber card, not the grey one.
-    @Test func theSmallestIconsHaveNoBackCard() throws {
+    /// The 16 point icon drops the second line and the orange dot, which turn to mud at that size.
+    @Test func theSmallestIconsHaveNoDot() throws {
         let folder = Self.assets.appending(path: "AppIcon.appiconset")
-        func topColor(_ name: String) throws -> NSColor {
+        func dotColor(_ name: String) throws -> NSColor {
             let bitmap = try #require(NSBitmapImageRep(data: Data(contentsOf: folder.appending(path: name))))
-            // Just inside the tile's top edge, over the middle: the back card sits there in the big icons.
-            let x = bitmap.pixelsWide / 2
-            let y = Int(Double(bitmap.pixelsHigh) * 0.265)
+            // Where the paper icon puts its dot: 70% across and 67.5% down the 120 unit square.
+            let x = Int(Double(bitmap.pixelsWide) * 0.7)
+            let y = Int(Double(bitmap.pixelsHigh) * 0.675)
             return try #require(bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB))
         }
-        let big = try topColor("icon-512@2x.png")
-        let small = try topColor("icon-16@2x.png")
-        #expect(big.redComponent > small.redComponent + 0.2, "the grey back card shows in the big icon, not the small")
+        #expect(try dotColor("icon-512@2x.png").blueComponent < 0.4, "orange in the big icon")
+        #expect(try dotColor("icon-32@2x.png").blueComponent < 0.4, "and at 32 points")
+        #expect(try dotColor("icon-16@2x.png").blueComponent > 0.6, "paper at 16 points")
+        #expect(try dotColor("icon-16.png").blueComponent > 0.6)
     }
 
     @Test func theMenuBarGlyphIsATemplate() throws {
