@@ -36,6 +36,10 @@ struct SpaceTests {
         #expect(SpaceSet.all.visibleFeatures(in: .stash, subTab: .notes) == [.notes])
         #expect(SpaceSet.all.visibleFeatures(in: .stash, subTab: nil).isEmpty)
         #expect(SpaceSet.all.visibleFeatures(in: .plan, subTab: nil) == [.calendar, .tasks])
+        #expect(
+            SpaceSet.all.visibleFeatures(in: .mac, subTab: .sound) == [.sound, .monitors],
+            "Sound shows the monitors' volume")
+        #expect(SpaceSet(enabled: [.sound]).visibleFeatures(in: .mac, subTab: .sound) == [.sound])
     }
 
     @Test func aSpaceWithNothingOnIsHidden() {

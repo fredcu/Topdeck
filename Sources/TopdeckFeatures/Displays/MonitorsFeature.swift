@@ -180,6 +180,9 @@ public final class MonitorsFeature: NotchFeature {
         }
     }
 
+    /// Sets a monitor's volume, 0...1, for the Sound tab.
+    public func setVolume(_ fraction: Double, of id: CGDirectDisplayID) { set(.volume, of: id, to: fraction) }
+
     private func send(_ value: UInt16, _ control: DDC.Control, to channel: any DDCChannel, key: Key) {
         let generation = generation
         Task {

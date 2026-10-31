@@ -158,7 +158,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         switch feature {
         case .media: return AnyView(media.view)
         case .sound:
-            return AnyView(SoundView(mixer: mixer))
+            return AnyView(SoundView(mixer: mixer, monitors: monitors))
         case .shelf:
             return AnyView(shelf.view)
         case .clipboard: return AnyView(clipboard.view)
