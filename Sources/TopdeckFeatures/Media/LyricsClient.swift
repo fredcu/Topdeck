@@ -163,12 +163,22 @@ struct LyricsClient: Sendable {
             else { continue }
             let other = LyricsTrack(title: title, artist: name, duration: track.duration)
             if let found = try await lrclib(other, artist: name, retries: &retries) { return found }
+            // LRCLIB matches the text it's sent, and Hong Kong writes Traditional where it often holds Simplified.
+            let (simpleTitle, simpleName) = (Self.simplified(title), Self.simplified(name))
+            if simpleTitle != title || simpleName != name {
+                let simple = LyricsTrack(title: simpleTitle, artist: simpleName, duration: track.duration)
+                if let found = try await lrclib(simple, artist: simpleName, retries: &retries) { return found }
+            }
             if tried.count > Self.localNameLimit { break }  // the original and three others
         }
         return nil
     }
 
     private static let itunes = "https://itunes.apple.com/"
+
+    private static func simplified(_ text: String) -> String {
+        text.applyingTransform(StringTransform("Hant-Hans"), reverse: false) ?? text
+    }
 
     private static func pairKey(_ title: String, _ artist: String) -> String {
         normalized(title) + "\u{1F}" + normalized(artist)
@@ -204,7 +214,7 @@ struct LyricsClient: Sendable {
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
         while true {
             var wait: TimeInterval = 0
-            var reason = "HTTP 503"
+            var reason = ""
             do {
                 let (data, response) = try await fetch(request)
                 switch response.statusCode {
@@ -213,7 +223,7 @@ struct LyricsClient: Sendable {
                 case 429:
                     wait = response.value(forHTTPHeaderField: "Retry-After").flatMap(TimeInterval.init) ?? 0
                     reason = "HTTP 429"
-                case 503: break
+                case 502, 503, 504: reason = "HTTP \(response.statusCode)"
                 default: throw Failure(reason: "HTTP \(response.statusCode)")
                 }
             } catch let failure as Failure {
@@ -274,8 +284,7 @@ struct LyricsClient: Sendable {
 
     /// Lowercased, without accents, trimmed, and in Simplified Chinese.
     static func normalized(_ text: String) -> String {
-        let simplified = text.applyingTransform(StringTransform("Hant-Hans"), reverse: false) ?? text
-        return simplified.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        simplified(text).folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 

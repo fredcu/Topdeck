@@ -330,6 +330,38 @@ struct LyricsClientTests {
         #expect(network.requests.count == asked)
     }
 
+    @Test func aTraditionalNameThatMissesIsTriedInSimplifiedToo() async throws {
+        let hit: [String: Any] = ["trackName": "爱路", "artistName": "李文", "duration": 200.0, "syncedLyrics": lrc]
+        let network = Network([
+            .status(404), .list([]), .itunes([Reply.song(7, "Moon Road", "Lee Wen")]),
+            .itunes([Reply.song(7, "愛路", "李文")]), .status(404), .list([]), .status(404), .list([hit]),
+        ])
+        let (client, directory) = makeClient(network)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        #expect(try await client.lyrics(for: latin) != nil)
+        #expect(query(network.requests[4], "track_name") == "愛路")
+        #expect(query(network.requests[6], "track_name") == "爱路")
+        #expect(network.requests.count == 8)
+    }
+
+    @Test(arguments: [502, 504])
+    func a502Or504IsRetriedLikeA503(status: Int) async throws {
+        let network = Network([.status(status), .lyrics(lrc)])
+        let (client, directory) = makeClient(network)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        #expect(try await client.lyrics(for: track) != nil)
+        #expect(network.waits == [1])
+        let down = Network([.status(status), .status(status), .status(status), .status(status)])
+        let (second, _) = makeClient(
+            down, directory: FileManager.default.temporaryDirectory.appending(path: "L-\(UUID())"))
+        do {
+            _ = try await second.lyrics(for: track)
+            Issue.record("should fail")
+        } catch let failure as LyricsClient.Failure {
+            #expect(failure.reason == "HTTP \(status)")
+        }
+    }
+
     @Test func storefrontsAreAskedInOrderAndAnEmptyOneMovesOn() async throws {
         let network = Network([
             .status(404), .list([]), .itunes([Reply.song(7, "Moon Road", "Lee Wen")]),
