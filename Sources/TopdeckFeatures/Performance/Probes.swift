@@ -6,6 +6,7 @@ import Darwin
 import Foundation
 import IOKit
 import IOKit.ps
+import SystemConfiguration
 
 /// The system readings, one at a time and stateless; `Readings.swift` does the arithmetic. All public
 /// API: counters from the kernel and properties from the IORegistry.
@@ -141,6 +142,38 @@ enum Probes {
             return report
         }
         return nil
+    }
+
+    /// The one-minute load average.
+    static func loadAverage() -> Double? {
+        var loads = [Double](repeating: 0, count: 3)
+        return getloadavg(&loads, 3) > 0 ? loads[0] : nil
+    }
+
+    /// The chip's name without "Apple ": "M5", "M4 Pro", or the Intel part.
+    static func chipName() -> String? {
+        var size = 0
+        guard sysctlbyname("machdep.cpu.brand_string", nil, &size, nil, 0) == 0, size > 1 else { return nil }
+        var buffer = [CChar](repeating: 0, count: size)
+        guard sysctlbyname("machdep.cpu.brand_string", &buffer, &size, nil, 0) == 0 else { return nil }
+        let name = String(decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+        return name.hasPrefix("Apple ") ? String(name.dropFirst(6)) : name
+    }
+
+    /// What the connection in use is: "Wi-Fi", "Ethernet", or the interface's own name.
+    static func primaryInterface() -> String? {
+        guard let store = SCDynamicStoreCreate(nil, "Topdeck" as CFString, nil, nil),
+            let global = SCDynamicStoreCopyValue(store, "State:/Network/Global/IPv4" as CFString) as? [String: Any],
+            let name = global["PrimaryInterface"] as? String
+        else { return nil }
+        let all = SCNetworkInterfaceCopyAll() as? [SCNetworkInterface] ?? []
+        guard let interface = all.first(where: { SCNetworkInterfaceGetBSDName($0) as String? == name }) else {
+            return name
+        }
+        let type = SCNetworkInterfaceGetInterfaceType(interface)
+        if let type, CFEqual(type, kSCNetworkInterfaceTypeIEEE80211) { return "Wi-Fi" }
+        if let type, CFEqual(type, kSCNetworkInterfaceTypeEthernet) { return "Ethernet" }
+        return name
     }
 
     private static func sysctlInt(_ name: String) -> Int? {

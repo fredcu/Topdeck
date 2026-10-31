@@ -98,11 +98,13 @@ public struct SpaceSet: Hashable, Sendable {
     /// Every space, every feature on.
     public static let all = SpaceSet(enabled: Set(FeatureID.allCases))
 
-    /// The features a space shows on screen at once. Mac shows its page's, with the detail screen's over it
-    /// when one is open; the others show all of theirs.
+    /// The features a space shows on screen at once. Mac's page runs Performance and Displays (for its brightness
+    /// slider), and a detail screen's own feature too while one is over it, so the page's history carries on;
+    /// the others show all of theirs.
     public func visibleFeatures(in space: SpaceID, detail: FeatureID?) -> Set<FeatureID> {
         guard space == .mac else { return Set(space.features.filter(enabled.contains)) }
-        var shown: Set<FeatureID> = enabled.contains(.performance) ? [.performance] : []
+        // The page reads the Mac's performance and the monitors' brightness; a detail screen adds its own work.
+        var shown = Set([FeatureID.performance, .monitors].filter(enabled.contains))
         if let detail, enabled.contains(detail), space.details.contains(detail) {
             shown.insert(detail)
             // Sound also shows the external monitors' volume, so Displays runs while it's on screen.

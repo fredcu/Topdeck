@@ -220,3 +220,91 @@ private final class HeldReading: SnapshotSource, @unchecked Sendable {
     func waitUntilReading() { #expect(entered.wait(timeout: .now() + 5) == .success) }
     func release() { gate.signal() }
 }
+
+/// A reader that always sees the same Mac.
+private final class QuietMac: SnapshotSource, @unchecked Sendable {
+    func read() -> PerformanceFeature.Snapshot { PerformanceFeature.Snapshot() }
+}
+
+struct MacPageTests {
+    @Test func aRingKeepsTheLatestValuesOldestFirst() {
+        var ring = RingBuffer(capacity: 3)
+        #expect(ring.values.isEmpty)
+        for value in [1.0, 2] { ring.append(value) }
+        #expect(ring.values == [1, 2])
+        for value in [3.0, 4, 5] { ring.append(value) }
+        #expect(ring.values == [3, 4, 5], "the oldest went when it was full")
+        #expect(RingBuffer(capacity: 0).capacity == 1)
+    }
+
+    @MainActor @Test func theHistoryKeepsAMinuteAndStartsOverWhenTheTabIsLeft() {
+        let performance = PerformanceFeature(source: { QuietMac() }, interval: 3600)
+        var reading = PerformanceFeature.Snapshot()
+        reading.efficiencyCores = [40]
+        reading.network = Rate(down: 3000, up: 500)
+        reading.memory = MemorySample(active: 8e9, wired: 4e9, compressed: 0, total: 24e9)
+        performance.preview((0..<75).map { _ in reading })
+        #expect(performance.history.cpu.values.count == 60)
+        #expect(performance.history.cpu.values.last == 40 && performance.history.network.values.last == 3500)
+        #expect(performance.history.memory.values.last == 50)
+        #expect(performance.history.battery.values.isEmpty, "no battery, nothing to draw")
+        performance.phase = .foreground
+        performance.phase = .stopped
+        #expect(performance.history.cpu.values.isEmpty, "off screen it keeps nothing")
+    }
+
+    @Test func aRateThatIsNotKnownYetIsLeftOutOfTheHistory() {
+        var history = PerformanceHistory()
+        history.record(PerformanceFeature.Snapshot())
+        #expect(history.network.values.isEmpty && history.disk.values.isEmpty && history.cpu.values.isEmpty)
+    }
+
+    @Test func theTableSortsByTheHeaderClicked() {
+        var snapshot = PerformanceFeature.Snapshot()
+        let a = ProcessUsage(pid: 1, cpu: 9, memory: 100, name: "Zed")
+        let b = ProcessUsage(pid: 2, cpu: 5, memory: 900, name: "Alpha")
+        let c = ProcessUsage(pid: 3, cpu: 1, memory: 500, name: "mid")
+        snapshot.topCPU = [a, b]
+        snapshot.topMemory = [b, c]
+        #expect(ProcessSort.cpu.rows(in: snapshot, limit: 5).map(\.pid) == [1, 2])
+        #expect(ProcessSort.memory.rows(in: snapshot, limit: 5).map(\.pid) == [2, 3])
+        #expect(ProcessSort.name.rows(in: snapshot, limit: 5).map(\.name) == ["Alpha", "mid", "Zed"])
+        #expect(
+            ProcessSort.cpu.rows(in: snapshot, limit: 1).count == 1
+                && ProcessSort.cpu.rows(in: snapshot, limit: 0).isEmpty)
+    }
+
+    @Test func theLineOfTheSparklineRunsOverItsWindow() {
+        let size = CGSize(width: 100, height: 24)
+        let points = MetricSparkline.points([0, 50, 100], in: size, floor: 1, ceiling: nil)
+        #expect(points.map(\.x) == [0, 50, 100])
+        #expect(points[0].y > points[1].y && points[1].y > points[2].y, "bigger is higher")
+        #expect(MetricSparkline.points([5], in: size, floor: 1, ceiling: nil).isEmpty, "one value is no line")
+        let flat = MetricSparkline.points([2, 2], in: size, floor: 100, ceiling: nil)
+        #expect(flat[0].y > size.height - 3, "a quiet minute stays low under the floor")
+        let capped = MetricSparkline.points([0, 100], in: size, floor: 1, ceiling: 200)
+        #expect(capped[1].y > size.height / 2, "the ceiling sets the scale")
+    }
+
+    @Test func theCardsSayTheirNumbersTheWayTheBoardDoes() {
+        #expect(MacFormat.whole(18.6) == "19" && MacFormat.whole(nil) == "–")
+        #expect(MacFormat.degrees(35.6) == "36°" && MacFormat.degrees(nil) == nil)
+        #expect(MacFormat.bytes(156_000_000_000) == ("156", "GB"))
+        #expect(MacFormat.bytes(nil) == ("–", ""))
+        let traffic = MacFormat.traffic(Rate(down: 2_800, up: 300))
+        #expect(traffic.value == "3.1" && traffic.unit == "KB/s" && traffic.detail == "↓2.8  ↑0.3")
+        #expect(MacFormat.traffic(Rate(down: 12_000_000, up: 400_000)).unit == "MB/s")
+        #expect(MacFormat.disk(read: 81_000, written: 1_014_000) == "R 81  W 1014 KB/s")
+        #expect(MacFormat.disk(read: nil, written: nil).isEmpty)
+        #expect(MacFormat.gigabytes(19.4 * 1_073_741_824) == "19.4 GB")
+        #expect(MacFormat.uptime(3 * 86_400 + 4 * 3600 + 120) == "3d 4h")
+        #expect(MacFormat.uptime(5 * 3600 + 12 * 60) == "5h 12m" && MacFormat.uptime(30) == "1m")
+        #expect(MacFormat.processCPU(1.44) == "1.4%")
+    }
+
+    @Test func aGPUTemperatureComesOnlyFromSensorsThatSayGPU() {
+        let both = Temperatures(from: [(name: "PMU tdie1", value: 40), (name: "GPU MTR Temp Sensor1", value: 34)])
+        #expect(both.gpu == 34 && both.chip == 40)
+        #expect(Temperatures(from: [(name: "PMU tdie1", value: 40)]).gpu == nil)
+    }
+}

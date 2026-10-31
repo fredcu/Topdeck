@@ -24,7 +24,7 @@ struct NotchEngineTests {
         engine.onPresentationChange = { _, _ in reports += 1 }
         engine.send(.openDetail(.storage))
         engine.send(.openDetail(.storage))  // already there
-        #expect(reports == 1 && engine.state.onScreen == [.performance, .storage])
+        #expect(reports == 1 && engine.state.onScreen == [.performance, .monitors, .storage])
     }
 
     @Test func timersFireThroughTheReducer() async throws {

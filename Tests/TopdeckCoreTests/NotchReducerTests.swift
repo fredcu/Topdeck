@@ -348,8 +348,9 @@ struct NotchReducerTests {
         #expect(
             features(.show, .clicked) == [.media, .agents, .calendar, .notes, .weather, .timer], "everything Now shows")
         #expect(features(.show, .showFeature(.usage)) == [.agents, .usage], "one page")
-        #expect(features(.show, .selectSpace(.mac)) == [.performance], "Mac's page runs only the performance reading")
-        #expect(features(.show, .showFeature(.sound)) == [.performance, .sound, .monitors])
+        #expect(
+            features(.show, .selectSpace(.mac)) == [.performance, .monitors], "Mac's page: performance and brightness")
+        #expect(features(.show, .showFeature(.sound)) == [.performance, .monitors, .sound])
         #expect(features(.show, .showFeature(.clipboard)) == [.clipboard], "the one view")
         #expect(features(.show, .selectSpace(.tools)) == [.capture, .timer, .shortcuts])
         #expect(features(.show, .setSpaces(only(.media, .agents)), .selectSpace(.now)) == [.media, .agents])
@@ -370,7 +371,7 @@ struct NotchReducerTests {
         let usage = phases(after(.show, .showFeature(.usage)))
         #expect(Set(usage.filter { $0.value == .foreground }.keys) == [.agents, .usage], "both on one page")
         let storage = phases(after(.show, .showFeature(.storage)))
-        #expect(Set(storage.filter { $0.value == .foreground }.keys) == [.performance, .storage])
+        #expect(Set(storage.filter { $0.value == .foreground }.keys) == [.performance, .monitors, .storage])
         #expect(storage[.network] == .background && storage[.admin] == .background)
         let suspended = phases(after(.show, .clicked, .suspend(.screenLocked)))
         #expect(suspended.values.allSatisfy { $0 == .stopped })

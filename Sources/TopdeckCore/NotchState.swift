@@ -284,11 +284,13 @@ public struct NotchState: Hashable, Sendable {
         // Settings apply in every state.
         case (_, .setSpaces(let set)):
             spaceSet = set
+            if let detail, !set.enabled.contains(detail) { self.detail = nil }
             if !set.spaces.contains(lastSpace), let first = set.spaces.first { lastSpace = first }
             switch presentation {
             case .expanded(let space), .pinned(let space), .focused(let space, _):
                 guard !set.spaces.contains(space) else { break }
                 if let first = set.spaces.first {
+                    detail = nil
                     open(first, pinned: presentation.isPinned)
                 } else {
                     presentation = .compact

@@ -49,13 +49,14 @@ struct SpaceTests {
     }
 
     @Test func macRunsItsPageAndOnlyTheDetailScreenThatIsOver() {
-        #expect(SpaceSet.all.visibleFeatures(in: .mac, detail: nil) == [.performance])
-        #expect(SpaceSet.all.visibleFeatures(in: .mac, detail: .storage) == [.performance, .storage])
+        #expect(SpaceSet.all.visibleFeatures(in: .mac, detail: nil) == [.performance, .monitors])
+        #expect(SpaceSet.all.visibleFeatures(in: .mac, detail: .storage) == [.performance, .monitors, .storage])
         #expect(
-            SpaceSet.all.visibleFeatures(in: .mac, detail: .sound) == [.performance, .sound, .monitors],
+            SpaceSet.all.visibleFeatures(in: .mac, detail: .sound) == [.performance, .monitors, .sound],
             "Sound shows the monitors' volume")
         #expect(SpaceSet(enabled: [.sound]).visibleFeatures(in: .mac, detail: .sound) == [.sound])
-        #expect(SpaceSet.all.visibleFeatures(in: .mac, detail: .capture) == [.performance], "not a Mac detail")
+        #expect(
+            SpaceSet.all.visibleFeatures(in: .mac, detail: .capture) == [.performance, .monitors], "not a Mac detail")
         #expect(SpaceSet(enabled: [.performance]).visibleFeatures(in: .mac, detail: .storage) == [.performance])
     }
 

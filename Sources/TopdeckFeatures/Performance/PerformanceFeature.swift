@@ -6,7 +6,7 @@ import TopdeckCore
 
 /// How the Mac is doing: per-core CPU, GPU, memory, disk, network, the busiest apps, temperature, and
 /// the battery's health. It reads once a second while the tab is on screen and not at all otherwise:
-/// no timer in the background, no alerts, no history. Each rate is the difference between two
+/// no timer in the background, no alerts, and a minute of history only while it is on screen. Each rate is the difference between two
 /// readings, so leaving the tab forgets the last one rather than showing a long gap as a speed.
 /// The reading, which walks every process and asks IOKit, runs on its own queue so the notch's
 /// animations never wait on it; only the finished snapshot comes back to the main actor.
@@ -29,6 +29,10 @@ public final class PerformanceFeature: NotchFeature {
         var topMemory: [ProcessUsage] = []
         var temperatures: Temperatures?
         var battery: BatteryReport?
+        var loadAverage: Double?
+        var chipName: String?
+        /// "Wi-Fi", "Ethernet", or the interface's name.
+        var networkInterface: String?
 
         var cpu: Double? {
             let cores = efficiencyCores + performanceCores
@@ -41,6 +45,10 @@ public final class PerformanceFeature: NotchFeature {
         didSet { if phase != oldValue { update() } }
     }
     private(set) var snapshot = Snapshot()
+    /// The last minute of each reading, for the sparklines.
+    private(set) var history = PerformanceHistory()
+    /// How many processes each top list keeps: as many as the largest deck has rows for.
+    nonisolated static let listedProcesses = 12
 
     /// The only place the system is read, one reading at a time.
     @ObservationIgnored let queue = DispatchQueue(label: "net.icuai.topdeck.performance", qos: .utility)
@@ -65,6 +73,13 @@ public final class PerformanceFeature: NotchFeature {
 
     public var view: some View { PerformanceView(performance: self) }
 
+    /// Shows `readings` as the history, the last of them as now, with no reader: for screenshots and tests.
+    func preview(_ readings: [Snapshot]) {
+        history = PerformanceHistory()
+        for reading in readings { history.record(reading) }
+        snapshot = readings.last ?? Snapshot()
+    }
+
     /// Whether a reading is scheduled.
     var isSampling: Bool { timer != nil }
 
@@ -86,6 +101,7 @@ public final class PerformanceFeature: NotchFeature {
         source = nil
         visit += 1
         snapshot = Snapshot()
+        history = PerformanceHistory()
     }
 
     /// Starts a reading on the queue unless one is still going.
@@ -103,5 +119,6 @@ public final class PerformanceFeature: NotchFeature {
         reading = false
         guard visit == self.visit, next != snapshot else { return }
         snapshot = next
+        history.record(next)
     }
 }

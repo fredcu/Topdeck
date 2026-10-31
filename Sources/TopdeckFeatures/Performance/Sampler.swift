@@ -32,6 +32,7 @@ final class Sampler: SnapshotSource, @unchecked Sendable {
             isSetUp = true
             layout = Probes.coreLayout()
             sensors = TemperatureSensors()
+            snapshot.chipName = Probes.chipName()
         }
         let now = Date.now
         let current = Previous(
@@ -51,8 +52,8 @@ final class Sampler: SnapshotSource, @unchecked Sendable {
                 next.network = Rate(down: Double(moved.down) / seconds, up: Double(moved.up) / seconds)
             }
             let usage = ProcessUsage.cpu(from: last.processes, to: current.processes, seconds: seconds)
-            next.topCPU = Self.named(ProcessUsage.topByCPU(usage))
-            next.topMemory = Self.named(ProcessUsage.topByMemory(usage))
+            next.topCPU = Self.named(ProcessUsage.topByCPU(usage, limit: PerformanceFeature.listedProcesses))
+            next.topMemory = Self.named(ProcessUsage.topByMemory(usage, limit: PerformanceFeature.listedProcesses))
         }
         next.gpu = Probes.gpuUsage()
         next.memory = Probes.memory()
@@ -61,7 +62,10 @@ final class Sampler: SnapshotSource, @unchecked Sendable {
         if spaceAge % 15 == 0, let space = Probes.diskSpace() {
             (next.diskFree, next.diskTotal) = (space.free, space.total)
         }
+        // Which connection is in use changes rarely.
+        if spaceAge % 15 == 0 { next.networkInterface = Probes.primaryInterface() }
         spaceAge += 1
+        next.loadAverage = Probes.loadAverage()
         if let sensors {
             let temperatures = Temperatures(from: sensors.read())
             next.temperatures = temperatures.isEmpty ? nil : temperatures

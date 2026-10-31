@@ -196,6 +196,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     capture: enabled.contains(.capture) ? capture : nil, timer: enabled.contains(.timer) ? timer : nil,
                     shortcuts: enabled.contains(.shortcuts) ? shortcuts : nil,
                     sleepDisplays: { [monitors] in monitors.sleepDisplays() }))
+        case .mac:
+            return AnyView(
+                MacScreen(
+                    performance: enabled.contains(.performance) ? performance : nil,
+                    mixer: enabled.contains(.sound) ? mixer : nil,
+                    monitors: enabled.contains(.monitors) ? monitors : nil, enabled: enabled,
+                    detail: { [unowned self] in featureView(for: $0) }))
         default:
             return nil
         }

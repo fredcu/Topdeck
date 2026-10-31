@@ -180,6 +180,14 @@ public final class MonitorsFeature: NotchFeature {
         }
     }
 
+    /// The brightness of the first external monitor that has the control, 0...1, for the Mac page's slider.
+    public var brightness: Double? { monitors.lazy.compactMap(\.brightness).first }
+
+    /// Sets every external monitor's brightness that has the control, 0...1.
+    public func setBrightness(_ fraction: Double) {
+        for monitor in monitors where monitor.brightness != nil { set(.brightness, of: monitor.id, to: fraction) }
+    }
+
     /// Sets a monitor's volume, 0...1, for the Sound tab.
     public func setVolume(_ fraction: Double, of id: CGDirectDisplayID) { set(.volume, of: id, to: fraction) }
 

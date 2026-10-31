@@ -166,6 +166,8 @@ struct Temperatures: Equatable, Sendable {
     var chipHottest: Double?
     var ssd: Double?
     var battery: Double?
+    /// Average of the GPU's sensors, where the Mac names them.
+    var gpu: Double?
 
     init(from raw: [(name: String, value: Double)]) {
         // A sleeping sensor reads 0 and a broken one something absurd.
@@ -179,7 +181,71 @@ struct Temperatures: Equatable, Sendable {
         chipHottest = dies.max()
         ssd = sane.filter { $0.name.lowercased().contains("nand") }.map(\.value).max()
         battery = sane.filter { $0.name.lowercased().contains("battery") }.map(\.value).max()
+        let gpus = sane.filter { $0.name.lowercased().contains("gpu") }.map(\.value)
+        gpu = gpus.isEmpty ? nil : gpus.reduce(0, +) / Double(gpus.count)
     }
 
-    var isEmpty: Bool { chip == nil && ssd == nil && battery == nil }
+    var isEmpty: Bool { chip == nil && ssd == nil && battery == nil && gpu == nil }
+}
+
+/// The last values of one reading, oldest first, in a fixed place: a new one replaces the oldest once it is full.
+struct RingBuffer: Equatable, Sendable {
+    let capacity: Int
+    private var storage: [Double] = []
+    private var head = 0
+
+    init(capacity: Int = 60) { self.capacity = max(capacity, 1) }
+
+    mutating func append(_ value: Double) {
+        if storage.count < capacity {
+            storage.append(value)
+        } else {
+            storage[head] = value
+            head = (head + 1) % capacity
+        }
+    }
+
+    /// The values, oldest first.
+    var values: [Double] { head == 0 ? storage : Array(storage[head...] + storage[..<head]) }
+}
+
+/// What the Mac page draws as a sparkline: a minute of each reading, a value a second. Kept while the page
+/// is on screen and dropped when it isn't.
+struct PerformanceHistory: Equatable, Sendable {
+    var cpu = RingBuffer()
+    var gpu = RingBuffer()
+    var network = RingBuffer()
+    var disk = RingBuffer()
+    var memory = RingBuffer()
+    var battery = RingBuffer()
+
+    /// Adds one reading. A rate that isn't known yet (the first reading) is left out, not drawn as zero.
+    mutating func record(_ snapshot: PerformanceFeature.Snapshot) {
+        if let cpu = snapshot.cpu { self.cpu.append(cpu) }
+        if let gpu = snapshot.gpu { self.gpu.append(gpu) }
+        if let rate = snapshot.network { network.append(rate.down + rate.up) }
+        if let read = snapshot.diskRead, let written = snapshot.diskWritten { disk.append(read + written) }
+        if let memory = snapshot.memory, memory.total > 0 { self.memory.append(memory.used / memory.total * 100) }
+        if let battery = snapshot.battery { self.battery.append(Double(battery.percent)) }
+    }
+}
+
+/// The processes' sort order in the Mac page's table.
+enum ProcessSort: Equatable, Sendable {
+    case name, cpu, memory
+
+    /// The rows for `snapshot`, at most `limit`: the busiest by CPU or memory from the readings' top lists,
+    /// or the names in order from both of them.
+    func rows(in snapshot: PerformanceFeature.Snapshot, limit: Int) -> [ProcessUsage] {
+        let rows: [ProcessUsage]
+        switch self {
+        case .cpu: rows = snapshot.topCPU
+        case .memory: rows = snapshot.topMemory
+        case .name:
+            var seen: Set<Int32> = []
+            rows = (snapshot.topCPU + snapshot.topMemory).filter { seen.insert($0.pid).inserted }
+                .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        }
+        return Array(rows.prefix(max(limit, 0)))
+    }
 }
