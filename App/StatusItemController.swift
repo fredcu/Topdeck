@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 import AppKit
+import TopdeckCore
 import TopdeckFeatures
 
 /// The menu bar fallback: always reachable, even when the notch is hidden or misbehaving. The menu
@@ -18,16 +19,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         install()
     }
 
-    /// Makes the item again, which takes up the position the menu bar hider has stored for it.
-    func recreate() {
-        NSStatusBar.system.removeStatusItem(statusItem)
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        install()
-    }
-
-    /// Named, so the menu bar hider can keep it to the right of its divider.
+    /// Named, so macOS keeps the place the user gives it.
     private func install() {
-        statusItem.autosaveName = MenuBarHider.statusItemName
+        statusItem.autosaveName = LegacyDefaults.statusItemName
         // The card stack with its notch, as a template glyph: the menu bar tints it for light and dark.
         let glyph = NSImage(named: "MenuBarGlyph")
         glyph?.isTemplate = true
