@@ -35,3 +35,8 @@ private struct WindowSwitcherSettings: View {
         .onAppear(perform: switcher.refreshAccess)
     }
 }
+
+extension WindowSwitcher {
+    /// Its shortcut as keys, such as "\u{2325}Space", where one is set.
+    public var shortcutText: String? { KeyboardShortcuts.getShortcut(for: .windowSwitcher)?.description }
+}

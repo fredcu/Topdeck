@@ -8,7 +8,7 @@ import TopdeckFeatures
 
 /// Accessory apps have no app menu, so Settings opens from the menu bar item or the notch's gear
 /// button, and activates the app while it's up. A sidebar of General and Notch, then a page for each
-/// space and for what works outside the notch; a space's page holds a section for each of its features.
+/// space and one for what works outside the notch; a space's page holds a section for each of its features.
 @MainActor
 final class SettingsWindowController {
     private let preferences: NotchPreferences
@@ -19,7 +19,6 @@ final class SettingsWindowController {
     private let windows: WindowManager
     private let windowSwitcher: WindowSwitcher
     private let commandBar: CommandBar
-    private let menuBar: MenuBarHider
     private let previewAnimation: () -> Void
     private let featureSettings: (FeatureID) -> AnyView?
     private let selection = SettingsSelection()
@@ -29,7 +28,7 @@ final class SettingsWindowController {
     init(
         preferences: NotchPreferences, updater: Updater, notchKey: HotKey, clipboardKey: HotKey,
         inputSwitch: InputSwitcher, windows: WindowManager, windowSwitcher: WindowSwitcher,
-        commandBar: CommandBar, menuBar: MenuBarHider,
+        commandBar: CommandBar,
         previewAnimation: @escaping () -> Void,
         featureSettings: @escaping (FeatureID) -> AnyView?
     ) {
@@ -41,7 +40,6 @@ final class SettingsWindowController {
         self.windows = windows
         self.windowSwitcher = windowSwitcher
         self.commandBar = commandBar
-        self.menuBar = menuBar
         self.previewAnimation = previewAnimation
         self.featureSettings = featureSettings
     }
@@ -53,7 +51,7 @@ final class SettingsWindowController {
             let root = SettingsView(
                 preferences: preferences, updater: updater, notchKey: notchKey, clipboardKey: clipboardKey,
                 inputSwitch: inputSwitch, windows: windows, windowSwitcher: windowSwitcher,
-                commandBar: commandBar, menuBar: menuBar,
+                commandBar: commandBar,
                 previewAnimation: previewAnimation, featureSettings: featureSettings, selection: selection)
             let host = NSHostingController(rootView: root)
             // The page's name goes in the toolbar, over a sidebar that runs to the top of the window.
@@ -77,14 +75,13 @@ final class SettingsWindowController {
 @Observable
 final class SettingsSelection {
     enum Page: Hashable {
-        case general, notch, about, windows, windowSwitcher, commandBar, menuBar, inputSources
+        case general, notch, about, shortcutsAndWindows
         case space(SpaceID)
 
         /// The sidebar's groups, top to bottom.
         static let spaces: [Self] = SpaceID.allCases.map { .space($0) }
-        static let outside: [Self] = [.windows, .windowSwitcher, .commandBar, .menuBar, .inputSources]
         /// Every page, for the command bar.
-        static let all: [Self] = [.general, .notch] + spaces + outside + [.about]
+        static let all: [Self] = [.general, .notch] + spaces + [.shortcutsAndWindows, .about]
     }
     var page = Page.general
 }
@@ -100,7 +97,6 @@ struct SettingsView: View {
     let windows: WindowManager
     let windowSwitcher: WindowSwitcher
     let commandBar: CommandBar
-    let menuBar: MenuBarHider
     let previewAnimation: () -> Void
     let featureSettings: (FeatureID) -> AnyView?
     @Bindable var selection: SettingsSelection
@@ -113,15 +109,7 @@ struct SettingsView: View {
                 Section("Spaces") {
                     ForEach(SettingsSelection.Page.spaces, id: \.self) { SidebarRow(page: $0).tag($0) }
                 }
-                Section("Outside the notch") {
-                    SidebarRow(page: .windows, off: !windows.isEnabled).tag(SettingsSelection.Page.windows)
-                    SidebarRow(page: .windowSwitcher, off: !windowSwitcher.isEnabled)
-                        .tag(SettingsSelection.Page.windowSwitcher)
-                    SidebarRow(page: .commandBar, off: !commandBar.isEnabled).tag(SettingsSelection.Page.commandBar)
-                    SidebarRow(page: .menuBar, off: !menuBar.isEnabled).tag(SettingsSelection.Page.menuBar)
-                    SidebarRow(page: .inputSources, off: !inputSwitch.isEnabled)
-                        .tag(SettingsSelection.Page.inputSources)
-                }
+                Section { SidebarRow(page: .shortcutsAndWindows).tag(SettingsSelection.Page.shortcutsAndWindows) }
                 Section { SidebarRow(page: .about).tag(SettingsSelection.Page.about) }
             }
             .frame(minWidth: 240)  // the column width modifier is ignored in a hosted split view
@@ -142,11 +130,9 @@ struct SettingsView: View {
         case .notch: NotchPage(preferences: preferences, previewAnimation: previewAnimation)
         case .space(let space):
             SpacePage(space: space, preferences: preferences, featureSettings: featureSettings)
-        case .inputSources: InputSourcesPage(inputSwitch: inputSwitch)
-        case .windows: WindowsPage(windows: windows)
-        case .windowSwitcher: WindowSwitcherPage(switcher: windowSwitcher)
-        case .commandBar: CommandBarPage(commandBar: commandBar)
-        case .menuBar: MenuBarPage(menuBar: menuBar)
+        case .shortcutsAndWindows:
+            ShortcutsAndWindowsPage(
+                windows: windows, switcher: windowSwitcher, commandBar: commandBar, inputSwitch: inputSwitch)
         case .about: AboutSettings(updater: updater)
         }
     }
@@ -158,11 +144,7 @@ extension SettingsSelection.Page {
         case .general: "General"
         case .notch: "Notch"
         case .about: "About"
-        case .inputSources: "Input Sources"
-        case .windows: "Windows"
-        case .windowSwitcher: "Window Switcher"
-        case .commandBar: "Command Bar"
-        case .menuBar: "Menu Bar"
+        case .shortcutsAndWindows: "Shortcuts & Windows"
         case .space(let space): space.title
         }
     }
@@ -173,15 +155,12 @@ extension SettingsSelection.Page {
         case .general: "gearshape"
         case .notch: "display"
         case .about: "info.circle"
-        case .inputSources: "bolt"
-        case .windows: "rectangle"
-        case .windowSwitcher: "square.grid.2x2"
-        case .commandBar: "magnifyingglass"
-        case .menuBar: "list.bullet"
+        case .shortcutsAndWindows: "command"
         case .space(let space):
             switch space {
             case .now: "clock"
-            case .stash: "square.3.layers.3d"
+            case .shelf: "tray.full"
+            case .clipboard: "list.clipboard"
             case .agents: "terminal"
             case .mac: "cpu"
             case .tools: "camera.viewfinder"
@@ -244,58 +223,87 @@ private struct SpacePage: View {
     }
 }
 
-/// Switching input sources per app: its switch, then its settings while it's on.
-private struct InputSourcesPage: View {
+/// Everything that works outside the notch, in one page: for each of Windows, Window Switcher, Command Bar and
+/// Input Sources its switch and the way to start it, then its settings while it's on. The way to start is
+/// shown because none of these can be seen otherwise.
+private struct ShortcutsAndWindowsPage: View {
+    @Bindable var windows: WindowManager
+    @Bindable var switcher: WindowSwitcher
+    @Bindable var commandBar: CommandBar
     @Bindable var inputSwitch: InputSwitcher
 
     var body: some View {
-        SettingsPage(title: SettingsSelection.Page.inputSources.title, isOn: $inputSwitch.isEnabled) {
+        Form {
+            Section("Windows") {
+                Toggle("Windows", isOn: $windows.isEnabled).font(.headline)
+                Trigger {
+                    Text(windows.snapsOnDrag ? "Drag a window to a screen edge" : "Press a shortcut below")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if windows.isEnabled { windows.settingsView }
+            Section("Window Switcher") {
+                Toggle("Window Switcher", isOn: $switcher.isEnabled).font(.headline)
+                Trigger { KeyCaps(shortcut: { switcher.shortcutText }) }
+            }
+            if switcher.isEnabled { switcher.settingsView }
+            Section("Command Bar") {
+                Toggle("Command Bar", isOn: $commandBar.isEnabled).font(.headline)
+                Trigger { KeyCaps(shortcut: { commandBar.shortcutText }) }
+            }
+            if commandBar.isEnabled { commandBar.settingsView }
+            Section("Input Sources") {
+                Toggle("Input Sources", isOn: $inputSwitch.isEnabled).font(.headline)
+                Trigger { Text("Switches by itself when you change apps").foregroundStyle(.secondary) }
+            }
             if inputSwitch.isEnabled { inputSwitch.settingsView }
         }
+        .formStyle(.grouped)
     }
 }
 
-/// Windows has no notch tab: its switch, then its shortcuts and layouts while it's on.
-private struct WindowsPage: View {
-    @Bindable var windows: WindowManager
+/// The row that says how a feature is started.
+private struct Trigger<Content: View>: View {
+    @ViewBuilder let content: Content
 
     var body: some View {
-        SettingsPage(title: SettingsSelection.Page.windows.title, isOn: $windows.isEnabled) {
-            if windows.isEnabled { windows.settingsView }
-        }
+        LabeledContent("Start it") { content }
     }
 }
 
-/// The window switcher has no notch tab: its switch, then its shortcut while it's on.
-private struct WindowSwitcherPage: View {
-    @Bindable var switcher: WindowSwitcher
+/// A shortcut as key caps, one for each modifier and one for the key, following the Recorder below it.
+private struct KeyCaps: View {
+    let shortcut: () -> String?
+    @State private var text: String?
 
     var body: some View {
-        SettingsPage(title: SettingsSelection.Page.windowSwitcher.title, isOn: $switcher.isEnabled) {
-            if switcher.isEnabled { switcher.settingsView }
+        HStack(spacing: 4) {
+            if let text, !text.isEmpty {
+                ForEach(Array(Self.keys(text).enumerated()), id: \.offset) { _, key in
+                    Text(key)
+                        .font(.system(.callout, design: .rounded).weight(.medium))
+                        .padding(.horizontal, 6)
+                        .frame(minWidth: 24, minHeight: 22)
+                        .background(.quaternary, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                }
+            } else {
+                Text("Not set").foregroundStyle(.secondary)
+            }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(text ?? "Not set")
+        .onAppear { text = shortcut() }
+        .onReceive(
+            NotificationCenter.default.publisher(for: Notification.Name("KeyboardShortcuts_shortcutByNameDidChange"))
+        ) { _ in text = shortcut() }
     }
-}
 
-/// The command bar has no notch tab: its switch, then its shortcut while it's on.
-private struct CommandBarPage: View {
-    @Bindable var commandBar: CommandBar
-
-    var body: some View {
-        SettingsPage(title: SettingsSelection.Page.commandBar.title, isOn: $commandBar.isEnabled) {
-            if commandBar.isEnabled { commandBar.settingsView }
-        }
-    }
-}
-
-/// Menu Bar has no notch tab: its switch, then its delay while it's on.
-private struct MenuBarPage: View {
-    @Bindable var menuBar: MenuBarHider
-
-    var body: some View {
-        SettingsPage(title: SettingsSelection.Page.menuBar.title, isOn: $menuBar.isEnabled) {
-            if menuBar.isEnabled { menuBar.settingsView }
-        }
+    /// Modifier symbols one by one, then the key whole ("Space", "\u{21E5}").
+    static func keys(_ description: String) -> [String] {
+        let modifiers = Set("\u{2303}\u{2325}\u{21E7}\u{2318}")
+        let lead = description.prefix { modifiers.contains($0) }
+        let key = description.dropFirst(lead.count)
+        return lead.map(String.init) + (key.isEmpty ? [] : [String(key)])
     }
 }
 

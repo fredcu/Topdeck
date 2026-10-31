@@ -41,8 +41,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let windowSwitcher = WindowSwitcher()
     /// A search panel for apps and the actions below: a Settings page and a shortcut, no tab.
     private let commandBar = CommandBar()
-    /// Hides menu bar icons behind a divider: a Settings page, no tab.
-    private let menuBar = MenuBarHider()
     private lazy var features = FeatureHost(featureList)
     // System live activities, which belong to no tab.
     private let volume = VolumeMonitor()
@@ -78,7 +76,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windows: windows,
         windowSwitcher: windowSwitcher,
         commandBar: commandBar,
-        menuBar: menuBar,
         previewAnimation: { [weak self] in self?.coordinator?.previewAnimation() },
         featureSettings: { [unowned self] in self.settingsView(for: $0) })
 
@@ -149,6 +146,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
+        // Notes are found here, since the notch lists them without a search field.
+        if preferences.isEnabled(.notes) {
+            for entry in notes.searchIndex() {
+                add(
+                    "note.\(entry.fileName)", entry.title, "Note", "note.text", entry.excerpt
+                ) { [weak self] in self?.openNote(named: entry.fileName) }
+            }
+        }
         for page in SettingsSelection.Page.all {
             add("settings.\(page.title)", "\(page.title) Settings", "Settings", "gearshape", "preferences") {
                 [weak self] in self?.settings.show(page)
@@ -167,7 +172,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .clipboard: return AnyView(clipboard.view)
         case .capture: return AnyView(capture.view)
         case .calendar, .weather: return AnyView(EmptyView())  // Now draws them
-        case .notes: return AnyView(notes.view)
+        case .notes: return AnyView(EmptyView())  // Now draws them
         case .shortcuts: return AnyView(shortcuts.view)
         case .timer: return AnyView(timer.view)
         case .storage: return AnyView(storage.view)
@@ -246,7 +251,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         calendar: preferences.isEnabled(.calendar) ? calendar : nil,
                         notes: preferences.isEnabled(.notes) ? notes : nil,
                         weather: preferences.isEnabled(.weather) ? weather : nil,
-                        model: nowModel, openNote: { [weak self] in self?.open($0) }))
+                        model: nowModel, openNote: { [weak self] in self?.pinnedNotes.present($0.id) }))
             },
             badge: { [unowned self] in $0 == .agents ? waitingAgents : 0 },
             actions: { [unowned self] space, feature in
@@ -256,11 +261,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                             timer: preferences.isEnabled(.timer) ? timer : nil, model: nowModel,
                             canAdd: preferences.isEnabled(.calendar) || preferences.isEnabled(.notes)))
                 }
-                switch feature {
-                case .shelf: return AnyView(shelf.headerActions)
-                case .clipboard: return AnyView(clipboard.headerActions)
-                case .notes: return AnyView(notes.headerActions)
-                case .usage: return AnyView(usage.actions)
+                switch (space, feature) {
+                case (.shelf, _): return AnyView(shelf.headerActions)
+                case (.clipboard, _): return AnyView(clipboard.headerActions)
+                case (_, .usage): return AnyView(usage.actions)
                 default: return AnyView(EmptyView())
                 }
             },
@@ -346,9 +350,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowSwitcher.activate()
         commandBar.actions = { [unowned self] in self.commandActions }
         commandBar.activate()
-        // Before the menu bar item is made, so it takes its place right of the divider.
-        menuBar.onPlaced = { [weak self] in self?.statusItem?.recreate() }
-        menuBar.activate()
         self.coordinator = coordinator
         pendingMessages.forEach(showInNotch)
         pendingMessages = []
@@ -367,6 +368,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.updateSystemActivities()
             }
         }
+        LegacyDefaults.removeMenuBarHider()  // before the menu bar item is made, so it takes its default place
         statusItem = StatusItemController(updater: updater) { [weak self] in self?.settings.show($0) }
     }
 
@@ -397,7 +399,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         pinnedNotes.stop()
         commandBar.stop()
         inputSwitch.stop()
-        menuBar.stop()  // every hidden icon back
         mixer.isEnabled = false  // every app back to its own volume
         timer.allowSleep()
         volume.stop()
@@ -406,24 +407,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         volumeKeys.stop()
     }
 
-    /// A note from Now's list: in Stash › Notes, or, for one pinned to the desktop, its own window.
-    private func open(_ note: Note) {
-        if note.window != nil, pinnedNotes.bringForward(note.id) { return }
-        notes.search = ""
-        notes.selection = note.id
-        coordinator?.show(.notes)
+    /// A note found in the Command Bar: in a floating window, whether or not the notch is open.
+    private func openNote(named fileName: String) {
+        guard let id = notes.hold(fileName: fileName) else { return }
+        pinnedNotes.present(id)
     }
 
-    /// Opens the notch on Notes with a new note, ready to type. The tab gets a moment to come on
-    /// screen and load before the note is added and the editor takes the keyboard.
+    /// Opens the notch on Now with the add field set to Note, ready to type. Now gets a moment to come on
+    /// screen before the field takes the keyboard.
     private func startQuickNote() {
         guard let coordinator, preferences.isEnabled(.notes) else { return }
         coordinator.show(.notes)
+        nowModel.begin()
+        nowModel.picked = .note
         Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(150))
-            guard let self else { return }
-            notes.quickCapture()
-            self.coordinator?.focusKeyboard()
+            self?.coordinator?.focusKeyboard()
         }
     }
 
