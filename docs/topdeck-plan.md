@@ -36,7 +36,7 @@ OmniMac (MIT), Atoll (MIT) and MacTools (GPL-3.0-only).
 | `storage-tools` | MacTools `XcodeClean` at the Apache-2.0 commit; OpenDisk (MIT) as a candidate for the disk browser |
 | `system-admin` | MacTools `LaunchControl` and `Homebrew` at the Apache-2.0 commit |
 | `r2-upload` | MacTools `CloudflareR2` at the Apache-2.0 commit, or Soto S3 (Apache-2.0) |
-| Batch 3 | OmniMac for the window switcher and command bar, Stats (MIT) for performance, hidden (MIT) for the menu bar |
+| Batch 3 | OmniMac for the window switcher and command bar, Stats (MIT) for performance |
 
 ## Scope
 
@@ -81,8 +81,8 @@ Batch 2 (merged):
 11. `r2-upload`: upload files from the Shelf to Cloudflare R2. Keys live in the Keychain through the
     existing `APIKeyVault` and are never logged.
 
-Batch 3 (merged): window switcher by windows, performance and battery health, menu bar icon hiding,
-command bar.
+Batch 3 (merged): window switcher by windows, performance and battery health, command bar. Menu bar icon
+hiding was part of it and was removed in round 3.
 
 ## Pinned notes
 
@@ -125,7 +125,6 @@ the Mac.
 - Scrolling capture.
 - Window switcher.
 - Command bar with Chinese input.
-- Menu bar hiding on a notched Mac.
 - Temperature and disk readings.
 - Synced lyrics (`lyrics-lrclib`, LRCLIB) in the Now card with a real player.
 
@@ -139,4 +138,15 @@ owner's Apple Reminders data is untouched. Calendar lives in Now, and Weather is
 once (reduced accuracy), Apple's geocoder for the place name, and Apple's WeatherKit for the forecast
 (no air quality), with coordinates rounded to two decimals. WeatherKit is a restricted entitlement, so
 `scripts/sign-weather.sh` embeds a provisioning profile and signs with `App/Topdeck.weather.entitlements`
-when one is installed; to get weather in your own build, make a profile with WeatherKit for your own App ID. Wings: Now, Stash, Tools and Agents, Mac.
+when one is installed; to get weather in your own build, make a profile with WeatherKit for your own App ID.
+
+## Round 3
+
+New colours (the black deck fades to `#10131B`, each space has an accent), a new app icon, and six spaces:
+Now, Shelf and Clipboard in the left wing, Tools, Agents and Mac in the right. Stash is gone: Shelf and
+Clipboard show their existing views full height until their own batches. There is no Notes tab: notes are in
+Now (add field with colour and window, a list with a click-to-open window and a context menu), the folder and
+sort order are in Settings, and search is in the Command Bar. The menu bar hider is removed along with its
+Settings page. Settings gets one page, Shortcuts & Windows, for Windows, Window Switcher, Command Bar and
+Input Sources. The bars in the closed notch while music plays move to a made-up pattern and capture no audio.
+Wings: Now, Shelf, Clipboard; Tools, Agents, Mac.

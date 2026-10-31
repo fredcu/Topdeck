@@ -1,9 +1,11 @@
 # Topdeck design spec
 
-Approved design: 18 artboards in `docs/design/`, one `.dc.html` file each, styled by
+Approved design: the artboards in `docs/design/`, one `.dc.html` file each, styled by
 `docs/design/deck.css`. They are the source of truth for layout, sizes, colours and copy; open them
-in a browser if it helps. This file states what the boards can't. App icon: option A on the `Icon`
-board.
+in a browser if it helps. This file states what the boards can't. Round 3 (`NowColor3`, `NowPlay3`,
+`NoteAdd3`) sets the colours and Now; `Shelf3`, `Clipboard3`, `Agents3`, `Tools3`, `Mac3` and `Editor3`
+show where the other spaces go and are built in later batches. Where an older board disagrees with a
+round 3 one, round 3 wins. App icon: `docs/design/icon-paper.svg`.
 
 ## Tokens
 
@@ -12,17 +14,26 @@ radii or font sizes in feature views.
 
 | Token | Value |
 |---|---|
-| deck | `#000000` |
-| card | `#151517` |
-| card raised | `#1F1F22` |
-| control | `#2A2A2E` |
-| hairline | white 9% |
-| text | `#F5F5F7` |
-| secondary | `#BDBDC4` |
-| tertiary | `#8E8E95` |
+| deck (top, at the notch) | `#000000` |
+| body (from 55 points below the notch) | `#10131B` |
+| card | `#1A1F2B` |
+| card raised | `#232936` |
+| control | `#2E3545` |
+| hairline | `rgba(190, 205, 235, .11)` |
+| text | `#F3F5FA` |
+| secondary | `#B7BFD0` |
+| tertiary | `#8791A6` |
+| inactive navigation | `#A4AEC2` |
 | signal | `#FFB340` |
 | go | `#32D74B` |
 | stop | `#FF6961` |
+
+Each space has an accent: Now `#6CB2FF`, Shelf `#3FD6C5`, Clipboard `#B49CFF`, Tools `#FF9F5A`, Agents
+`#FFB340`, Mac `#5EDB8A`. The deck passes the open space's accent down through the environment
+(`deckAccent`), and components take it from there: the active navigation pill (accent at 18%, accent
+text), chips and pills when picked, primary buttons (accent at 22%, accent text), selected rows, bars,
+sliders, ticks and the scrubber's played part. Signal stays for "needs you" and is never used as an accent
+by a component. Text meets 4.5:1 on every surface it sits on; a test checks it.
 
 Radii: deck 30, card 16, control 9, pill full. Card padding 14, gap 10, deck side padding 14.
 Type: Rounded 44 and 28 for timers and metrics, Rounded 34 for Now's clock, Rounded 32/26/20 for the weather's temperature, Bold 15/13 for the lyric line, Semibold 12 for figures, Bold 20 titles, Semibold 15 items, Regular 13 body,
@@ -34,8 +45,9 @@ decorative uses it. Go and stop are for state, not decoration.
 ## The deck
 
 - Default open size 700×430. Keep drag-to-resize, with a minimum of 620×340.
-- The whole panel is pure black, flush with the hardware notch, with concave top shoulders and
-  bottom radius 30. There is no separate grey body, border or glass theme. Remove the Glass theme.
+- The panel is pure black at the top, flush with the hardware notch, with concave top shoulders and
+  bottom radius 30. Below the notch it fades over 55 points to the body colour, which holds to the
+  bottom. There is no border or glass theme. Remove the Glass theme.
 - Top row, height equal to the notch: navigation in two wings beside the camera.
 - Second row, 42 high: sub-tabs or a title on the left, the space's actions on the right.
 - Body below. Sub-pages fade; the deck never changes size when switching spaces.
@@ -43,14 +55,16 @@ decorative uses it. Go and stop are for state, not decoration.
 
 ## Spaces
 
-`Now`, `Stash`, `Tools` in the left wing; `Agents`, `Mac` in the right. They replace the
+`Now`, `Shelf`, `Clipboard` in the left wing; `Tools`, `Agents`, `Mac` in the right. They replace the
 tab row, the app drawer and the tab editor. Users can reorder and hide spaces in Settings. Labels are
-text, with no icon. Agents shows a signal badge with the waiting count.
+text, with no icon. Agents shows a signal badge with the waiting count. An older stored order or
+hidden list that names Stash becomes Shelf and Clipboard in its place.
 
 | Space | Sub-tabs | Features |
 |---|---|---|
 | Now | none | Calendar, Notes, Weather, Media, Agents waiting, Timer, Keep Awake |
-| Stash | Shelf, Clipboard, Notes | shelf, clipboard, notes |
+| Shelf | none | shelf |
+| Clipboard | none | clipboard |
 | Agents | Sessions, Usage | agents, usage |
 | Mac | Performance, Sound, Displays, Network, Storage, System | performance, sound, monitors, network, storage, admin |
 | Tools | none | capture, timer, keep awake, shortcuts |
@@ -62,31 +76,57 @@ ones Now shows.
 
 ### Now
 
-Boards: `NowToday`, `NowPlaying`, `NowAlert`, `NowAdd`, `NowFree`, `NowMin`. Three columns on the black deck,
+Boards: `NowColor3`, `NowPlay3`, `NoteAdd3` (colour, player, note add), then `NowToday`, `NowPlaying`,
+`NowAlert`, `NowAdd`, `NowFree`, `NowMin` for the states. Three columns on the black deck,
 no cards, split by hairlines: left 176, middle 214, right the rest at 700 wide; 150 and 192 at 620. Column gap
 14, side padding 18. The second row is 46 high: the clock (Rounded 34) at the left, the running timer and Keep
 Awake as chips, then add, pin and settings. Between them one slot, in priority order: an agent request
 (same answer rules as Agents), a meeting about to start (30 minutes), the add field. Rows below never move.
 
-- Left: Today (next event not yet ended, with Join; the rest of today), then Notes, most recent first, a pin
-  mark for notes on the desktop. With nothing left today, Notes moves up; with nothing at all, "Nothing today".
-- Middle: month grid (six weeks, system first weekday, dots, today filled white), then the events from
-  tomorrow for a week; a picked day is ringed and lists that day.
+- Left: Today (next event not yet ended, with Join; the rest of today), then Notes, in the order Settings
+  sets (most recently edited first to begin with), each with a small square in the note's colour and a pin
+  mark for notes in a window. With nothing left today, Notes moves up; with nothing at all, "Nothing today".
+- Middle: month grid (six weeks, system first weekday, dots in the accent, today filled in the accent with
+  dark text), then the events from tomorrow for a week; a picked day is ringed and lists that day.
 - Right: weather from Apple's WeatherKit. Top block: the place with the icon and temperature, then the
   condition with today's low and high ("↓9° ↑19°"), a hairline, and one row of four figures (feels like,
-  humidity, rain chance, UV) spread edge to edge; then the next five hours and five days. While something
+  humidity, rain chance, UV) spread edge to edge; then the next five hours and five days. The icons are in
+  colour (SF Symbols' multicolor, fill variant) and each day's range bar runs from blue through yellow to
+  orange. The clock is in the accent and so is the scrubber's played part. A player with no artwork shows
+  `music.note` on a control tile. While something
   plays, the same top block with a smaller temperature, then the player with a thin scrubber and the lyric
   lines. Apple's mark, linking to its legal page, closes the column in both states, as WeatherKit requires.
   No air quality.
 - At 620×340: no month title, two event rows, hours but no days, one lyric block of two lines, artwork 36.
 
 Add field: Return saves; an Event/Note control chooses itself from the text (a date or time is an Event) until
-picked; Tab switches; ⌘Return pins a note to the desktop; Esc closes only the field.
+picked; Tab switches; Esc closes only the field. With Note chosen the field also shows five colour dots
+(yellow, orange, green, blue, purple) and two toggles, Desktop and On Top, which exclude each other. All
+are off to begin with, and Return saves the note with that colour and window.
+
+Notes in the left column: a click opens the note in a floating window, the window a pinned note has, to read
+and edit; closing the window keeps the note, and a note that is already in a window is brought forward.
+Right-click: each colour, Pin to Desktop, Keep on Top, Unpin, Keep First in List, Share, Reveal in Finder,
+Delete (after a confirmation). There is no Notes tab. The folder and the sort order are in Settings, search
+is in the Command Bar (Notes appear there by title and the start of their text), and the new-note shortcut
+opens the notch on Now with the add field set to Note.
+
+## Settings
+
+Pages: General, Notch, one page for each space, Shortcuts & Windows, About. Shortcuts & Windows holds
+Windows, Window Switcher, Command Bar and Input Sources, each starting with its switch and the way to start
+it (key caps, or a phrase such as "Drag a window to a screen edge"), since none of them can be seen otherwise.
 
 ## Closed notch
 
 Follow the `Closed` board. Left of the camera: what it is. Right: its state. Width grows only as far
 as needed. Keep existing activity priorities.
+
+While music plays the state is four thin rounded bars, 3 wide with 2 between, up to 14 tall, in the track's
+accent colour (the Now accent without one). They move to a made-up pattern, each bar's height the sum of two
+sines of different speeds (`MusicBars`), not the audio, and nothing is captured. They redraw about 20 times
+a second only while the music plays, the notch is on screen and Reduce Motion is off; paused they stand low
+and still, and with Reduce Motion on they stand still in the middle. A still bar set has no timeline.
 
 ## Copy
 
@@ -99,8 +139,10 @@ Keep every accessibility label. Respect Reduce Motion. Text meets 4.5:1 on its b
 
 ## Icon
 
-Rebuild `App/Assets.xcassets/AppIcon.appiconset` from option A at every size. Use the 16 pt variant
-without the back card, as the board shows. The menu bar item uses the template glyph.
+`docs/design/icon-paper.svg`: a cream plate, the notch in ink above two lines and an orange dot.
+`scripts/render-icon.swift` rebuilds `App/Assets.xcassets/AppIcon.appiconset` from it at every size and the
+menu bar's template glyph, which has the same notch and lines. The 16 pt variant leaves out the second line
+and the dot, which turn to mud there.
 
 ## Out of scope
 

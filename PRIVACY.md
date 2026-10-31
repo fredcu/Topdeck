@@ -67,11 +67,12 @@ Topdeck is local-first.
   framework, and stay on it: they go to the clipboard or onto the screen. Only
   **Add to Shelf** writes a file, in
   `~/Library/Application Support/Topdeck/Captures`.
-- To move the media waveform with the music, Topdeck listens to your Mac's
-  audio output, and macOS asks for "system audio recording" permission the first
-  time. It listens only while the Media tab is open and something plays, turns
-  the sound into loudness per frequency band as it plays, and never records,
-  stores, or sends audio. Turn it off in Settings › Now.
+- The bars beside the camera while music plays move to a made-up pattern, not
+  to the sound, and listen to nothing. Only the Media view's waveform listens
+  to your Mac's audio output (macOS asks for "system audio recording"
+  permission the first time), only while that view is open and something
+  plays; it turns the sound into loudness per frequency band as it plays, and
+  never records, stores, or sends audio. Turn it off in Settings › Now.
 - Shuffle, repeat, Music's up next and lyrics, Spotify's recently played, and,
   in the App Store edition, all of Media's controls talk to Music or Spotify
   through their own AppleScript, on this Mac. macOS asks first (Privacy &
