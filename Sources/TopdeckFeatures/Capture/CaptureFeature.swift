@@ -96,6 +96,9 @@ public final class CaptureFeature: NotchFeature {
         }
     }
 
+    /// Forgets the colours picked so far.
+    public func clearColors() { colors = [] }
+
     /// Copies a colour picked earlier again.
     public func copyColor(_ code: String) {
         copy(code)
