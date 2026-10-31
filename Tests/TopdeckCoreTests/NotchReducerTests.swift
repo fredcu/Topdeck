@@ -35,7 +35,7 @@ struct NotchReducerTests {
     }
 
     @Test(arguments: [
-        NotchEvent.pointerEntered, .clicked, .selectSpace(.stash), .showFeature(.notes), .activity(song), .dragEntered,
+        NotchEvent.pointerEntered, .clicked, .selectSpace(.shelf), .showFeature(.notes), .activity(song), .dragEntered,
     ])
     func hiddenIgnoresEverythingButShow(event: NotchEvent) {
         var state = NotchState()
@@ -122,13 +122,12 @@ struct NotchReducerTests {
 
     @Test func switchingSpacesWhileTypingKeepsFocusAndThePin() {
         // The panel still has the keyboard, so leaving focus here would need a visible hand-back.
-        let unpinned = after(.show, .clicked, .beginTextInput, .selectSpace(.stash))
-        #expect(unpinned.presentation == .focused(space: .stash, pinned: false))
+        let unpinned = after(.show, .clicked, .beginTextInput, .selectSpace(.shelf))
+        #expect(unpinned.presentation == .focused(space: .shelf, pinned: false))
         let pinned = after(.show, .clicked, .togglePin, .beginTextInput, .selectSpace(.tools), .endTextInput)
         #expect(pinned.presentation == .pinned(space: .tools))
         let dragged = after(.show, .clicked, .beginTextInput, .dragEntered)
-        #expect(dragged.presentation == .focused(space: .stash, pinned: false))
-        #expect(dragged.subTab(in: .stash) == .shelf)
+        #expect(dragged.presentation == .focused(space: .shelf, pinned: false))
         let shown = after(.show, .clicked, .beginTextInput, .showFeature(.usage))
         #expect(shown.presentation == .focused(space: .agents, pinned: false))
     }
@@ -140,48 +139,50 @@ struct NotchReducerTests {
     }
 
     @Test func eachSpaceRemembersItsLastSubTab() {
-        var state = after(.show, .clicked, .selectSpace(.stash))
-        #expect(state.subTab(in: .stash) == .shelf, "the first tab to begin with")
-        _ = state.handle(.selectSubTab(.notes))
+        var state = after(.show, .clicked, .selectSpace(.agents))
+        #expect(state.subTab(in: .agents) == .agents, "the first tab to begin with")
+        _ = state.handle(.selectSubTab(.usage))
         _ = state.handle(.selectSpace(.mac))
         _ = state.handle(.selectSubTab(.network))
-        _ = state.handle(.selectSpace(.stash))
-        #expect(state.subTab(in: .stash) == .notes && state.subTab(in: .mac) == .network)
+        _ = state.handle(.selectSpace(.agents))
+        #expect(state.subTab(in: .agents) == .usage && state.subTab(in: .mac) == .network)
         _ = state.handle(.dismiss)
         _ = state.handle(.clicked)
-        #expect(state.presentation == .expanded(space: .stash) && state.subTab(in: .stash) == .notes)
+        #expect(state.presentation == .expanded(space: .agents) && state.subTab(in: .agents) == .usage)
         #expect(state.subTab(in: .now) == nil && state.subTab(in: .tools) == nil, "no sub-tabs, nothing to remember")
     }
 
     @Test func aSubTabForAFeatureThatIsOffIsNotChosenOrKept() {
-        var state = after(.show, .setSpaces(only(.shelf, .notes)), .clicked, .selectSpace(.stash))
-        _ = state.handle(.selectSubTab(.clipboard))
-        #expect(state.subTab(in: .stash) == .shelf, "clipboard is off")
-        _ = state.handle(.selectSubTab(.notes))
-        #expect(state.subTab(in: .stash) == .notes)
-        _ = state.handle(.setSpaces(only(.shelf)))
-        #expect(state.subTab(in: .stash) == .shelf, "notes went off, so the first tab left shows")
-        _ = state.handle(.setSpaces(only(.shelf, .notes)))
-        #expect(state.subTab(in: .stash) == .notes, "and it comes back when notes does")
+        var state = after(.show, .setSpaces(only(.agents, .usage)), .clicked, .selectSpace(.agents))
+        _ = state.handle(.selectSubTab(.performance))
+        #expect(state.subTab(in: .agents) == .agents, "performance is not a tab of Agents")
+        _ = state.handle(.selectSubTab(.usage))
+        #expect(state.subTab(in: .agents) == .usage)
+        _ = state.handle(.setSpaces(only(.agents)))
+        #expect(state.subTab(in: .agents) == .agents, "usage went off, so the first tab left shows")
+        _ = state.handle(.setSpaces(only(.agents, .usage)))
+        #expect(state.subTab(in: .agents) == .usage, "and it comes back when usage does")
     }
 
     @Test func showingAFeatureOpensItsSpaceOnItsSubTab() {
         let clipboard = after(.show, .showFeature(.clipboard))
-        #expect(clipboard.presentation == .expanded(space: .stash) && clipboard.subTab(in: .stash) == .clipboard)
+        #expect(clipboard.presentation == .expanded(space: .clipboard))
+        let usage = after(.show, .showFeature(.usage))
+        #expect(usage.presentation == .expanded(space: .agents) && usage.subTab(in: .agents) == .usage)
         #expect(after(.show, .showFeature(.timer)).presentation == .expanded(space: .tools))
         #expect(after(.show, .clicked, .togglePin, .showFeature(.sound)).presentation == .pinned(space: .mac))
-        let hidden = after(.show, .setSpaces(SpaceSet(hidden: [.stash], enabled: Set(FeatureID.allCases))))
+        let hidden = after(.show, .setSpaces(SpaceSet(hidden: [.tools], enabled: Set(FeatureID.allCases))))
         var found = hidden
-        _ = found.handle(.showFeature(.notes))
+        _ = found.handle(.showFeature(.timer))
         #expect(found.presentation == .expanded(space: .now), "a hidden home gives way to another space that shows it")
         var weather = hidden
         _ = weather.handle(.showFeature(.weather))
         #expect(weather.presentation == .expanded(space: .now), "weather lives on Now")
         var nowhere = after(
-            .show, .setSpaces(SpaceSet(hidden: [.mac], enabled: Set(FeatureID.allCases))), .selectSpace(.stash),
+            .show, .setSpaces(SpaceSet(hidden: [.mac], enabled: Set(FeatureID.allCases))), .selectSpace(.shelf),
             .dismiss)
         _ = nowhere.handle(.showFeature(.network))
-        #expect(nowhere.presentation == .expanded(space: .stash), "no space on show holds it, so the last one opens")
+        #expect(nowhere.presentation == .expanded(space: .shelf), "no space on show holds it, so the last one opens")
     }
 
     @Test func anActivityShowsUntilItsDeadline() {
@@ -203,8 +204,8 @@ struct NotchReducerTests {
         let effects = state.handle(.pointerEntered)
         #expect(effects == [.cancel(.activityEnd), .schedule(.hoverDwell, after: NotchTiming.hoverDwell)])
         _ = state.handle(.deadline(.hoverDwell))
-        #expect(state.presentation == .expanded(space: .stash))
-        #expect(after(.show, .activity(drop), .clicked).presentation == .expanded(space: .stash))
+        #expect(state.presentation == .expanded(space: .shelf))
+        #expect(after(.show, .activity(drop), .clicked).presentation == .expanded(space: .shelf))
     }
 
     @Test func aSystemActivityShowsWhateverIsOnAndOpensTheLastSpace() {
@@ -282,17 +283,17 @@ struct NotchReducerTests {
     @Test func draggingFilesOverAnOpenNotchShowsTheShelf() {
         var state = after(.show, .clicked)
         #expect(state.handle(.dragEntered) == [.cancel(.collapseGrace)])
-        #expect(state.presentation == .expanded(space: .stash) && state.subTab(in: .stash) == .shelf)
+        #expect(state.presentation == .expanded(space: .shelf))
         #expect(state.handle(.dragExited) == [.schedule(.collapseGrace, after: NotchTiming.collapseGrace)])
         // Dragging back in cancels the collapse; dropping keeps the shelf open under the pointer.
         #expect(state.handle(.dragEntered) == [.cancel(.collapseGrace)])
         #expect(state.handle(.dropped) == [.cancel(.collapseGrace)])
-        #expect(state.presentation == .expanded(space: .stash))
+        #expect(state.presentation == .expanded(space: .shelf))
         #expect(state.pointerInside)
     }
 
     @Test func draggingKeepsAPinAndIgnoresADisabledShelf() {
-        #expect(after(.show, .clicked, .togglePin, .dragEntered).presentation == .pinned(space: .stash))
+        #expect(after(.show, .clicked, .togglePin, .dragEntered).presentation == .pinned(space: .shelf))
         #expect(after(.show, .setSpaces(only(.media, .notes)), .dragEntered).presentation == .compact)
         #expect(after(.show, .dragEntered, .setSpaces(only(.media))).presentation == .compact, "the shelf went off")
     }
@@ -315,10 +316,10 @@ struct NotchReducerTests {
     }
 
     @Test func hidingTheOpenSpaceMovesToTheFirstOneOnShow() {
-        let hidden = SpaceSet(hidden: [.now, .stash], enabled: Set(FeatureID.allCases))
-        let pinned = after(.show, .clicked, .selectSpace(.stash), .togglePin, .setSpaces(hidden))
-        #expect(pinned.presentation == .pinned(space: .tools))
-        #expect(pinned.lastSpace == .tools)
+        let hidden = SpaceSet(hidden: [.now, .shelf], enabled: Set(FeatureID.allCases))
+        let pinned = after(.show, .clicked, .selectSpace(.shelf), .togglePin, .setSpaces(hidden))
+        #expect(pinned.presentation == .pinned(space: .clipboard))
+        #expect(pinned.lastSpace == .clipboard)
         let off = after(.show, .clicked, .selectSpace(.tools), .setSpaces(only(.media)))
         #expect(off.presentation == .expanded(space: .now), "tools has nothing on, so it left")
     }
@@ -335,8 +336,9 @@ struct NotchReducerTests {
         #expect(features(.show).isEmpty)
         #expect(
             features(.show, .clicked) == [.media, .agents, .calendar, .notes, .weather, .timer], "everything Now shows")
-        #expect(features(.show, .showFeature(.notes)) == [.notes], "one tab at a time")
-        #expect(features(.show, .showFeature(.notes), .selectSubTab(.shelf)) == [.shelf])
+        #expect(features(.show, .showFeature(.usage)) == [.usage], "one tab at a time")
+        #expect(features(.show, .showFeature(.usage), .selectSubTab(.agents)) == [.agents])
+        #expect(features(.show, .showFeature(.clipboard)) == [.clipboard], "no tabs: the one view")
         #expect(features(.show, .selectSpace(.tools)) == [.capture, .timer, .shortcuts])
         #expect(features(.show, .setSpaces(only(.media, .agents)), .selectSpace(.now)) == [.media, .agents])
     }
@@ -383,7 +385,7 @@ struct NotchReducerTests {
                 .show, .hide, .pointerEntered, .pointerExited, .clicked, .clickedOutside, .dismiss, .togglePin,
                 .beginTextInput, .endTextInput, .dragEntered, .dragExited, .dropped, .activity(song),
                 .activity(drop), .activity(volume), .setSpaces(.all), .setSpaces(only(.notes, .shelf)),
-                .setSpaces(only()), .setSpaces(SpaceSet(hidden: [.now, .stash], enabled: Set(FeatureID.allCases))),
+                .setSpaces(only()), .setSpaces(SpaceSet(hidden: [.now, .shelf], enabled: Set(FeatureID.allCases))),
                 .setOngoing(meeting), .setOngoing(nil),
             ] + FeatureID.allCases.map(NotchEvent.showFeature) + FeatureID.allCases.map(NotchEvent.selectSubTab)
             + SpaceID.allCases.map(NotchEvent.selectSpace) + reasons.map(NotchEvent.suspend)

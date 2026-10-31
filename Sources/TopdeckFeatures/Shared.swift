@@ -2,6 +2,7 @@
 import AppKit
 import Foundation
 import SwiftUI
+import TopdeckSurface
 
 /// Where Topdeck keeps its local data: ~/Library/Application Support/Topdeck.
 public enum AppSupport {
@@ -70,7 +71,7 @@ public struct FeatureUnavailableView: View {
             Text(title).font(.headline)
             Text(message)
                 .font(.caption)
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(Deck.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 320)
             if let action {
@@ -79,7 +80,7 @@ public struct FeatureUnavailableView: View {
                     .font(.caption.weight(.semibold))
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
-                    .background(.white.opacity(0.15), in: Capsule())
+                    .background(Deck.control, in: Capsule())
             }
         }
     }
@@ -97,7 +98,7 @@ struct GlassPlatter<S: Shape>: View {
         if #available(macOS 26, *), !reduceTransparency, contrast != .increased {
             Color.clear.glassEffect(.regular, in: shape)
         } else {
-            shape.fill(.white.opacity(0.08))
+            shape.fill(Deck.cardRaised)
         }
     }
 }

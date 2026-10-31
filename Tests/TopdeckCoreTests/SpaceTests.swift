@@ -4,15 +4,21 @@ import Testing
 @testable import TopdeckCore
 
 struct SpaceTests {
-    @Test func theFiveSpacesAreInTheSpecsOrder() {
-        #expect(SpaceID.defaultOrder.map(\.title) == ["Now", "Stash", "Tools", "Agents", "Mac"])
+    @Test func theSixSpacesAreInTheSpecsOrder() {
+        #expect(SpaceID.defaultOrder.map(\.title) == ["Now", "Shelf", "Clipboard", "Tools", "Agents", "Mac"])
         let wings = SpaceSet.all.wings
-        #expect(wings.left == [.now, .stash, .tools] && wings.right == [.agents, .mac])
+        #expect(wings.left == [.now, .shelf, .clipboard] && wings.right == [.tools, .agents, .mac])
     }
 
-    @Test func subTabsAreStashAgentsAndMacOnly() {
-        #expect(SpaceID.allCases.filter(\.hasSubTabs) == [.stash, .agents, .mac])
-        #expect(SpaceSet.all.subTabs(of: .stash) == [.shelf, .clipboard, .notes])
+    @Test func aStoredStashStandsForShelfAndClipboard() {
+        #expect(SpaceID.stored("stash") == [.shelf, .clipboard])
+        #expect(SpaceID.stored("mac") == [.mac] && SpaceID.stored("plan").isEmpty)
+        #expect(SpaceID(rawValue: "stash") == nil, "there is no Stash space any more")
+    }
+
+    @Test func subTabsAreAgentsAndMacOnly() {
+        #expect(SpaceID.allCases.filter(\.hasSubTabs) == [.agents, .mac])
+        #expect(SpaceSet.all.subTabs(of: .shelf).isEmpty && SpaceSet.all.subTabs(of: .clipboard).isEmpty)
         #expect(SpaceSet.all.subTabs(of: .agents) == [.agents, .usage])
         #expect(SpaceSet.all.subTabs(of: .mac) == [.performance, .sound, .monitors, .network, .storage, .admin])
         #expect(SpaceSet.all.subTabs(of: .now).isEmpty && SpaceSet.all.subTabs(of: .tools).isEmpty)
@@ -29,12 +35,15 @@ struct SpaceTests {
             FeatureID.allCases.allSatisfy { feature in
                 SpaceID.allCases.contains { $0.features.contains(feature) }
             }, "no feature is left without a screen")
-        #expect(FeatureID.clipboard.subTabSpace == .stash && FeatureID.timer.subTabSpace == nil)
+        #expect(FeatureID.clipboard.subTabSpace == nil && FeatureID.timer.subTabSpace == nil)
+        #expect(
+            FeatureID.notes.home == .now && FeatureID.shelf.home == .shelf && FeatureID.clipboard.home == .clipboard)
     }
 
     @Test func aSubTabbedSpaceShowsOnlyTheChosenFeature() {
-        #expect(SpaceSet.all.visibleFeatures(in: .stash, subTab: .notes) == [.notes])
-        #expect(SpaceSet.all.visibleFeatures(in: .stash, subTab: nil).isEmpty)
+        #expect(SpaceSet.all.visibleFeatures(in: .agents, subTab: .usage) == [.usage])
+        #expect(SpaceSet.all.visibleFeatures(in: .agents, subTab: nil).isEmpty)
+        #expect(SpaceSet.all.visibleFeatures(in: .shelf, subTab: nil) == [.shelf], "no sub-tabs: the one view")
         #expect(
             SpaceSet.all.visibleFeatures(in: .now, subTab: nil) == [
                 .media, .agents, .calendar, .notes, .weather, .timer,
@@ -47,16 +56,17 @@ struct SpaceTests {
     }
 
     @Test func aSpaceWithNothingOnIsHidden() {
-        let set = SpaceSet(enabled: [.notes, .performance])
-        #expect(set.spaces == [.now, .stash, .mac], "Now stays; agents and tools have nothing on")
-        #expect(set.subTabs(of: .stash) == [.notes] && set.subTabs(of: .mac) == [.performance])
+        let set = SpaceSet(enabled: [.shelf, .performance])
+        #expect(set.spaces == [.now, .shelf, .mac], "Now stays; clipboard, agents and tools have nothing on")
+        #expect(set.subTabs(of: .mac) == [.performance])
     }
 
     @Test func hiddenSpacesLeaveAndTheRestKeepTheirOrder() {
         let set = SpaceSet(
-            order: [.tools, .mac, .now, .stash, .agents], hidden: [.mac], enabled: Set(FeatureID.allCases)
+            order: [.tools, .mac, .now, .shelf, .agents, .clipboard], hidden: [.mac],
+            enabled: Set(FeatureID.allCases)
         )
-        #expect(set.spaces == [.tools, .now, .stash, .agents])
+        #expect(set.spaces == [.tools, .now, .shelf, .agents, .clipboard])
     }
 
     @Test func thereIsAlwaysSomewhereToOpen() {
@@ -69,8 +79,8 @@ struct SpaceTests {
             let set = SpaceSet(hidden: hidden, enabled: Set(FeatureID.allCases))
             return (set.wings.left, set.wings.right)
         }
-        #expect(wings([.tools]) == ([.now, .stash], [.agents, .mac]))
-        #expect(wings([.tools, .mac]) == ([.now, .stash], [.agents]))
+        #expect(wings([.tools]) == ([.now, .shelf, .clipboard], [.agents, .mac]))
+        #expect(wings([.tools, .mac]) == ([.now, .shelf], [.clipboard, .agents]))
         let one = SpaceSet(hidden: Set(SpaceID.allCases).subtracting([.mac]), enabled: Set(FeatureID.allCases))
         #expect(one.wings.left == [.mac] && one.wings.right.isEmpty)
     }
@@ -79,7 +89,8 @@ struct SpaceTests {
         let all = Set(FeatureID.allCases)
         #expect(SpaceSet.all.target(for: .calendar) == .now && SpaceSet.all.target(for: .weather) == .now)
         #expect(SpaceSet(hidden: [.now], enabled: all).target(for: .calendar) == nil)
-        #expect(SpaceSet(hidden: [.stash], enabled: all).target(for: .notes) == .now, "Now shows notes too")
+        #expect(SpaceSet(hidden: [.shelf], enabled: all).target(for: .shelf) == nil)
+        #expect(SpaceSet(hidden: [.clipboard], enabled: all).target(for: .notes) == .now)
         #expect(SpaceSet(hidden: [.mac], enabled: all).target(for: .sound) == nil)
     }
 }

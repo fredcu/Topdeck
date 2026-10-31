@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 import SwiftUI
+import TopdeckSurface
 
 /// A seek bar whose played part is a travelling sine wave, in the spirit of the media players in
 /// Android 13 and One UI: it ripples while music plays and flattens smoothly when it pauses.
@@ -26,7 +27,7 @@ struct WavySeekBar: View, Animatable {
             rest.move(to: CGPoint(x: playedX, y: midY))
             rest.addLine(to: CGPoint(x: size.width, y: midY))
             context.stroke(
-                rest, with: .color(.white.opacity(0.22)), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                rest, with: .color(Deck.control), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
 
             let height = (size.height / 2 - lineWidth) * amplitude
             let wavelength: CGFloat = 24

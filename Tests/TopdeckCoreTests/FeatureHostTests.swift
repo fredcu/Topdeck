@@ -41,13 +41,13 @@ struct FeatureHostTests {
     }
 
     @Test func aSubTabSwitchMovesTheForeground() {
-        let shelf = RecordingFeature(.shelf)
-        let notes = RecordingFeature(.notes)
-        let host = FeatureHost([shelf, notes])
-        host.update(notches: [notch(.show, .showFeature(.shelf))], enabled: all)
-        #expect(shelf.phase == .foreground && notes.phase == .background)
-        host.update(notches: [notch(.show, .showFeature(.shelf), .selectSubTab(.notes))], enabled: all)
-        #expect(shelf.phase == .background && notes.phase == .foreground)
+        let agents = RecordingFeature(.agents)
+        let usage = RecordingFeature(.usage)
+        let host = FeatureHost([agents, usage])
+        host.update(notches: [notch(.show, .showFeature(.agents))], enabled: all)
+        #expect(agents.phase == .foreground && usage.phase == .background)
+        host.update(notches: [notch(.show, .showFeature(.agents), .selectSubTab(.usage))], enabled: all)
+        #expect(agents.phase == .background && usage.phase == .foreground)
     }
 
     @Test func aFeatureRunsAtTheHighestPhaseAnyDisplayAsks() {

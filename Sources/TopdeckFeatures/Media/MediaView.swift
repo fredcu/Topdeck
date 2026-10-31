@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 import AppKit
 import SwiftUI
+import TopdeckSurface
 
 /// The media tab: artwork and track details over a soft glow of the cover, a wavy seek bar you can
 /// drag, animated controls with shuffle and repeat, and a waveform along the bottom, all tinted from
@@ -23,7 +24,7 @@ struct MediaView: View {
         case list, lyrics, output
     }
 
-    private var tint: Color { media.accent?.color ?? .white }
+    private var tint: Color { media.accent?.color ?? Deck.text }
 
     var body: some View {
         if let now = media.nowPlaying {
@@ -147,7 +148,7 @@ struct MediaView: View {
             if let subtitle = now.artist ?? now.album {
                 Text(subtitle)
                     .font(.system(size: 13))
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(Deck.secondary)
                     .lineLimit(1)
                     .id(subtitle)
                     .transition(.push(from: .bottom))
@@ -211,7 +212,7 @@ struct MediaView: View {
                     .lineLimit(1)
             }
             .font(.system(size: 11))
-            .foregroundStyle(.white.opacity(0.45))
+            .foregroundStyle(Deck.tertiary)
         }
     }
 
@@ -248,7 +249,7 @@ struct MediaView: View {
             .frame(minWidth: 38, alignment: .leading)
         }
         .font(.caption2)
-        .foregroundStyle(.white.opacity(0.55))
+        .foregroundStyle(Deck.tertiary)
         .opacity(duration > 0 ? 1 : 0.4)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Playback position")
@@ -275,7 +276,7 @@ struct MediaView: View {
                 Image(systemName: now.isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: 18, weight: .bold))
                     .contentTransition(.symbolEffect(.replace.downUp))
-                    .foregroundStyle(.black)
+                    .foregroundStyle(Deck.onFill)
                     .frame(width: 40, height: 40)
                     .background(tint, in: Circle())
             }
@@ -325,7 +326,7 @@ struct MediaView: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: size, weight: .semibold))
-                .foregroundStyle(lit ? tint : .white.opacity(0.55))
+                .foregroundStyle(lit ? tint : Deck.tertiary)
                 .frame(width: size + 9, height: size + 7)
                 .contentShape(Rectangle())
         }
@@ -340,7 +341,7 @@ struct MediaView: View {
         } label: {
             Text("Allow Topdeck to control \(player.name) in Privacy & Security › Automation")
                 .font(.caption2)
-                .foregroundStyle(.white.opacity(0.55))
+                .foregroundStyle(Deck.tertiary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
         }
@@ -359,14 +360,14 @@ struct MediaView: View {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 11, weight: .bold))
                         .frame(width: 20, height: 20)
-                        .background(.white.opacity(0.1), in: Circle())
+                        .background(Deck.control, in: Circle())
                 }
                 .buttonStyle(PressableButtonStyle())
                 .help("Back to the player")
                 .accessibilityLabel("Back to the player")
                 VStack(alignment: .leading, spacing: 0) {
                     Text(title(of: panel)).font(.system(size: 12, weight: .semibold))
-                    Text(now.title).font(.system(size: 10.5)).foregroundStyle(.white.opacity(0.5))
+                    Text(now.title).font(.system(size: 10.5)).foregroundStyle(Deck.tertiary)
                 }
                 .lineLimit(1)
                 Spacer(minLength: 0)
@@ -400,7 +401,7 @@ struct MediaView: View {
             if queue.items.isEmpty {
                 Text(emptyList(queue))
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.55))
+                    .foregroundStyle(Deck.tertiary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .multilineTextAlignment(.center)
             } else {
@@ -432,7 +433,7 @@ struct MediaView: View {
         ScrollView(.vertical) {
             Text(media.lyrics ?? "")
                 .font(.system(size: 12.5, weight: .medium))
-                .foregroundStyle(.white.opacity(0.8))
+                .foregroundStyle(Deck.secondary)
                 .lineSpacing(3)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .textSelection(.enabled)
@@ -471,7 +472,7 @@ struct MediaView: View {
                 Image(systemName: "music.note")
                     .font(.system(size: 20, weight: .semibold))
                     .frame(width: 46, height: 46)
-                    .background(.white.opacity(0.08), in: Circle())
+                    .background(Deck.control, in: Circle())
             }
             Text("Nothing playing").font(.headline)
             Text(
@@ -480,11 +481,11 @@ struct MediaView: View {
                     : "Play something in Music or Spotify."
             )
             .font(.caption)
-            .foregroundStyle(.white.opacity(0.55))
+            .foregroundStyle(Deck.tertiary)
             .multilineTextAlignment(.center)
             .frame(maxWidth: 320)
             Spacer(minLength: 0)
-            Waveform(level: 0, time: 0, tint: .white)
+            Waveform(level: 0, time: 0, tint: Deck.text)
                 .frame(height: 14)
                 .fadingEdges(.horizontal, length: 40)
                 .opacity(0.4)
@@ -513,7 +514,7 @@ private struct QueueRow: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Text(item.title).font(.system(size: 12, weight: .medium))
                     if let artist = item.artist {
-                        Text(artist).font(.system(size: 10.5)).foregroundStyle(.white.opacity(0.5))
+                        Text(artist).font(.system(size: 10.5)).foregroundStyle(Deck.tertiary)
                     }
                 }
                 .lineLimit(1)
@@ -522,12 +523,12 @@ private struct QueueRow: View {
                     Text(formatTime(duration, roundingUp: false))
                         .font(.system(size: 10.5))
                         .monospacedDigit()
-                        .foregroundStyle(.white.opacity(0.45))
+                        .foregroundStyle(Deck.tertiary)
                 }
             }
             .padding(.horizontal, 6)
             .padding(.vertical, 4)
-            .background(Color.white.opacity(hovering ? 0.08 : 0), in: shape)
+            .background((hovering ? Deck.cardRaised : Color.clear), in: shape)
             .contentShape(shape)
         }
         .buttonStyle(.plain)

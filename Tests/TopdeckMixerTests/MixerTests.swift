@@ -3,6 +3,7 @@ import AppKit
 import CoreAudio
 import SwiftUI
 import Testing
+import TopdeckCore
 import TopdeckSurface
 
 @testable import TopdeckFeatures
@@ -365,11 +366,15 @@ struct MixerSnapshotTests {
             let deck = VStack(spacing: 0) {
                 HStack(spacing: 0) {
                     HStack(spacing: 4) {
-                        ForEach(["Now", "Stash", "Plan"], id: \.self) { DeckNavItem($0, selected: false) {} }
+                        ForEach([SpaceID.now, .shelf, .clipboard]) {
+                            DeckNavItem($0.title, accent: $0.accent, selected: false) {}
+                        }
                     }.frame(maxWidth: .infinity, alignment: .leading)
                     Color.clear.frame(width: 196)
                     HStack(spacing: 4) {
-                        ForEach(["Agents", "Mac", "Tools"], id: \.self) { DeckNavItem($0, selected: $0 == "Mac") {} }
+                        ForEach([SpaceID.tools, .agents, .mac]) {
+                            DeckNavItem($0.title, accent: $0.accent, selected: $0 == .mac) {}
+                        }
                     }.frame(maxWidth: .infinity, alignment: .trailing)
                 }
                 .padding(.horizontal, 10)
@@ -390,8 +395,9 @@ struct MixerSnapshotTests {
                     .scrollIndicators(.never)
             }
             .frame(width: size.width, height: size.height)
-            .background(Deck.deck)
+            .background(Deck.panelFill(height: size.height, notch: 37))
             .foregroundStyle(Deck.text)
+            .environment(\.deckAccent, SpaceID.mac.accent)
             .environment(\.colorScheme, .dark)
             .transaction { $0.animation = nil }
             let host = NSHostingView(rootView: deck)

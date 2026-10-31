@@ -74,8 +74,12 @@ struct NotchView: View {
         let size = metrics.size(for: engine.state, expanded: preferences.expandedSize)
         let outline = Self.shape(for: presentation, resting: resting != nil, on: metrics)
         ZStack(alignment: .top) {
-            // Pure black, like the camera housing it opens from.
-            outline.fill(Deck.deck)
+            // Pure black, like the camera housing it opens from; an open deck fades to its body colour below it.
+            if presentation.openSpace != nil {
+                outline.fill(Deck.panelFill(height: size.height, notch: metrics.housing.height))
+            } else {
+                outline.fill(Deck.deck)
+            }
             if let space = presentation.openSpace {
                 DeckView(
                     engine: engine, metrics: metrics, preferences: preferences, content: content, space: space,

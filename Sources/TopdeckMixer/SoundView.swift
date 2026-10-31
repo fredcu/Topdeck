@@ -193,14 +193,14 @@ private struct DeviceRow: View {
                     Image(systemName: "checkmark").font(.system(size: 8.5, weight: .bold))
                 }
             }
-            .foregroundStyle(.white.opacity(current ? 1 : hovering ? 0.85 : 0.6))
+            .foregroundStyle(current ? Deck.text : hovering ? Deck.secondary : Deck.tertiary)
             .padding(.horizontal, 6)
             .frame(height: 24)
             .background {
                 if current {
-                    shape.fill(.white.opacity(0.14)).matchedGeometryEffect(id: "device", in: selection)
+                    shape.fill(Deck.control).matchedGeometryEffect(id: "device", in: selection)
                 } else if hovering {
-                    shape.fill(.white.opacity(0.06))
+                    shape.fill(Deck.cardRaised)
                 }
             }
             .contentShape(shape)
@@ -246,7 +246,8 @@ public struct MediaOutputView: View {
                 if let output = mixer.output {
                     LevelSlider(
                         symbol: output.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill",
-                        title: SoundView.shortName(output.name), level: output.isMuted ? 0 : output.level, tint: .white,
+                        title: SoundView.shortName(output.name), level: output.isMuted ? 0 : output.level,
+                        tint: Deck.text,
                         enabled: output.hasVolume
                     ) { mixer.setDeviceLevel($0, for: .output) }
                 }
@@ -301,12 +302,12 @@ private struct LevelSlider: View {
                 }
                 Text(title).lineLimit(1)
                 Spacer(minLength: 0)
-                Text("\(percent)%").monospacedDigit().foregroundStyle(.white.opacity(0.5))
+                Text("\(percent)%").monospacedDigit().foregroundStyle(Deck.tertiary)
             }
             .font(.system(size: 10.5, weight: .medium))
             GeometryReader { proxy in
                 Capsule()
-                    .fill(.white.opacity(0.12))
+                    .fill(Deck.control)
                     .overlay(alignment: .leading) {
                         Capsule().fill(tint).frame(width: max(6, proxy.size.width * min(max(level, 0), 1)))
                     }

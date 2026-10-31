@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-/// A screen of the deck. Five of them replace the old tab row: three in the left wing, two in the
-/// right. Each holds one or more features' views; a space with sub-tabs shows one feature at a time.
+/// A screen of the deck. Six of them replace the old tab row: three in each wing. Each holds one or
+/// more features' views; a space with sub-tabs shows one feature at a time.
 public enum SpaceID: String, CaseIterable, Codable, Hashable, Identifiable, Sendable {
-    case now, stash, tools, agents, mac
+    case now, shelf, clipboard, tools, agents, mac
 
     public var id: Self { self }
 
@@ -11,7 +11,8 @@ public enum SpaceID: String, CaseIterable, Codable, Hashable, Identifiable, Send
     public var title: String {
         switch self {
         case .now: "Now"
-        case .stash: "Stash"
+        case .shelf: "Shelf"
+        case .clipboard: "Clipboard"
         case .agents: "Agents"
         case .mac: "Mac"
         case .tools: "Tools"
@@ -21,12 +22,19 @@ public enum SpaceID: String, CaseIterable, Codable, Hashable, Identifiable, Send
     /// Where the spaces start out, left wing first.
     public static let defaultOrder: [SpaceID] = allCases
 
+    /// The spaces a stored name stands for. Stash, which Shelf and Clipboard came out of, stands for both;
+    /// a name no longer known stands for none.
+    public static func stored(_ name: String) -> [SpaceID] {
+        name == "stash" ? [.shelf, .clipboard] : SpaceID(rawValue: name).map { [$0] } ?? []
+    }
+
     /// The features whose views the space shows. With sub-tabs, one tab each, in tab order; without,
     /// all of them on one screen.
     public var features: [FeatureID] {
         switch self {
         case .now: [.media, .agents, .calendar, .notes, .weather, .timer]
-        case .stash: [.shelf, .clipboard, .notes]
+        case .shelf: [.shelf]
+        case .clipboard: [.clipboard]
         case .agents: [.agents, .usage]
         case .mac: [.performance, .sound, .monitors, .network, .storage, .admin]
         case .tools: [.capture, .timer, .shortcuts]
@@ -36,8 +44,8 @@ public enum SpaceID: String, CaseIterable, Codable, Hashable, Identifiable, Send
     /// Whether the space shows one feature at a time under sub-tabs.
     public var hasSubTabs: Bool {
         switch self {
-        case .stash, .agents, .mac: true
-        case .now, .tools: false
+        case .agents, .mac: true
+        case .now, .shelf, .clipboard, .tools: false
         }
     }
 
@@ -58,8 +66,9 @@ extension FeatureID {
     /// goes. Features that several spaces show (Calendar, Timer) belong to the one with their full view.
     public var home: SpaceID {
         switch self {
-        case .media, .calendar, .weather: .now
-        case .shelf, .clipboard, .notes: .stash
+        case .media, .calendar, .weather, .notes: .now
+        case .shelf: .shelf
+        case .clipboard: .clipboard
         case .agents, .usage: .agents
         case .sound, .monitors, .network, .storage, .admin, .performance: .mac
         case .capture, .shortcuts, .timer: .tools

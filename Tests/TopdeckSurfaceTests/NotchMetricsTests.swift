@@ -34,7 +34,7 @@ struct NotchMetricsTests {
     static let displays = [macBookPro14, macBookPro16, external, externalWithNotch]
     static let presentations: [NotchPresentationState] = [
         .compact, .hoverArmed, .transient(song), .transient(volume), .transient(meeting), .dropTarget,
-        .expanded(space: .now), .pinned(space: .stash), .focused(space: .stash, pinned: false),
+        .expanded(space: .now), .pinned(space: .shelf), .focused(space: .clipboard, pinned: false),
     ]
 
     @Test(arguments: displays)
@@ -194,7 +194,7 @@ struct NotchMetricsTests {
     @Test func theChosenSizeIsTheDecksBodyAndTheShouldersComeOnTopOfIt() {
         let shoulders = 2 * NotchMetrics.shoulder
         #expect(
-            macBookPro14.size(for: .pinned(space: .stash), expanded: CGSize(width: 700, height: 430)).width == 700
+            macBookPro14.size(for: .pinned(space: .shelf), expanded: CGSize(width: 700, height: 430)).width == 700
                 + shoulders)
         #expect(macBookPro14.size(for: .expanded(space: .now)).height == 430, "700 by 430 to begin with")
         #expect(external.size(for: .expanded(space: .now)).width == 700, "a floating pill has no shoulders")

@@ -3,7 +3,7 @@ import SwiftUI
 import TopdeckSurface
 
 /// The middle column: the month as a six-week grid with a dot under each day that has events and today
-/// filled white, and under it the events from tomorrow on, a week ahead. Picking a day rings it and the
+/// filled in the accent, and under it the events from tomorrow on, a week ahead. Picking a day rings it and the
 /// list shows that day; picking it again, or today, goes back. Right-click your own event to edit or
 /// delete it; editing opens in a popover.
 struct NowMonthColumn: View {
@@ -13,6 +13,7 @@ struct NowMonthColumn: View {
 
     @State private var editing: String?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.deckAccent) private var accent
 
     var body: some View {
         let month = CalendarMonth(containing: now)
@@ -67,13 +68,13 @@ struct NowMonthColumn: View {
         } label: {
             ZStack {
                 Text("\(cal.component(.day, from: day))")
-                    .deckText(.figure, color: isToday ? Deck.onFill : inMonth ? Deck.text : Deck.tertiary)
+                    .deckText(.figure, color: isToday ? Deck.onAccent : inMonth ? Deck.text : Deck.tertiary)
                     .fontWeight(isToday ? .bold : inMonth ? .semibold : .medium)
                     .frame(width: 22, height: 22)
-                    .background(Circle().fill(isToday ? Deck.text : .clear))
+                    .background(Circle().fill(isToday ? accent : .clear))
                     .overlay(Circle().strokeBorder(isSelected ? Deck.text : .clear, lineWidth: 1.5))
                 if dot {
-                    Circle().fill(Deck.secondary).frame(width: 3, height: 3)
+                    Circle().fill(accent).frame(width: 3, height: 3)
                         .frame(maxHeight: .infinity, alignment: .bottom)
                 }
             }

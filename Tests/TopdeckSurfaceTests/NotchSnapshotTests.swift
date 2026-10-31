@@ -140,7 +140,7 @@ struct NotchSnapshotTests {
             now: { AnyView(Text("Now content").frame(maxWidth: .infinity, maxHeight: .infinity)) },
             badge: { $0 == .agents ? badge : 0 },
             actions: { space, _ in
-                space == .stash ? AnyView(DeckIconButton(.plus, label: "New") {}) : AnyView(EmptyView())
+                space == .shelf ? AnyView(DeckIconButton(.plus, label: "New") {}) : AnyView(EmptyView())
             },
             dropFiles: { _ in false },
             openSettings: {})

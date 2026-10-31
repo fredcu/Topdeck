@@ -18,16 +18,27 @@ struct DeckTokenTests {
     /// docs/design-spec.md's table, value for value.
     @Test func theColorsAreTheSpecs() {
         #expect(rgba(Deck.deck) == [0x00, 0x00, 0x00, 255])
-        #expect(rgba(Deck.card) == [0x15, 0x15, 0x17, 255])
-        #expect(rgba(Deck.cardRaised) == [0x1F, 0x1F, 0x22, 255])
-        #expect(rgba(Deck.control) == [0x2A, 0x2A, 0x2E, 255])
-        #expect(rgba(Deck.hairline) == [255, 255, 255, 23], "white at 9%")
-        #expect(rgba(Deck.text) == [0xF5, 0xF5, 0xF7, 255])
-        #expect(rgba(Deck.secondary) == [0xBD, 0xBD, 0xC4, 255])
-        #expect(rgba(Deck.tertiary) == [0x8E, 0x8E, 0x95, 255])
+        #expect(rgba(Deck.body) == [0x10, 0x13, 0x1B, 255])
+        #expect(rgba(Deck.card) == [0x1A, 0x1F, 0x2B, 255])
+        #expect(rgba(Deck.cardRaised) == [0x23, 0x29, 0x36, 255])
+        #expect(rgba(Deck.control) == [0x2E, 0x35, 0x45, 255])
+        #expect(rgba(Deck.hairline) == [190, 205, 235, 28], "rgba(190, 205, 235, .11)")
+        #expect(rgba(Deck.text) == [0xF3, 0xF5, 0xFA, 255])
+        #expect(rgba(Deck.secondary) == [0xB7, 0xBF, 0xD0, 255])
+        #expect(rgba(Deck.tertiary) == [0x87, 0x91, 0xA6, 255])
+        #expect(rgba(Deck.navInactive) == [0xA4, 0xAE, 0xC2, 255])
         #expect(rgba(Deck.signal) == [0xFF, 0xB3, 0x40, 255])
         #expect(rgba(Deck.go) == [0x32, 0xD7, 0x4B, 255])
         #expect(rgba(Deck.stop) == [0xFF, 0x69, 0x61, 255])
+    }
+
+    @Test func eachSpaceHasItsAccent() {
+        let accents: [(SpaceID, [Int])] = [
+            (.now, [0x6C, 0xB2, 0xFF]), (.shelf, [0x3F, 0xD6, 0xC5]), (.clipboard, [0xB4, 0x9C, 0xFF]),
+            (.tools, [0xFF, 0x9F, 0x5A]), (.agents, [0xFF, 0xB3, 0x40]), (.mac, [0x5E, 0xDB, 0x8A]),
+        ]
+        #expect(accents.map(\.0) == SpaceID.allCases)
+        for (space, rgb) in accents { #expect(Array(rgba(space.accent).prefix(3)) == rgb, "\(space)") }
     }
 
     @Test func theShapeAndSpacingAreTheSpecs() {
@@ -53,7 +64,7 @@ struct DeckTokenTests {
             return (max(a, b) + 0.05) / (min(a, b) + 0.05)
         }
         for text in [Deck.text, Deck.secondary, Deck.tertiary, Deck.signal, Deck.go, Deck.stop] {
-            for surface in [Deck.deck, Deck.card, Deck.cardRaised] {
+            for surface in [Deck.deck, Deck.body, Deck.card, Deck.cardRaised] {
                 #expect(ratio(text, on: surface) >= 4.5, "\(rgba(text)) on \(rgba(surface))")
             }
         }
@@ -106,8 +117,17 @@ struct ClosedContentTests {
 
     @Test func whatIsPlayingIsItsCoverAndFourBars() {
         let cover = Data([1])
-        #expect(content(.media, "music.note", "Song", artwork: cover).trailing == .equalizer)
-        #expect(content(.media, "pause.fill", "Song", artwork: cover).trailing == .icon(.pause))
+        #expect(
+            content(.media, "music.note", "Song", artwork: cover).trailing == .equalizer(playing: true, accent: nil))
+        #expect(
+            content(.media, "pause.fill", "Song", artwork: cover).trailing == .equalizer(playing: false, accent: nil),
+            "paused, the bars stay, low and still")
+        let tint = ActivityTint(red: 0.9, green: 0.4, blue: 0.2)
+        let tinted = ClosedContent(
+            Activity(
+                feature: .media, symbol: "music.note", title: "Song", duration: .zero, artwork: cover, accent: tint))
+        #expect(tinted.trailing == .equalizer(playing: true, accent: tint), "the track's colour reaches the bars")
+        #expect(tinted.trailingWidth == CGFloat(MusicBars.width))
         #expect(content(.media, "music.note", "Song", artwork: cover).label == nil, "the cover says what it is")
     }
 
@@ -154,11 +174,11 @@ struct DeckComponentSnapshotTests {
     @Test func theComponentsDraw() throws {
         let view = VStack(alignment: .leading, spacing: Deck.Metric.gap) {
             HStack {
-                DeckNavItem("Now", selected: true) {}
-                DeckNavItem("Stash", selected: false) {}
-                DeckNavItem("Agents", selected: false, badge: 2) {}
+                DeckNavItem("Now", accent: SpaceID.now.accent, selected: true) {}
+                DeckNavItem("Shelf", accent: SpaceID.shelf.accent, selected: false) {}
+                DeckNavItem("Agents", accent: SpaceID.agents.accent, selected: false, badge: 2) {}
             }
-            DeckSubTabs(["Shelf", "Clipboard", "Notes"], selection: "Clipboard", title: { $0 }, select: { _ in })
+            DeckSubTabs(["Sessions", "Usage"], selection: "Usage", title: { $0 }, select: { _ in })
             HStack {
                 Button("Allow") {}.buttonStyle(.deck(.primary))
                 Button("Deny") {}.buttonStyle(.deck())
@@ -230,5 +250,75 @@ struct DeckComponentSnapshotTests {
                 to: URL(filePath: directory).appending(path: "components.png"))
         }
         #expect(bitmap.pixelsWide > 0)
+    }
+}
+
+/// The colours on the deck's surfaces: the contrast text needs, and the gradient from the notch.
+struct DeckColorTests {
+    /// Relative luminance of an sRGB colour, as WCAG defines it.
+    private static func luminance(_ color: Color) -> Double {
+        let rgb = NSColor(color).usingColorSpace(.sRGB)!
+        func linear(_ value: CGFloat) -> Double {
+            let v = Double(value)
+            return v <= 0.03928 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * linear(rgb.redComponent) + 0.7152 * linear(rgb.greenComponent) + 0.0722
+            * linear(rgb.blueComponent)
+    }
+
+    private static func contrast(_ a: Color, _ b: Color) -> Double {
+        let (x, y) = (luminance(a), luminance(b))
+        return (max(x, y) + 0.05) / (min(x, y) + 0.05)
+    }
+
+    /// `color` at `opacity` over `base`.
+    private static func over(_ color: Color, _ opacity: Double, _ base: Color) -> Color {
+        let c = NSColor(color).usingColorSpace(.sRGB)!
+        let b = NSColor(base).usingColorSpace(.sRGB)!
+        func mix(_ x: CGFloat, _ y: CGFloat) -> Double { Double(x) * opacity + Double(y) * (1 - opacity) }
+        return Color(
+            .sRGB, red: mix(c.redComponent, b.redComponent), green: mix(c.greenComponent, b.greenComponent),
+            blue: mix(c.blueComponent, b.blueComponent))
+    }
+
+    @Test func textReadsAtFourPointFiveOnEverySurfaceItSitsOn() {
+        for surface in [Deck.deck, Deck.body, Deck.card, Deck.cardRaised] {
+            for text in [Deck.text, Deck.secondary, Deck.tertiary, Deck.navInactive] {
+                #expect(Self.contrast(text, surface) >= 4.5, "\(text) on \(surface)")
+            }
+        }
+        for text in [Deck.text, Deck.secondary] {
+            #expect(Self.contrast(text, Deck.control) >= 4.5, "controls hold text and secondary only")
+        }
+    }
+
+    @Test func eachAccentReadsOnItsTintedPillAndOnTheBody() {
+        for space in SpaceID.allCases {
+            let pill = Self.over(space.accent, 0.18, Deck.body)
+            #expect(Self.contrast(space.accent, pill) >= 4.5, "\(space) on its nav pill")
+            #expect(Self.contrast(space.accent, Deck.body) >= 4.5, "\(space) on the body")
+            let tint = Self.over(space.accent, 0.22, Deck.card)
+            #expect(Self.contrast(space.accent, tint) >= 4.5, "\(space) on a primary button")
+        }
+        #expect(Self.contrast(Deck.onAccent, Deck.Accent.now) >= 4.5, "today's number")
+        #expect(Self.contrast(Deck.onFill, Deck.signal) >= 4.5)
+    }
+
+    @Test func everySpaceHasItsOwnAccent() {
+        #expect(Set(SpaceID.allCases.map { "\($0.accent)" }).count == SpaceID.allCases.count)
+    }
+
+    @Test func theDeckIsBlackAtTheNotchAndFadesToTheBodyFiftyFivePointsLower() throws {
+        let stops = Deck.panelStops(height: 430, notch: 37)
+        #expect(stops.count == 4)
+        #expect(stops[0].location == 0 && stops[1].location == 37.0 / 430, "black down to the notch")
+        #expect(abs(stops[2].location - 92.0 / 430) < 1e-9, "55 points to the body colour")
+        #expect(stops[3].location == 1)
+        #expect(Self.luminance(stops[1].color) == 0 && Self.contrast(stops[3].color, Deck.body) == 1)
+    }
+
+    @Test func aDeckShorterThanTheGradientStillEndsInTheBody() {
+        let stops = Deck.panelStops(height: 60, notch: 37)
+        #expect(stops.map { $0.location } == stops.map { $0.location }.sorted() && stops[2].location == 1)
     }
 }

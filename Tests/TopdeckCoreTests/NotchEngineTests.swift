@@ -20,11 +20,11 @@ struct NotchEngineTests {
         let engine = NotchEngine()
         var reports = 0
         engine.send(.show)
-        engine.send(.showFeature(.shelf))
+        engine.send(.showFeature(.agents))
         engine.onPresentationChange = { _, _ in reports += 1 }
-        engine.send(.selectSubTab(.notes))
-        engine.send(.selectSubTab(.notes))  // already there
-        #expect(reports == 1 && engine.state.onScreen == [.notes])
+        engine.send(.selectSubTab(.usage))
+        engine.send(.selectSubTab(.usage))  // already there
+        #expect(reports == 1 && engine.state.onScreen == [.usage])
     }
 
     @Test func timersFireThroughTheReducer() async throws {

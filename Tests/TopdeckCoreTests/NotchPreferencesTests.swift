@@ -41,17 +41,36 @@ struct NotchPreferencesTests {
 
     @Test func spacesStartInTheirDefaultOrderAllShown() {
         let preferences = NotchPreferences(defaults: defaults)
-        #expect(preferences.spaceOrder == [.now, .stash, .tools, .agents, .mac])
+        #expect(preferences.spaceOrder == [.now, .shelf, .clipboard, .tools, .agents, .mac])
         #expect(preferences.spaceSet.spaces == SpaceID.defaultOrder)
     }
 
     @Test func aStoredOrderWithThePlanSpaceLoadsCleanly() {
-        defaults.set(["now", "stash", "plan", "agents", "mac", "tools"], forKey: "spaceOrder")
+        defaults.set(["now", "shelf", "plan", "agents", "mac", "tools"], forKey: "spaceOrder")
         defaults.set(["plan", "mac"], forKey: "hiddenSpaces")
         let preferences = NotchPreferences(defaults: defaults)
-        #expect(preferences.spaceOrder == [.now, .stash, .agents, .mac, .tools])
+        #expect(preferences.spaceOrder == [.now, .shelf, .agents, .mac, .tools, .clipboard])
         #expect(preferences.hiddenSpaces == [.mac])
-        #expect(preferences.spaceSet.spaces == [.now, .stash, .agents, .tools])
+        #expect(preferences.spaceSet.spaces == [.now, .shelf, .agents, .tools, .clipboard])
+    }
+
+    @Test func aStoredStashBecomesShelfAndClipboardInItsPlace() {
+        defaults.set(["tools", "now", "stash", "agents", "mac"], forKey: "spaceOrder")
+        defaults.set(["stash"], forKey: "hiddenSpaces")
+        let preferences = NotchPreferences(defaults: defaults)
+        #expect(preferences.spaceOrder == [.tools, .now, .shelf, .clipboard, .agents, .mac])
+        #expect(preferences.hiddenSpaces == [.shelf, .clipboard], "hidden Stash hides both")
+        #expect(preferences.spaceSet.spaces == [.tools, .now, .agents, .mac])
+    }
+
+    @Test func aSubTabChosenForAStashThatIsGoneChangesNothing() {
+        var state = NotchState()
+        _ = state.handle(.show)
+        _ = state.handle(.clicked)
+        let before = state
+        _ = state.handle(.selectSubTab(.notes))  // Notes was a sub-tab of Stash; no space has it now
+        #expect(state.subTabs == before.subTabs && state.presentation == before.presentation)
+        #expect(state.subTab(in: .shelf) == nil && state.subTab(in: .clipboard) == nil)
     }
 
     @Test func aStoredFeatureListWithTasksLoadsCleanly() {
@@ -65,16 +84,17 @@ struct NotchPreferencesTests {
     @Test func spacesMoveAndKeepTheirPlaceWhileHidden() {
         let preferences = NotchPreferences(defaults: defaults)
         preferences.moveSpace(.tools, to: 1)
-        #expect(preferences.spaceSet.spaces == [.now, .tools, .stash, .agents, .mac])
-        preferences.setSpace(.stash, hidden: true)
-        #expect(preferences.spaceSet.spaces == [.now, .tools, .agents, .mac])
+        #expect(preferences.spaceSet.spaces == [.now, .tools, .shelf, .clipboard, .agents, .mac])
+        preferences.setSpace(.shelf, hidden: true)
+        #expect(preferences.spaceSet.spaces == [.now, .tools, .clipboard, .agents, .mac])
         preferences.moveSpace(.mac, to: 99)
         preferences.moveSpace(.agents, to: -4)
-        #expect(preferences.spaceOrder == [.agents, .now, .tools, .stash, .mac], "the hidden stash stayed")
-        preferences.setSpace(.stash, hidden: false)
+        #expect(preferences.spaceOrder == [.agents, .now, .tools, .shelf, .clipboard, .mac], "the hidden shelf stayed")
+        preferences.setSpace(.shelf, hidden: false)
         let reopened = NotchPreferences(defaults: defaults)
         #expect(
-            reopened.spaceSet.spaces == [.agents, .now, .tools, .stash, .mac], "order and visibility persist")
+            reopened.spaceSet.spaces == [.agents, .now, .tools, .shelf, .clipboard, .mac],
+            "order and visibility persist")
     }
 
     @Test func theLastSpaceOnShowCannotBeHidden() {
@@ -87,7 +107,9 @@ struct NotchPreferencesTests {
     @Test func aSpaceWithNothingOnIsHidden() {
         let preferences = NotchPreferences(defaults: defaults)
         for feature in SpaceID.tools.features { preferences.setEnabled(feature, false) }
-        #expect(preferences.spaceSet.spaces == [.now, .stash, .agents, .mac], "capture, timer and shortcuts are off")
+        #expect(
+            preferences.spaceSet.spaces == [.now, .shelf, .clipboard, .agents, .mac],
+            "capture, timer and shortcuts are off")
         preferences.setEnabled(.timer, true)
         #expect(preferences.spaceSet.spaces.contains(.tools))
     }

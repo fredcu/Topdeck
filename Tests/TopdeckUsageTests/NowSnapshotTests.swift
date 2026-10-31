@@ -35,6 +35,8 @@ struct NowSnapshotTests {
         var agent = false
         var timer = false
         var adding = false
+        /// The add field as a note, with a colour and a window picked.
+        var noteAdd = false
         var weather = true
         var day: Int?
     }
@@ -100,6 +102,9 @@ struct NowSnapshotTests {
                 notes: titles.prefix(sample.notes).enumerated().map { index, title in
                     var note = Note(id: UUID(), text: title, modified: now - Double(index) * 600)
                     if index == 0 || index == 2 { note.window = .desktop }
+                    // The boards' squares: yellow, blue, green, purple, orange, then none.
+                    let colors: [NoteColor] = [.yellow, .blue, .green, .purple, .orange]
+                    note.color = index < colors.count ? colors[index] : nil
                     return note
                 })
 
@@ -139,6 +144,13 @@ struct NowSnapshotTests {
             if sample.adding {
                 model.begin()
                 model.draft = "Call school 3pm"
+            }
+            if sample.noteAdd {
+                model.begin()
+                model.draft = "Kitchen measurements"
+                model.picked = .note
+                model.pick(.orange)
+                model.toggle(.desktop)
             }
         }
 
@@ -281,6 +293,8 @@ struct NowSnapshotTests {
 
     @Test func nowAdd() throws { try single("NowAdd", Sample(adding: true, day: 3)) }
 
+    @Test func noteAdd() throws { try single("NoteAdd", Sample(noteAdd: true)) }
+
     @Test func nowFree() throws { try single("NowFree", Sample(events: false, notes: 10)) }
 
     /// Both states at the smallest size, side by side as on the board.
@@ -301,6 +315,7 @@ struct NowSnapshotTests {
         try single("NowPlaying\(suffix)", Sample(playing: true), size: size)
         try single("NowAlert\(suffix)", Sample(playing: true, agent: true, timer: true), size: size)
         try single("NowAdd\(suffix)", Sample(adding: true, day: 3), size: size)
+        try single("NoteAdd\(suffix)", Sample(noteAdd: true), size: size)
         try single("NowFree\(suffix)", Sample(events: false, notes: 10), size: size)
         try single("extra-NoLyrics\(suffix)", Sample(playing: true, lyrics: false), size: size)
         try single("extra-Nothing\(suffix)", Sample(events: false, notes: 0, weather: false), size: size)

@@ -46,7 +46,12 @@ struct NowPlayer: View {
             if let image = media.artwork {
                 Image(nsImage: image).resizable().aspectRatio(contentMode: .fill)
             } else {
-                Deck.control
+                ZStack {
+                    Deck.control
+                    Image(systemName: "music.note")
+                        .font(.system(size: metrics.artwork * 0.42, weight: .semibold))
+                        .foregroundStyle(Deck.tertiary)
+                }
             }
         }
         .frame(width: metrics.artwork, height: metrics.artwork)

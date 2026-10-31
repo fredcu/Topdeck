@@ -2,6 +2,7 @@
 import AppKit
 import SwiftUI
 import Testing
+import TopdeckCore
 import TopdeckSurface
 
 /// A screen drawn the way the deck draws it: a black panel with the second row (its sub-tabs and
@@ -12,14 +13,35 @@ enum DeckScreen {
     static let normal = CGSize(width: 700, height: 430)
     static let smallest = CGSize(width: 620, height: 340)
 
+    /// `space` is the open one: its accent, and the label lit in the wings. Without `tabs` the second row
+    /// shows the space's name, as it does for a space without sub-tabs.
     static func render(
-        _ body: some View, name: String, size: CGSize = normal, tabs: [String], selected: String,
-        actions: some View = EmptyView()
+        _ body: some View, name: String, size: CGSize = normal, space: SpaceID = .agents, tabs: [String] = [],
+        selected: String = "", actions: some View = EmptyView()
     ) throws {
+        func wing(_ spaces: [SpaceID]) -> some View {
+            HStack(spacing: 4) {
+                ForEach(spaces) { item in
+                    DeckNavItem(
+                        item.title, accent: item.accent, selected: item == space, badge: item == .agents ? 1 : 0
+                    ) {}
+                }
+            }
+        }
         let deck = VStack(spacing: 0) {
-            Color.clear.frame(height: 37)  // the row beside the camera
+            HStack(spacing: 0) {  // the row beside the camera
+                wing([.now, .shelf, .clipboard]).frame(maxWidth: .infinity, alignment: .leading)
+                Color.clear.frame(width: 196)
+                wing([.tools, .agents, .mac]).frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 37)
             HStack(spacing: 0) {
-                DeckSubTabs(tabs, selection: selected, title: { $0 }, select: { _ in })
+                if tabs.isEmpty {
+                    Text(space.title).deckText(.title)
+                } else {
+                    DeckSubTabs(tabs, selection: selected, title: { $0 }, select: { _ in })
+                }
                 Spacer(minLength: Deck.Metric.gap)
                 HStack(spacing: 2) {
                     actions
@@ -35,7 +57,11 @@ enum DeckScreen {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .frame(width: size.width, height: size.height)
-        .background(Deck.deck, in: UnevenRoundedRectangle(bottomLeadingRadius: 30, bottomTrailingRadius: 30))
+        .background(
+            Deck.panelFill(height: size.height, notch: 37),
+            in: UnevenRoundedRectangle(bottomLeadingRadius: 30, bottomTrailingRadius: 30)
+        )
+        .environment(\.deckAccent, space.accent)
         .padding(16)
         .background(Color(red: 0.22, green: 0.26, blue: 0.31))
         .foregroundStyle(Deck.text)

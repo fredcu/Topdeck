@@ -41,6 +41,7 @@ struct DeckView: View {
                 .padding(.bottom, 8)
         }
         .foregroundStyle(Deck.text)
+        .environment(\.deckAccent, space.accent)
     }
 
     // MARK: Top row
@@ -68,7 +69,10 @@ struct DeckView: View {
     private func wingRow(_ spaces: [SpaceID], compact: Bool) -> some View {
         HStack(spacing: compact ? 2 : 4) {
             ForEach(spaces) { item in
-                DeckNavItem(item.title, selected: item == space, badge: content.badge(item), compact: compact) {
+                DeckNavItem(
+                    item.title, accent: item.accent, selected: item == space, badge: content.badge(item),
+                    compact: compact
+                ) {
                     engine.send(.selectSpace(item))
                 }
             }

@@ -48,7 +48,7 @@ public struct DeckCard<Content: View>: View {
 public enum DeckButtonKind: Sendable {
     /// An ordinary action.
     case standard
-    /// The one action to take, white: Allow.
+    /// The one action to take, tinted in the space's accent: Allow.
     case primary
     /// An action that needs you, amber: Join.
     case accent
@@ -83,6 +83,7 @@ public struct DeckButtonStyle: ButtonStyle {
         let slot: Bool
         let configuration: ButtonStyleConfiguration
         @Environment(\.isEnabled) private var enabled
+        @Environment(\.deckAccent) private var accent
 
         var body: some View {
             let small = compact || slot
@@ -90,7 +91,7 @@ public struct DeckButtonStyle: ButtonStyle {
                 cornerRadius: compact && !slot ? 7 : Deck.Radius.control, style: .continuous)
             configuration.label
                 .font(.system(size: small ? 12 : 13, weight: .semibold))
-                .foregroundStyle(kind == .primary || kind == .accent ? Deck.onFill : Deck.text)
+                .foregroundStyle(kind == .primary ? accent : kind == .accent ? Deck.onFill : Deck.text)
                 .lineLimit(1)
                 .padding(.horizontal, slot ? 11 : compact ? 9 : 13)
                 .frame(maxWidth: fill ? .infinity : nil)
@@ -104,7 +105,7 @@ public struct DeckButtonStyle: ButtonStyle {
         private var background: Color {
             switch kind {
             case .standard: Deck.control
-            case .primary: Deck.text
+            case .primary: accent.tint()
             case .accent: Deck.signal
             case .outline: .clear
             }
@@ -184,11 +185,13 @@ public struct DeckIconButton: View {
 
 // MARK: Chips and fields
 
-/// A small choice in a row of them, 27 high: lit white when picked, an outline when not. A day.
+/// A small choice in a row of them, 27 high: tinted in the space's accent when picked, an outline when
+/// not. A day.
 public struct DeckChip: View {
     let title: String
     let selected: Bool
     let action: () -> Void
+    @Environment(\.deckAccent) private var accent
 
     public init(_ title: String, selected: Bool, action: @escaping () -> Void) {
         self.title = title
@@ -201,11 +204,11 @@ public struct DeckChip: View {
         Button(action: action) {
             Text(title)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(selected ? Deck.onFill : Deck.secondary)
+                .foregroundStyle(selected ? accent : Deck.secondary)
                 .lineLimit(1)
                 .padding(.horizontal, 6)
                 .frame(minWidth: 36, minHeight: Deck.Metric.navHeight)
-                .background(shape.fill(selected ? Deck.text : .clear))
+                .background(shape.fill(selected ? accent.tint() : .clear))
                 .overlay { if !selected { shape.strokeBorder(Deck.hairline, lineWidth: 1) } }
                 .contentShape(shape)
         }
@@ -221,15 +224,25 @@ public struct DeckPillButtonStyle: ButtonStyle {
     public init(on: Bool = false) { self.on = on }
 
     public func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(on ? Deck.onFill : Deck.text)
-            .lineLimit(1)
-            .padding(.horizontal, 10)
-            .frame(minWidth: 34, minHeight: 27)
-            .background(Capsule().fill(on ? Deck.text : Deck.control))
-            .contentShape(Capsule())
-            .opacity(configuration.isPressed ? 0.75 : 1)
+        Rendered(on: on, configuration: configuration)
+    }
+
+    private struct Rendered: View {
+        let on: Bool
+        let configuration: ButtonStyleConfiguration
+        @Environment(\.deckAccent) private var accent
+
+        var body: some View {
+            configuration.label
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(on ? accent : Deck.text)
+                .lineLimit(1)
+                .padding(.horizontal, 10)
+                .frame(minWidth: 34, minHeight: 27)
+                .background(Capsule().fill(on ? accent.tint() : Deck.control))
+                .contentShape(Capsule())
+                .opacity(configuration.isPressed ? 0.75 : 1)
+        }
     }
 }
 
@@ -271,19 +284,23 @@ public struct DeckField: View {
 
 // MARK: Navigation
 
-/// A space's label in a wing: a pill, lit when selected, with an optional signal badge. `compact` is
-/// the tighter pill a wing falls back to when the deck is at its smallest.
+/// A space's label in a wing: a pill in the space's accent at 18% with accent text when selected, with an
+/// optional signal badge. `compact` is the tighter pill a wing falls back to when the deck is at its
+/// smallest.
 public struct DeckNavItem: View {
     let title: String
+    let accent: Color
     let selected: Bool
     let badge: Int
     let compact: Bool
     let action: () -> Void
 
     public init(
-        _ title: String, selected: Bool, badge: Int = 0, compact: Bool = false, action: @escaping () -> Void
+        _ title: String, accent: Color = Deck.Accent.now, selected: Bool, badge: Int = 0, compact: Bool = false,
+        action: @escaping () -> Void
     ) {
         self.title = title
+        self.accent = accent
         self.selected = selected
         self.badge = badge
         self.compact = compact
@@ -297,11 +314,11 @@ public struct DeckNavItem: View {
                 if badge > 0 { DeckBadge(badge) }
             }
             .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(selected ? Deck.text : Deck.tertiary)
+            .foregroundStyle(selected ? accent : Deck.navInactive)
             .fixedSize()
             .padding(.horizontal, compact ? 8 : 12)
             .frame(height: Deck.Metric.navHeight)
-            .background(Capsule().fill(selected ? Deck.control : .clear))
+            .background(Capsule().fill(selected ? accent.tint(0.18) : .clear))
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -387,14 +404,15 @@ public struct DeckSegmented<ID: Hashable>: View {
         .padding(2)
         .background(
             RoundedRectangle(cornerRadius: compact ? 8 : Deck.Radius.control, style: .continuous)
-                .fill(compact ? Deck.deck : Deck.cardRaised))
+                .fill(compact ? Deck.body : Deck.cardRaised))
     }
 }
 
 // MARK: Rows
 
-/// A list row, at least 38 high: lit when selected. With an action it's a button.
+/// A list row, at least 38 high: tinted in the space's accent when selected. With an action it's a button.
 public struct DeckRow<Content: View>: View {
+    @Environment(\.deckAccent) private var accent
     let selected: Bool
     let action: (() -> Void)?
     let content: Content
@@ -423,7 +441,7 @@ public struct DeckRow<Content: View>: View {
             .contentShape(Rectangle())
     }
 
-    private var rowFill: Color { selected ? Deck.control : .clear }
+    private var rowFill: Color { selected ? accent.tint(0.16) : .clear }
 }
 
 // MARK: Marks
@@ -477,10 +495,12 @@ public struct DeckDot: View {
     }
 }
 
-/// A 5 point progress bar. `value` is 0 to 1; a signal tone is for a limit that needs attention.
+/// A 5 point progress bar in the space's accent. `value` is 0 to 1; a tone is for a state, such as a limit
+/// that needs attention.
 public struct DeckBar: View {
     let value: Double
     let tone: DeckTone?
+    @Environment(\.deckAccent) private var accent
 
     public init(_ value: Double, tone: DeckTone? = nil) {
         self.value = value
@@ -494,7 +514,7 @@ public struct DeckBar: View {
             .frame(height: 5)
             .overlay(alignment: .leading) {
                 GeometryReader { track in
-                    Capsule().fill(tone?.color ?? Deck.text).frame(width: track.size.width * fraction)
+                    Capsule().fill(tone?.color ?? accent).frame(width: track.size.width * fraction)
                 }
             }
             .accessibilityElement()
@@ -543,6 +563,7 @@ public struct DeckEmptyLine: View {
 /// A sideways slider, as on the Sound board: a 6 point track and a 16 point thumb. Drag or click
 /// anywhere along it; VoiceOver adjusts it in steps of five percent.
 public struct DeckSlider: View {
+    @Environment(\.deckAccent) private var accent
     let level: Double
     let label: String
     let value: String
@@ -569,7 +590,7 @@ public struct DeckSlider: View {
             let x = Self.thumb / 2 + travel * min(max(level, 0), 1)
             ZStack(alignment: .leading) {
                 Capsule().fill(Deck.control).frame(height: 6)
-                Capsule().fill(Deck.text).frame(width: x, height: 6)
+                Capsule().fill(accent).frame(width: x, height: 6)
                 Circle()
                     .fill(Deck.text)
                     .frame(width: Self.thumb, height: Self.thumb)
@@ -656,6 +677,7 @@ extension DeckLevelRow where Lead == EmptyView {
 
 /// A tick box for a row in a list you select from.
 public struct DeckCheckbox: View {
+    @Environment(\.deckAccent) private var accent
     let ticked: Bool
     let label: String
     let toggle: () -> Void
@@ -673,7 +695,7 @@ public struct DeckCheckbox: View {
                 .foregroundStyle(Deck.onFill)
                 .opacity(ticked ? 1 : 0)
                 .frame(width: 18, height: 18)
-                .background(shape.fill(ticked ? Deck.text : .clear))
+                .background(shape.fill(ticked ? accent : .clear))
                 .overlay(shape.strokeBorder(ticked ? .clear : Deck.tertiary, lineWidth: 1.5))
                 .frame(width: 24, height: 24)
                 .contentShape(Rectangle())
@@ -803,13 +825,15 @@ public struct DeckFlow: Layout {
 
 // MARK: Now
 
-/// The time, large, in Now's second row. Time only, no date; it moves on each minute.
+/// The time, large, in the space's accent, in Now's second row. Time only, no date; it moves on each minute.
 public struct DeckClock: View {
+    @Environment(\.deckAccent) private var accent
+
     public init() {}
 
     public var body: some View {
         TimelineView(.everyMinute) { context in
-            Text(context.date.formatted(.dateTime.hour().minute())).deckText(.clock).lineLimit(1)
+            Text(context.date.formatted(.dateTime.hour().minute())).deckText(.clock, color: accent).lineLimit(1)
         }
         .accessibilityElement(children: .combine)
     }
@@ -866,6 +890,7 @@ public struct DeckScrubber: View {
     let commit: (Double) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.deckAccent) private var accent
     @FocusState private var focused: Bool
 
     private static let knob: CGFloat = 12
@@ -893,7 +918,7 @@ public struct DeckScrubber: View {
             let x = Self.knob / 2 + travel * fraction
             ZStack(alignment: .leading) {
                 Capsule().fill(Deck.control).frame(height: 4)
-                Capsule().fill(Deck.text).frame(width: x, height: 4)
+                Capsule().fill(accent).frame(width: x, height: 4)
                 Circle()
                     .fill(Deck.text)
                     .frame(width: Self.knob, height: Self.knob)

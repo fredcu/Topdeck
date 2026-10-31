@@ -143,8 +143,8 @@ struct NowWeatherBlock: View {
                 HStack(spacing: 6) {
                     Image(systemName: current.symbol)
                         .font(.system(size: iconSize, weight: .regular))
-                        .symbolRenderingMode(.monochrome)
-                        .foregroundStyle(Deck.text)
+                        .symbolVariant(.fill)
+                        .symbolRenderingMode(.multicolor)
                         .accessibilityHidden(true)
                     Text(units.text(current.temperature)).deckText(temperatureStyle).lineLimit(1).fixedSize()
                 }
@@ -205,7 +205,8 @@ struct NowWeatherBlock: View {
                     Text(hour.time.formatted(.dateTime.hour())).deckText(.caption).lineLimit(1)
                     Image(systemName: hour.symbol)
                         .font(.system(size: 14))
-                        .foregroundStyle(Deck.secondary)
+                        .symbolVariant(.fill)
+                        .symbolRenderingMode(.multicolor)
                         .frame(height: 16)
                         .accessibilityHidden(true)
                     Text(units.text(hour.temperature)).deckText(.figure).lineLimit(1)
@@ -230,7 +231,8 @@ struct NowWeatherBlock: View {
                         .frame(width: 30, alignment: .leading)
                     Image(systemName: day.symbol)
                         .font(.system(size: 12))
-                        .foregroundStyle(Deck.secondary)
+                        .symbolVariant(.fill)
+                        .symbolRenderingMode(.multicolor)
                         .frame(width: 16)
                         .accessibilityHidden(true)
                     Text(units.text(day.low)).deckText(.figure, color: Deck.tertiary).lineLimit(1)
@@ -251,7 +253,15 @@ struct NowWeatherBlock: View {
         Capsule().fill(Deck.control).frame(height: 4)
             .overlay {
                 GeometryReader { track in
-                    Capsule().fill(Deck.secondary)
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                stops: [
+                                    .init(color: Deck.Range.cool, location: 0),
+                                    .init(color: Deck.Range.mild, location: 0.6),
+                                    .init(color: Deck.Range.warm, location: 1),
+                                ], startPoint: .leading, endPoint: .trailing)
+                        )
                         .frame(width: max(track.size.width * (range.end - range.start), 4))
                         .offset(x: track.size.width * range.start)
                 }

@@ -210,10 +210,10 @@ public final class NotchPreferences {
         defaults.set(FeatureID.allCases.map(\.rawValue), forKey: Key.seenFeatures)
         // The stored order, then whatever it doesn't know yet (a space added by an update) at the end.
         var placed: Set<SpaceID> = []
-        let storedSpaces = (defaults.stringArray(forKey: Key.spaceOrder) ?? []).compactMap(SpaceID.init(rawValue:))
+        let storedSpaces = (defaults.stringArray(forKey: Key.spaceOrder) ?? []).flatMap(SpaceID.stored)
             .filter { placed.insert($0).inserted }
         spaceOrder = storedSpaces + SpaceID.allCases.filter { !placed.contains($0) }
-        hiddenSpaces = Set((defaults.stringArray(forKey: Key.hiddenSpaces) ?? []).compactMap(SpaceID.init(rawValue:)))
+        hiddenSpaces = Set((defaults.stringArray(forKey: Key.hiddenSpaces) ?? []).flatMap(SpaceID.stored))
         showOnAllDisplays = defaults.bool(forKey: Key.showOnAllDisplays)
         pillDisplays = Set(defaults.stringArray(forKey: Key.pillDisplays) ?? [])
         animationStyle = defaults.string(forKey: Key.animationStyle).flatMap(NotchAnimationStyle.init) ?? .spring
