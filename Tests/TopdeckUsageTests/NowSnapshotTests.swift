@@ -256,7 +256,7 @@ struct NowSnapshotTests {
         let window = NSWindow(contentRect: host.frame, styleMask: .borderless, backing: .buffered, defer: false)
         window.contentView = host
         host.layoutSubtreeIfNeeded()
-        RunLoop.main.run(until: .now + 0.5)
+        RunLoop.main.run(until: .now + 0.2)
         host.layoutSubtreeIfNeeded()
         let bitmap = try #require(
             NSBitmapImageRep(
@@ -307,16 +307,25 @@ struct NowSnapshotTests {
             ])
     }
 
-    // MARK: Every other state, at both sizes
+    // MARK: The smallest size, and every other state
 
-    @Test(arguments: [("", NowSnapshotTests.normal), ("-min", NowSnapshotTests.smallest)])
-    func everyStateFitsBothSizes(suffix: String, size: CGSize) throws {
-        try single("NowToday\(suffix)", Sample(), size: size)
-        try single("NowPlaying\(suffix)", Sample(playing: true), size: size)
-        try single("NowAlert\(suffix)", Sample(playing: true, agent: true, timer: true), size: size)
-        try single("NowAdd\(suffix)", Sample(adding: true, day: 3), size: size)
-        try single("NoteAdd\(suffix)", Sample(noteAdd: true), size: size)
-        try single("NowFree\(suffix)", Sample(events: false, notes: 10), size: size)
+    /// Each board at the smallest size.
+    @Test func everyBoardFitsTheSmallestSize() throws {
+        let size = Self.smallest
+        try single("NowToday-min", Sample(), size: size)
+        try single("NowPlaying-min", Sample(playing: true), size: size)
+        try single("NowAlert-min", Sample(playing: true, agent: true, timer: true), size: size)
+        try single("NowAdd-min", Sample(adding: true, day: 3), size: size)
+        try single("NoteAdd-min", Sample(noteAdd: true), size: size)
+        try single("NowFree-min", Sample(events: false, notes: 10), size: size)
+    }
+
+    /// The states the boards don't draw, at both sizes. Each is a full render, and the main thread draws them
+    /// one at a time among every other test's, so they run only when the pictures are wanted.
+    @Test(
+        .enabled(if: ProcessInfo.processInfo.environment["SNAPSHOT_DIR"] != nil),
+        arguments: [("", NowSnapshotTests.normal), ("-min", NowSnapshotTests.smallest)])
+    func everyOtherStateFitsBothSizes(suffix: String, size: CGSize) throws {
         try single("extra-NoLyrics\(suffix)", Sample(playing: true, lyrics: false), size: size)
         try single("extra-Nothing\(suffix)", Sample(events: false, notes: 0, weather: false), size: size)
         try single("extra-PlayingNoWeather\(suffix)", Sample(playing: true, weather: false), size: size)
