@@ -12,6 +12,7 @@ extension MediaFeature {
                 Text("Show what's playing in the closed notch")
                 Text("The cover and title stay beside the camera while music plays, and for a minute after it pauses.")
             }
+            Toggle("Synced lyrics", isOn: $media.syncedLyrics)
             Toggle(isOn: $media.waveformFollowsAudio) {
                 Text("Waveform follows the music")
                 Text(

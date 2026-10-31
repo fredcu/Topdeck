@@ -39,6 +39,7 @@ public final class MediaFeature: NotchFeature {
             updateAudio()
             if phase == .foreground { refreshScripted() }
             updateOngoing()
+            updateSynced()
         }
     }
     public private(set) var nowPlaying: NowPlaying?
@@ -65,6 +66,15 @@ public final class MediaFeature: NotchFeature {
             updateOngoing()
         }
     }
+    /// Per-feature setting: look up time-synced lyrics for the track on screen at lrclib.net.
+    public var syncedLyrics: Bool {
+        didSet {
+            defaults.set(syncedLyrics, forKey: Self.syncedLyricsKey)
+            updateSynced()
+        }
+    }
+    /// The track's lyrics with their times, while the setting is on and the notch shows Media.
+    public private(set) var synced: SyncedLyrics?
     /// What Music or Spotify says through AppleScript about the track playing now.
     public private(set) var scripted: ScriptedState?
     /// The player's list: Music's up next, or Spotify tracks played earlier. Nil until it's loaded.
@@ -84,12 +94,22 @@ public final class MediaFeature: NotchFeature {
     private static let announceKey = "media.announcesTracks"
     private static let followsAudioKey = "media.waveformFollowsAudio"
     private static let closedNotchKey = "media.showsInClosedNotch"
+    private static let syncedLyricsKey = "media.syncedLyrics"
     /// How long a paused track stays in the closed notch.
     nonisolated static let linger: TimeInterval = 60
     /// What macOS answered when asked whether Topdeck may script each player.
     private var permissions: [ScriptedPlayer: ScriptedPlayer.Permission] = [:]
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let adapter: MediaAdapter?
+    /// Where synced lyrics come from. Nil in the result means there are none; a throw, that the
+    /// source couldn't be reached.
+    @ObservationIgnored var lyricsSource: @Sendable (LyricsTrack) async throws -> SyncedLyrics? = {
+        try await LyricsClient().lyrics(for: $0)
+    }
+    /// The track `synced` is for or is being looked up for, and the lookup.
+    @ObservationIgnored private var syncedTrack: LyricsTrack?
+    @ObservationIgnored private var syncedLookup: Task<Void, Never>?
+    @ObservationIgnored private var syncedGeneration = 0
     @ObservationIgnored private var stream: Process?
     @ObservationIgnored private var startedAt = Date.distantPast
     @ObservationIgnored private var notificationTokens: [NSObjectProtocol] = []
@@ -118,6 +138,7 @@ public final class MediaFeature: NotchFeature {
         announcesTracks = defaults.object(forKey: Self.announceKey) as? Bool ?? true
         waveformFollowsAudio = defaults.object(forKey: Self.followsAudioKey) as? Bool ?? true
         showsInClosedNotch = defaults.object(forKey: Self.closedNotchKey) as? Bool ?? true
+        syncedLyrics = defaults.bool(forKey: Self.syncedLyricsKey)
     }
 
     /// The audio tap runs only while its bars can be seen moving: Media on screen, something playing,
@@ -313,6 +334,37 @@ public final class MediaFeature: NotchFeature {
         "\(now.title)|\(now.artist ?? "")|\(now.album ?? "")"
     }
 
+    // MARK: Synced lyrics
+
+    private func endSynced() {
+        syncedLookup?.cancel()
+        syncedLookup = nil
+        syncedTrack = nil
+        syncedGeneration += 1
+        synced = nil
+    }
+
+    /// Looks the lyrics up for the track on screen: the setting is on, Media is in front, and the
+    /// title and length are known. Anything else drops them and stops any lookup, so a closed notch
+    /// and an off setting never touch the network or the cache.
+    private func updateSynced() {
+        guard syncedLyrics, phase == .foreground, let now = nowPlaying, !now.title.isEmpty,
+            let duration = now.duration, duration > 0
+        else { return endSynced() }
+        let track = LyricsTrack(title: now.title, artist: now.artist, album: now.album, duration: duration)
+        guard track != syncedTrack else { return }
+        endSynced()
+        syncedTrack = track
+        let generation = syncedGeneration
+        let source = lyricsSource
+        syncedLookup = Task { [weak self] in
+            let found = try? await source(track)
+            // A late answer for a track that is gone must not land on the new one.
+            guard !Task.isCancelled, let self, syncedGeneration == generation else { return }
+            synced = found
+        }
+    }
+
     // MARK: Colors
 
     /// The cover's average color, lifted so it reads on the black notch: vivid covers keep their hue
@@ -442,8 +494,10 @@ public final class MediaFeature: NotchFeature {
             scripted = nil
             queue = nil
             lyrics = nil
+            endSynced()
             refreshScripted()
         }
+        updateSynced()
         let settled = Date().timeIntervalSince(startedAt) > 1.5  // the first payloads are the current state
         if announcesTracks, Self.shouldAnnounce(now, after: previous, settled: settled, phase: phase), let now {
             onActivity?(Activity(feature: .media, symbol: "music.note", title: now.title, duration: .seconds(3)))

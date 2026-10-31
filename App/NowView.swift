@@ -81,29 +81,29 @@ private struct MediaCard: View {
     var body: some View {
         if let now = media.nowPlaying {
             DeckCard {
-                // The smallest deck has no height for the big cover and the controls under it.
+                // The smallest deck has no height for the big cover and the controls under it, and
+                // sometimes none for a lyric line either.
                 ViewThatFits(in: .vertical) {
-                    VStack(spacing: 12) {
-                        HStack(spacing: 12) {
-                            artwork(72)
-                            titles(now)
-                            Spacer(minLength: 0)
-                        }
-                        Spacer(minLength: 0)
-                        controls(now)
-                    }
-                    VStack(spacing: 6) {
-                        HStack(spacing: 10) {
-                            artwork(40)
-                            titles(now)
-                            Spacer(minLength: 0)
-                        }
-                        Spacer(minLength: 0)
-                        controls(now)
-                    }
+                    column(now, art: 72, spacing: 12, lyrics: .both)
+                    column(now, art: 40, spacing: 6, lyrics: .current)
+                    column(now, art: 40, spacing: 6, lyrics: nil)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+        }
+    }
+
+    /// The cover and titles, the lyric lines when there are any, and the controls at the bottom.
+    private func column(_ now: NowPlaying, art: CGFloat, spacing: CGFloat, lyrics: LyricsLines.Show?) -> some View {
+        VStack(spacing: spacing) {
+            HStack(spacing: art > 40 ? 12 : 10) {
+                artwork(art)
+                titles(now)
+                Spacer(minLength: 0)
+            }
+            if let lyrics, let synced = media.synced { LyricsLines(now: now, lyrics: synced, show: lyrics) }
+            Spacer(minLength: 0)
+            controls(now)
         }
     }
 
@@ -177,6 +177,38 @@ private struct MediaCard: View {
         let (hours, minutes, secs) = (whole / 3600, whole / 60 % 60, whole % 60)
         return hours > 0
             ? String(format: "%d:%02d:%02d", hours, minutes, secs) : String(format: "%d:%02d", minutes, secs)
+    }
+}
+
+/// The line being sung and, under it, the next one. It keeps its height through gaps, so nothing
+/// moves when the words stop, and has its own clock so the card's controls keep their 1 s tick.
+private struct LyricsLines: View {
+    let now: NowPlaying
+    let lyrics: SyncedLyrics
+    let show: Show
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// A tall card has room for the next line too.
+    enum Show { case both, current }
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 0.25)) { context in
+            let cursor = lyrics.cursor(at: now.position(at: context.date) ?? 0)
+            VStack(alignment: .leading, spacing: 2) {
+                line(cursor.current, .item)
+                if show == .both { line(cursor.next, .detail) }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: cursor)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(cursor.current ?? "")
+        }
+    }
+
+    /// A blank line still takes a line's height.
+    private func line(_ text: String?, _ style: DeckTextStyle) -> some View {
+        Text(text ?? " ").deckText(style).lineLimit(1).truncationMode(.tail)
+            .contentTransition(.opacity)
     }
 }
 

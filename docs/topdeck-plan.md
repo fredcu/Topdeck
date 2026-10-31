@@ -127,5 +127,6 @@ the Mac.
 - Command bar with Chinese input.
 - Menu bar hiding on a notched Mac.
 - Temperature and disk readings.
+- Synced lyrics (`lyrics-lrclib`, LRCLIB) in the Now card with a real player.
 
 The window switcher defaults to Option-Tab because Command-Tab needs an event tap.

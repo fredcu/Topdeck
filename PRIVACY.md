@@ -4,9 +4,16 @@ Topdeck is local-first.
 
 - No accounts, analytics, telemetry, or device fingerprinting.
 - The network is used only for the AI Usage providers you turn on, for
-  uploads to your own Cloudflare R2 bucket (both below), and when you run a
-  Homebrew action in System Admin. With no provider on, no upload started, and
-  no Homebrew action run, none of them touches the network.
+  uploads to your own Cloudflare R2 bucket (both below), for Synced lyrics when
+  you turn it on, and when you run a Homebrew action in System Admin. With no
+  provider on, no upload started, Synced lyrics off, and no Homebrew action
+  run, none of them touches the network.
+- Synced lyrics (Settings › Media) is off until you turn it on. Then, while the
+  notch shows what's playing, the title, artist, album, and length of the
+  track go to lrclib.net, a free third-party service, to find its lyrics, and
+  nothing else is sent. Found lyrics are cached on this Mac in
+  `~/Library/Caches/net.icuai.topdeck/lyrics`, so a track is asked for once;
+  turn the setting off and nothing is sent or read from that folder.
 - Everything Topdeck creates (settings, notes, shelf items) stays on your Mac,
   unless you choose a notes folder that syncs, such as one in iCloud Drive.
 - System permissions (Calendar, Reminders, Camera, and so on) are requested only
