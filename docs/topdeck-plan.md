@@ -152,3 +152,12 @@ sort order are in Settings, and search is in the Command Bar. The menu bar hider
 Settings page. Settings gets one page, Shortcuts & Windows, for Windows, Window Switcher, Command Bar and
 Input Sources. The bars in the closed notch while music plays move to a made-up pattern and capture no audio.
 Wings: Now, Shelf, Clipboard; Tools, Agents, Mac.
+
+Batch 3 of round 3 rebuilds Tools, Agents and Mac to the `Tools3`, `Agents3` and `Mac3` boards, and the
+sub-tabs are gone: Mac's old tabs are screens that slide over its page. Recording and the video editor are the
+next batch (their tiles are disabled). Cost and tokens use one path: the log scanners and `ModelPricingStore`
+the app already had, read back as far as the logs go ("All"), with prices fetched once a day from the same
+three public lists. Cline is a provider: tokens and cost from `~/.cline/data/sessions`, read as a stream so no
+conversation is held in memory, and its plan limits from Cline's own endpoint with the CLI's access token.
+The owner's earlier usage readers (price feed, aggregator, Cline, Codex and Grok history) were compared with
+these and not copied where the app already had the same thing.

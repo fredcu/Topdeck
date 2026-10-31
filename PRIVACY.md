@@ -65,9 +65,15 @@ Topdeck is local-first.
 - Capture tools (screenshots, scrolling captures, text, QR codes, pinned images)
   need Screen Recording permission, which macOS asks for the first time you use
   one. Captures are read on this Mac, text and QR codes with Apple's Vision
-  framework, and stay on it: they go to the clipboard or onto the screen. Only
-  **Add to Shelf** writes a file, in
-  `~/Library/Application Support/Topdeck/Captures`.
+  framework, and stay on it. Screenshots (area, window, screen, scrolling and
+  pinned) are kept as PNG files in `~/Library/Application Support/Topdeck/Captures`
+  so the Tools screen can list them; Topdeck never deletes or sends them, and
+  **Delete** on a capture there moves it to the Trash. Text and QR codes are
+  only copied.
+- The Mac page reads the Mac's own counters (CPU, GPU, memory, disk and
+  network totals, the busiest processes' names, temperatures, battery) and
+  keeps the last minute in memory only while the page is on screen. It stores
+  and sends nothing. Its brightness slider talks to external monitors over DDC.
 - The bars beside the camera while music plays move to a made-up pattern, not
   to the sound, and listen to nothing. Only the Sound tab listens to your
   Mac's audio output, to set each app's volume (macOS asks for "system audio
@@ -119,8 +125,14 @@ For each provider you turn on, Topdeck:
 - Reads the tool's local session logs (Claude Code, Codex, and others) to
   estimate what you've spent. Prices come from public price lists: LiteLLM
   (raw.githubusercontent.com), models.dev, and OpenUsage's price supplement
-  (robinebers.github.io). Topdeck downloads them about once an hour while a
+  (robinebers.github.io). Topdeck downloads them at most once a day while a
   provider refreshes. These requests carry nothing about you or your usage.
+- Reads as far back as the logs go, for the Agents space's Today, 7 Days,
+  30 Days and All. For Cline it reads `~/.cline/data/sessions`: only each
+  answer's id, time, model and token counts, line by line, never the
+  conversation. If Cline's CLI is signed in, it also reads the access token in
+  `~/.cline/data/settings/providers.json` (never refreshing or writing it) and
+  sends it only to `api.cline.bot` to read your plan's limits.
 
 Refreshes happen when you open the tab, every five minutes while it stays open,
 and in the background only if you choose an interval in Settings (off by
@@ -130,8 +142,7 @@ Mac App Store edition doesn't include the AI Usage tab.
 
 ## Agent status
 
-Agent status is off until you connect a tool in the Agents tab or in
-**Settings › Agents**. Connecting adds hooks to that tool's own
+Agent status is off until you connect a tool in **Settings › Agents**. Connecting adds hooks to that tool's own
 settings file (`~/.claude/settings.json` for Claude Code, `~/.codex/hooks.json`
 for Codex) and first keeps a copy of the file as it was in
 `~/Library/Application Support/Topdeck/Backups`. The hooks run a small script,

@@ -39,7 +39,7 @@
 
 ### 刘海审批
 
-连接 Claude Code：Settings > Agents。这一步会写入 `~/.claude/settings.json`。
+连接 Claude Code：Settings > Agents。这一步会写入 `~/.claude/settings.json`。请求和等待中的会话显示在 Agents 页左栏。
 
 - [ ] 请求出现时，刘海有举手提示，终端也同时显示提示
 - [ ] Allow、Deny 都能把结果传回 Claude Code
@@ -92,6 +92,24 @@
 - [ ] Clipboard：上下键换选中项，回车粘贴，直接打字进入搜索；右上菜单里有选择、清空、纯文本粘贴、去跟踪、关闭历史
 - [ ] Clipboard：从 Finder、浏览器、预览、截图复制图片都进历史并有缩略图（含整屏 Retina 大图）
 - [ ] 每次截图都自动进 Clipboard 历史，来源是 Topdeck，系统剪贴板不被改；截图又被复制时不出现两条；历史关闭时不记；录屏不记
+
+### Tools、Agents 与 Mac（第三轮第三批）
+
+- [ ] Tools：第一行 Area、Window、Screen、Scrolling、Text 都能截图；Window 能高亮并点选窗口，Screen 截整块屏幕且不含刘海
+- [ ] Tools：Record Window、Record Screen、Edit Video 是灰的，悬停提示 “Coming next”，没有 Record Area
+- [ ] Tools：最近截图是真实缩略图，带 PNG 角标和时间；点击在编辑器里打开，拖出去是文件，右键有 Copy、Reveal、Delete（进废纸篓）
+- [ ] Tools：Timer、Keep Awake、Pick Colour、Shortcuts 点开是弹出层，原有控件都在；最近颜色在 Pick Colour 的弹出层里；Sleep Screen 一点就熄屏
+- [ ] Tools：700×430 与 620×340 都不挤，小尺寸下缩略图变矮
+- [ ] Mac：六张卡片有数值、折线和一行说明；折线只在页面打开时积累，离开后清空；没有电池的 Mac 显示开机时长
+- [ ] Mac：进程表点表头换排序，620×340 下先去掉进程行
+- [ ] Mac：音量滑块和点图标静音可用；接外接显示器时有亮度滑块
+- [ ] Mac：点 Sound、Displays、Network、Storage、System 时对应页面从右滑入盖住整个主体，返回按钮回到卡片；Storage 的清单和确认、每个 App 的音量、Homebrew、启动项都还在
+- [ ] Agents：左栏先是等待批准的请求，再是运行中的会话；点会话回到它的终端；结束或空闲的不列出；都没有时左栏和竖线消失
+- [ ] Agents：标题是 “N waiting”，没有等待时是 “Agents”；Today、7 Days、30 Days、All 切换后重启仍记得
+- [ ] Agents：圆环中间是总费用，每个工具一行（颜色点、名称、tokens、费用）；All 包含日志里还留着的全部历史
+- [ ] Agents：配额块里 5h、W、M 的条、剩余百分比、重置时间和“均匀用量”刻度；读不到的工具显示 Checking…、Sign in 或 Unavailable，不是 0
+- [ ] Agents：Cline 有 tokens 和费用；Cline CLI 已登录时才有配额条
+- [ ] 价格表最多一天取一次（只访问 PRIVACY.md 里列的地址）
 
 ## 一般验收
 

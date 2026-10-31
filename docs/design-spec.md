@@ -3,8 +3,8 @@
 Approved design: the artboards in `docs/design/`, one `.dc.html` file each, styled by
 `docs/design/deck.css`. They are the source of truth for layout, sizes, colours and copy; open them
 in a browser if it helps. This file states what the boards can't. Round 3 (`NowColor3`, `NowPlay3`,
-`NoteAdd3`) sets the colours and Now; `Shelf3` and `Clipboard3` set those two spaces; `Agents3`, `Tools3`,
-`Mac3` and `Editor3` show where the others go and are built in later batches. Where an older board disagrees with a
+`NoteAdd3`) sets the colours and Now; `Shelf3` and `Clipboard3` set those two spaces; `Agents3`, `Tools3` and
+`Mac3` set those three; `Editor3` shows where the editor goes and is built in a later batch. Where an older board disagrees with a
 round 3 one, round 3 wins. App icon: `docs/design/icon-paper.svg`.
 
 ## Tokens
@@ -49,8 +49,9 @@ decorative uses it. Go and stop are for state, not decoration.
   bottom radius 30. Below the notch it fades over 55 points to the body colour, which holds to the
   bottom. There is no border or glass theme. Remove the Glass theme.
 - Top row, height equal to the notch: navigation in two wings beside the camera.
-- Second row, 42 high: sub-tabs or a title on the left, the space's actions on the right.
-- Body below. Sub-pages fade; the deck never changes size when switching spaces.
+- Second row, 42 high: a title on the left, the space's actions on the right. A screen that slides over
+  a space's body (Mac's) puts a back button before its name.
+- Body below. The deck never changes size when switching spaces.
 - On displays without a notch, use the same layout with the same gap between wings.
 
 ## Spaces
@@ -60,19 +61,20 @@ tab row, the app drawer and the tab editor. Users can reorder and hide spaces in
 text, with no icon. Agents shows a signal badge with the waiting count. An older stored order or
 hidden list that names Stash becomes Shelf and Clipboard in its place.
 
-| Space | Sub-tabs | Features |
+| Space | Page | Features |
 |---|---|---|
-| Now | none | Calendar, Notes, Weather, Media, Agents waiting, Timer, Keep Awake |
-| Shelf | none | shelf |
-| Clipboard | none | clipboard |
-| Agents | Sessions, Usage | agents, usage |
-| Mac | Performance, Sound, Displays, Network, Storage, System | performance, sound, monitors, network, storage, admin |
-| Tools | none | capture, timer, keep awake, shortcuts |
+| Now | three columns | Calendar, Notes, Weather, Media, Agents waiting, Timer, Keep Awake |
+| Shelf | tiles and targets | shelf |
+| Clipboard | list and preview | clipboard |
+| Agents | sessions and usage | agents, usage |
+| Mac | cards and processes; Sound, Displays, Network, Storage and System slide over it | performance, sound, monitors, network, storage, admin |
+| Tools | tiles, recent captures and tools | capture, timer, keep awake, shortcuts |
 
-A sub-tab for a feature that is off is hidden, and a space with nothing on is hidden. Now is the
-default. Each space remembers its last sub-tab. Keep `FeatureID` and `FeatureHost`: a space asks for
-the phase of each feature it shows, so every feature on screen is `.foreground`, including all the
-ones Now shows.
+There are no sub-tabs. A space with nothing on is hidden, and Now is the default. Keep `FeatureID` and
+`FeatureHost`: a space asks for the phase of each feature it shows, so every feature on screen is
+`.foreground`, including all the ones Now shows. Mac runs Performance and Displays (for its brightness
+slider) on its page, and the feature of a screen that is over it as well, so the page's history carries on;
+the screen goes when the space does, or the notch closes.
 
 ### Now
 
@@ -141,6 +143,48 @@ Up and Down move the choice, Return pastes it, and typing goes to the search. A 
 Every screenshot Topdeck takes is kept in the history as an image from "Topdeck", without touching the system
 pasteboard, within the same size limit and capacity, and only while the history is on. A screenshot that is
 also copied stays one item (the pictures are matched by a fingerprint of their PNG). Recordings do not go in.
+
+### Tools
+
+Board `Tools3`, with the owner's changes. Body, left: row one Area, Window, Screen, Scrolling, Text; row
+two Record Window, Record Screen, Edit Video, shown but disabled with a `.help` of "Coming next" (built in
+the next batch; there is no Record Area); under them the recent captures as thumbnails, as many as fit
+(real images), each with a kind badge (PNG, MP4 or GIF) and its time. Click opens a picture in the editor,
+drag takes the file out, right-click offers Copy, Reveal and Delete (to the Trash). Every screenshot,
+including a scrolling or pinned one, is kept as a PNG in the Captures folder, which the list reads; the
+thumbnail model also takes recordings. Right, 192 wide (176 at the smallest size): Timer, Keep Awake, Sleep
+Screen, Pick Colour and Shortcuts, each with a pill (the running time, the time left, "Now", the key, the
+count). Timer, Keep Awake, Pick Colour and Shortcuts open their controls in a popover; the recent colours
+live in Pick Colour's. QR Code and Pin stay on their shortcuts and in the Command Bar. At 620×340 the tiles
+and thumbnails shrink.
+
+### Mac
+
+Board `Mac3`. Left: six cards in three columns (CPU, GPU, network, disk, memory, battery), each a coloured
+icon (green, orange, blue, magenta `#F07BD0`, yellow `#FFD166`, green), a detail at the right (a
+temperature, a capacity, the connection), a large value with its unit, a sparkline of the last minute and
+one line of detail. A Mac without a battery shows its uptime in the last card. Below them the busiest
+processes, as many rows as fit, sorted by a click on a header (Process, CPU, Memory); at 620×340 the
+rows go first. Right, 156 wide: the output volume (a click on its icon mutes) and the brightness of the
+external monitors that answer over DDC (hidden when none does; the built-in display needs a private API the
+plan does not name), then Sound, Displays, Network, Storage and System. A row slides that tab's existing screen
+over the whole body, with a back button in the second row, and everything those screens did stays there.
+The history is a ring buffer of a minute kept in memory while the page is on screen.
+
+### Agents
+
+Board `Agents3`. Second row: the waiting count as the title ("1 waiting"), or "Agents" when none waits;
+Today, 7 Days, 30 Days and All at the right (the choice is kept), then Refresh, an add-a-provider menu, pin
+and Settings. Left, 206 wide: the requests waiting for an answer first (same answers, safety and Always Allow as
+before), then sessions waiting on their terminal, then sessions at work, each with its project, tool, a
+state dot and what it waits for; a click goes to its terminal. A finished or quiet session is not listed.
+With nothing waiting or running the column and its hairline are gone and usage fills the width. Right, top: a
+donut of cost by tool with the total in the middle (`$328`, `$1.2K`) and a row for each tool: colour, name,
+tokens (`850k`, `18.2M`, `1.2B`, `T`) and cost (`$241.60`). Under a hairline, quota blocks in two columns,
+one per tool, a row each for 5h, W and M: a bar in the tool's colour for what is left, the percent left, the
+time to the reset, and a tick where even use would have the bar by now. A tool that cannot be read shows
+"Checking…", "Sign in" or "Unavailable", with the reason in its tooltip, never zeros. Tool colours are tokens:
+Claude `#F2A773`, Codex `#8FD6A4`, Antigravity `#8FB8FF`, Cline `#E7A6F0`, Grok `#C9D0DE`, any other neutral.
 
 ## Settings
 
