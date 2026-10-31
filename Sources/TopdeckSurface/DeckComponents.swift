@@ -176,6 +176,93 @@ public struct DeckIconButton: View {
     }
 }
 
+// MARK: Chips and fields
+
+/// A small choice in a row of them, 27 high: lit white when picked, an outline when not. A day.
+public struct DeckChip: View {
+    let title: String
+    let selected: Bool
+    let action: () -> Void
+
+    public init(_ title: String, selected: Bool, action: @escaping () -> Void) {
+        self.title = title
+        self.selected = selected
+        self.action = action
+    }
+
+    public var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Deck.Radius.control, style: .continuous)
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(selected ? Deck.onFill : Deck.secondary)
+                .lineLimit(1)
+                .padding(.horizontal, 6)
+                .frame(minWidth: 36, minHeight: Deck.Metric.navHeight)
+                .background(shape.fill(selected ? Deck.text : .clear))
+                .overlay { if !selected { shape.strokeBorder(Deck.hairline, lineWidth: 1) } }
+                .contentShape(shape)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+/// A rounded capsule for one preset: 30 minutes, 1 hour. Lit when `on`.
+public struct DeckPillButtonStyle: ButtonStyle {
+    let on: Bool
+
+    public init(on: Bool = false) { self.on = on }
+
+    public func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(on ? Deck.onFill : Deck.text)
+            .lineLimit(1)
+            .padding(.horizontal, 10)
+            .frame(minWidth: 34, minHeight: 27)
+            .background(Capsule().fill(on ? Deck.text : Deck.control))
+            .contentShape(Capsule())
+            .opacity(configuration.isPressed ? 0.75 : 1)
+    }
+}
+
+extension ButtonStyle where Self == DeckPillButtonStyle {
+    /// The deck's preset capsule.
+    public static func deckPill(on: Bool = false) -> DeckPillButtonStyle { DeckPillButtonStyle(on: on) }
+}
+
+/// A one-line text field in a raised rounded box, 30 high, with an optional icon before the text.
+public struct DeckField: View {
+    let prompt: String
+    let icon: DeckIcon?
+    @Binding var text: String
+    let onSubmit: () -> Void
+
+    public init(_ prompt: String, text: Binding<String>, icon: DeckIcon? = nil, onSubmit: @escaping () -> Void = {}) {
+        self.prompt = prompt
+        self.icon = icon
+        _text = text
+        self.onSubmit = onSubmit
+    }
+
+    public var body: some View {
+        HStack(spacing: 8) {
+            if let icon { DeckIconView(icon, size: 13).foregroundStyle(Deck.tertiary) }
+            TextField("", text: $text, prompt: Text(prompt).foregroundColor(Deck.tertiary))
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+                .foregroundStyle(Deck.text)
+                .onSubmit(onSubmit)
+        }
+        .padding(.horizontal, 10)
+        .frame(height: Deck.Metric.iconButton)
+        .background(RoundedRectangle(cornerRadius: Deck.Radius.control, style: .continuous).fill(Deck.cardRaised))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(prompt)
+    }
+}
+
 // MARK: Navigation
 
 /// A space's label in a wing: a pill, lit when selected, with an optional signal badge. `compact` is

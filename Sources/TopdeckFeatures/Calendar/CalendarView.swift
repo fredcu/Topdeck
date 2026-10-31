@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 import SwiftUI
+import TopdeckSurface
 
-/// The calendar tab: today's agenda, with past events dimmed and a Join button on events with a
-/// video call that hasn't ended, the tasks due today beneath it, and a field that adds an event
-/// from a line like "Lunch with Sam tomorrow 1pm". Your own events can be edited in place or
-/// deleted from the notch.
+/// Plan's agenda card: the day's events, each with its time, its calendar's color and a Join button
+/// when it has a video call that hasn't ended. Past events are dimmed. Your own events can be edited
+/// in place (double-click, or the context menu) or deleted from the notch.
 struct CalendarView: View {
     let calendar: CalendarFeature
-    @State private var draft = ""
     /// The event being edited in place.
     @State private var editing: DayEvent.ID?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -20,67 +19,37 @@ struct CalendarView: View {
     private var spring: Animation? { reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.85) }
 
     var body: some View {
-        if calendar.access != .granted {
-            EventAccessView(
-                access: calendar.access, symbol: "calendar", what: "calendars", settingsPane: "Privacy_Calendars",
-                request: calendar.requestAccess)
-        } else {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Button(action: calendar.openCalendarApp) {
-                        Text(Date.now, format: .dateTime.weekday(.wide).day().month(.wide))
-                    }
-                    .buttonStyle(.plain)
-                    .help("Open Calendar")
-                    Spacer(minLength: 0)
-                    if let notice = calendar.notice {
-                        Text(notice).lineLimit(1).transition(.opacity)
-                    }
-                }
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.6))
-                .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: calendar.notice)
-                if calendar.events.isEmpty, calendar.dueTasks.isEmpty {
-                    FeatureUnavailableView(symbol: "calendar", title: "Nothing today", message: "Enjoy the free time.")
-                } else {
-                    agenda
-                }
-                // Steps aside while an event is edited, which gives the editor room in the smallest notch.
-                if editing == nil {
-                    TextField("New event: try \u{201C}Lunch tomorrow 1pm for 1h\u{201D}", text: $draft)
-                        .textFieldStyle(.plain)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 7))
-                        .onSubmit {
-                            // Text without a time stays in the field so it can be finished.
-                            if calendar.addEvent(draft) { draft = "" }
-                        }
-                }
+        DeckCard(padding: 0) {
+            if calendar.access != .granted {
+                EventAccessView(
+                    access: calendar.access, what: "calendars", settingsPane: "Privacy_Calendars",
+                    request: calendar.requestAccess)
+            } else if calendar.dayEvents.isEmpty {
+                DeckEmptyLine(calendar.dayOffset == 0 ? "Nothing today" : "Nothing planned")
+            } else {
+                agenda
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    /// The events, one of them perhaps open for editing, then the tasks due today.
     private var agenda: some View {
         ScrollViewReader { list in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 4) {
-                    ForEach(calendar.events) { event in eventRow(event) }
-                    if !calendar.dueTasks.isEmpty {
-                        Text("Tasks")
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(.white.opacity(0.6))
-                            .padding(.top, calendar.events.isEmpty ? 0 : 6)
-                            .padding(.horizontal, 4)  // in line with the events
-                            .accessibilityAddTraits(.isHeader)
-                        ForEach(calendar.dueTasks) { task in taskRow(task) }
+                // The minutes in "in 28 minutes" and the dimming of what is over follow the clock.
+                TimelineView(.everyMinute) { context in
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(calendar.dayEvents.enumerated()), id: \.element.id) { index, event in
+                            if index > 0 { DeckSeparator() }
+                            row(event, now: context.date)
+                        }
                     }
                 }
+                .padding(.horizontal, Deck.Metric.cardPadding)
                 .padding(.vertical, 6)
             }
             .fadingEdges()
-            // In a small notch the editor can open below the fold.
+            // In a small deck the editor can open below the fold.
             .onChange(of: editing) { _, id in
                 guard let id else { return }
                 withAnimation(spring) { list.scrollTo(id) }
@@ -88,7 +57,7 @@ struct CalendarView: View {
         }
     }
 
-    @ViewBuilder private func eventRow(_ event: DayEvent) -> some View {
+    @ViewBuilder private func row(_ event: DayEvent, now: Date) -> some View {
         if editing == event.id {
             EventEditor(event: event) { title, start, end in
                 if calendar.update(event, title: title, start: start, end: end) {
@@ -97,95 +66,80 @@ struct CalendarView: View {
             } cancel: {
                 withAnimation(spring) { editing = nil }
             }
-            .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .top)))
+            .id(event.id)
+            .transition(.opacity)
         } else {
-            EventRow(calendar: calendar, event: event) {
+            EventRow(calendar: calendar, event: event, now: now, isToday: calendar.dayOffset == 0) {
                 withAnimation(spring) { editing = event.id }
             }
+            .id(event.id)
             .transition(.opacity)
         }
     }
+}
 
-    private func taskRow(_ task: TaskItem) -> some View {
-        HStack(spacing: 8) {
-            Button {
-                withAnimation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.82)) {
-                    calendar.complete(task)
-                }
-            } label: {
-                Image(systemName: "circle")
-                    .font(.system(size: 13))
-                    .foregroundStyle(task.color?.color ?? .white)
-                    .contentShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Complete \(task.title)")
-            Text(task.title).font(.callout).lineLimit(1)
-            Spacer(minLength: 0)
-            if let due = task.due {
-                Text(DueLabel.text(for: due, hasTime: task.hasTime))
-                    .font(.caption)
-                    .foregroundStyle(task.isOverdue() ? Color.red : .white.opacity(0.55))
-            }
+/// What the line under an event's title says.
+enum EventDetail {
+    /// How soon an upcoming event counts as near enough to say so.
+    static let nearly: TimeInterval = 3600
+    /// How soon a meeting with a link counts as about to start, which makes its bar signal.
+    static let aboutToStart: TimeInterval = 30 * 60
+
+    /// "in 28 minutes" for what starts within the hour today, else where it is.
+    static func text(for event: DayEvent, now: Date, isToday: Bool) -> String? {
+        let wait = event.start.timeIntervalSince(now)
+        if isToday, !event.isAllDay, wait > 0, wait < nearly {
+            let minutes = max(1, Int((wait / 60).rounded(.up)))
+            return minutes == 1 ? "in 1 minute" : "in \(minutes) minutes"
         }
-        .padding(.horizontal, 4)
-        .transition(.opacity)
+        return event.location
+    }
+
+    /// Whether a meeting with a link is about to start.
+    static func isAboutToStart(_ event: DayEvent, now: Date, isToday: Bool) -> Bool {
+        let wait = event.start.timeIntervalSince(now)
+        return isToday && event.meeting != nil && !event.isDeclined && wait > 0 && wait <= aboutToStart
     }
 }
 
-/// One event: its calendar's color, its title, and when. Hovering one of your own events lights it
-/// and shows Edit and Delete; Delete asks for a second click before it deletes. Double-clicking or
-/// the context menu edits it too.
+/// One event: when, its calendar's color (signal when a meeting is about to start), its title, and a
+/// line under it. Right-click for the context menu; double-click edits one of your own.
 private struct EventRow: View {
     let calendar: CalendarFeature
     let event: DayEvent
+    let now: Date
+    let isToday: Bool
     let edit: () -> Void
 
-    @State private var hovering = false
-    /// Delete was clicked once: the next click deletes.
-    @State private var confirming = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     var body: some View {
-        let past = !event.isAllDay && event.end < .now
-        let joinable = event.meeting != nil && !past && !event.isDeclined
-        HStack(spacing: 8) {
-            Capsule()
-                .fill(event.color?.color ?? .white)
-                .frame(width: 3, height: 26)
-                .opacity(past && !hovering ? 0.45 : 1)
+        let past = isToday && !event.isAllDay && event.end < now
+        let joinable = event.meeting != nil && !past && !event.isDeclined && isToday
+        let near = EventDetail.isAboutToStart(event, now: now, isToday: isToday)
+        HStack(spacing: Deck.Metric.gap) {
+            Text(event.isAllDay ? "All day" : event.start.formatted(date: .omitted, time: .shortened))
+                .deckText(.detail)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(width: 52, alignment: .leading)
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .fill(near ? Deck.signal : event.color?.color ?? Deck.tertiary)
+                .frame(width: 3, height: 36)
             VStack(alignment: .leading, spacing: 1) {
-                Text(event.title).font(.callout.weight(.medium)).lineLimit(1)
-                Group {
-                    if event.isAllDay {
-                        Text("All day")
-                    } else {
-                        Text(event.start, format: .dateTime.hour().minute()) + Text(" – ")
-                            + Text(event.end, format: .dateTime.hour().minute())
-                    }
+                Text(event.title).deckText(.item).lineLimit(1)
+                if let detail = EventDetail.text(for: event, now: now, isToday: isToday) {
+                    Text(detail).deckText(.caption).lineLimit(1)
                 }
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.55))
             }
-            .opacity(past && !hovering ? 0.45 : 1)
+            .opacity(past ? 0.45 : 1)
             Spacer(minLength: 0)
-            if hovering, event.isEditable {
-                actions.transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .trailing)))
-            }
             if joinable, let meeting = event.meeting {
-                joinButton(meeting)
+                Button("Join") { calendar.join(event) }
+                    .buttonStyle(.deck(.accent))
+                    .help("Join on \(meeting.service). Right-click to copy the link.")
             }
         }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
-        .background(hovering ? Color.white.opacity(0.07) : .clear, in: RoundedRectangle(cornerRadius: 7))
+        .frame(minHeight: 50)
         .contentShape(Rectangle())
-        .onHover { inside in
-            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) {
-                hovering = inside
-                if !inside { confirming = false }
-            }
-        }
         .onTapGesture(count: 2) { if event.isEditable { edit() } }
         .contextMenu {
             if event.isEditable { Button("Edit", action: edit) }
@@ -206,57 +160,6 @@ private struct EventRow: View {
                 Button("Delete") { calendar.delete(event) }
             }
         }
-    }
-
-    private var actions: some View {
-        HStack(spacing: 8) {
-            Button(action: edit) {
-                Image(systemName: "pencil").contentShape(Rectangle())
-            }
-            .help("Edit")
-            .accessibilityLabel("Edit")
-            Button {
-                if confirming {
-                    calendar.delete(event)
-                } else {
-                    withAnimation(reduceMotion ? nil : .spring(response: 0.25, dampingFraction: 0.8)) {
-                        confirming = true
-                    }
-                }
-            } label: {
-                if confirming {
-                    Text("Delete")
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Color.red.opacity(0.85), in: Capsule())
-                        .transition(.opacity.combined(with: .scale(scale: 0.8, anchor: .trailing)))
-                } else {
-                    Image(systemName: "trash").contentShape(Rectangle())
-                }
-            }
-            .help(confirming ? "Click again to delete" : "Delete")
-            .accessibilityLabel("Delete")
-        }
-        .buttonStyle(.plain)
-        .font(.system(size: 12))
-        .foregroundStyle(.white.opacity(0.8))
-    }
-
-    /// Stands out while the meeting's countdown is on.
-    private func joinButton(_ meeting: MeetingLink) -> some View {
-        let soon = calendar.countingDown?.id == event.id
-        return Button {
-            calendar.join(event)
-        } label: {
-            Label("Join", systemImage: "video.fill")
-                .font(.caption.weight(.semibold))
-                .padding(.horizontal, 9)
-                .padding(.vertical, 4)
-                .background(soon ? Color.green.opacity(0.85) : .white.opacity(0.14), in: Capsule())
-        }
-        .buttonStyle(.plain)
-        .help("Join on \(meeting.service). Right-click to copy the link.")
     }
 }
 
@@ -288,56 +191,41 @@ private struct EventEditor: View {
         !title.trimmingCharacters(in: .whitespaces).isEmpty && (event.isAllDay || end > start)
     }
 
-    /// Two lines, so it fits even the smallest notch (with the new-event field out of the way): the
-    /// title with Cancel and Save, then the times.
+    /// Two lines, so it fits even the smallest deck: the title with Cancel and Save, then the times.
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
-                Capsule()
-                    .fill(event.color?.color ?? .white)
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .fill(event.color?.color ?? Deck.tertiary)
                     .frame(width: 3, height: 18)
                 TextField("Title", text: $title)
                     .textFieldStyle(.plain)
-                    .font(.callout.weight(.medium))
+                    .deckText(.body)
                     .focused($focused)
                     .takesKeyboard(true)
                     .onSubmit { if canSave { save(title, start, end) } }
-                buttons
+                Button("Cancel", action: cancel).buttonStyle(.deck(compact: true))
+                Button("Save") { save(title, start, end) }
+                    .buttonStyle(.deck(.primary, compact: true))
+                    .disabled(!canSave)
             }
             HStack(spacing: 6) { when }
                 .padding(.leading, 11)  // under the title, past the color bar
                 .datePickerStyle(.field)
                 .labelsHidden()
         }
-        .font(.caption.weight(.semibold))
-        .buttonStyle(.plain)
-        .padding(.leading, 4)  // the color bar stays where the row had it
-        .padding(.trailing, 6)
-        .padding(.vertical, 6)
-        .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 9))
+        .padding(.vertical, 8)
         .onChange(of: start) { old, new in end += new.timeIntervalSince(old) }
         .onAppear { Task { @MainActor in focused = true } }
     }
 
     @ViewBuilder private var when: some View {
         if event.isAllDay {
-            Text("All day").font(.caption).foregroundStyle(.white.opacity(0.55))
+            Text("All day").deckText(.caption)
         } else {
             DatePicker("Starts", selection: $start, displayedComponents: [.date, .hourAndMinute])
-            Text("–").foregroundStyle(.white.opacity(0.55))
+            Text("–").deckText(.caption)
             DatePicker("Ends", selection: $end, displayedComponents: .hourAndMinute)
         }
-    }
-
-    @ViewBuilder private var buttons: some View {
-        Button("Cancel", action: cancel)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 3)
-            .background(.white.opacity(0.1), in: Capsule())
-        Button("Save") { save(title, start, end) }
-            .padding(.horizontal, 9)
-            .padding(.vertical, 3)
-            .background(.white.opacity(canSave ? 0.25 : 0.08), in: Capsule())
-            .disabled(!canSave)
     }
 }

@@ -40,6 +40,8 @@ public enum Deck {
         /// The deck's bottom corners.
         public static let deck: CGFloat = 30
         public static let card: CGFloat = 16
+        /// A tool tile.
+        public static let tile: CGFloat = 12
         /// Buttons, fields and rows.
         public static let control: CGFloat = 9
     }
