@@ -126,18 +126,18 @@ struct AgentsUsageTests {
     }
 
     @Test func theRowsAreWhatIsLeftWithATickWhereEvenUseWouldBe() {
-        let rows = AgentsUsage.rows(
+        let rows = AgentsUsage.pools(
             from: [
                 meter("Weekly", used: 58, hours: 168, resetsIn: 4 * 86_400 + 8 * 3600),
                 meter("Session", used: 27, hours: 5, resetsIn: 3 * 3600 + 12 * 60),
                 meter("Sonnet only", used: 90, hours: 168, resetsIn: 3600),
                 meter("Credits", used: 5, hours: nil),
-            ], now: now)
+            ], now: now)[0].rows
         #expect(rows.map(\.kind) == [.fiveHour, .week], "in order, the first of each kind, others left out")
         #expect(abs(rows[0].left - 0.73) < 1e-9 && rows[0].reset == "3h 12m")
         #expect(abs(rows[0].pace! - (3.2 / 5)) < 1e-9, "the share of the window still to run")
         #expect(abs(rows[1].left - 0.42) < 1e-9 && rows[1].reset == "4d 8h")
-        let over = AgentsUsage.rows(from: [meter("Weekly", used: 130, hours: 168)], now: now)
+        let over = AgentsUsage.pools(from: [meter("Weekly", used: 130, hours: 168)], now: now)[0].rows
         #expect(over[0].left == 0 && over[0].pace == nil && over[0].reset == nil)
         #expect(AgentsUsage.resetText(42 * 60) == "42m" && AgentsUsage.resetText(3600) == "1h 0m")
         #expect(QuotaRow.Kind.allLabels == ["5h", "W", "M"])
@@ -162,7 +162,11 @@ struct AgentsUsageTests {
         #expect(blocks[1].state == .signIn && blocks[1].detail == "Sign in again")
         #expect(blocks[2].state == .unavailable)
         #expect(blocks[3].state == .checking && blocks[3].detail == nil)
-        if case .rows(let rows) = blocks[0].state { #expect(rows.count == 1) } else { Issue.record("rows expected") }
+        if case .rows(let pools) = blocks[0].state {
+            #expect(pools.count == 1 && pools[0].rows.count == 1)
+        } else {
+            Issue.record("rows expected")
+        }
         // An error over numbers that were read keeps them.
         let stale = AgentsUsage.blocks(
             providers: [provider("claude")], snapshots: ["claude": withRows], errors: ["claude": "Offline"],
@@ -187,10 +191,75 @@ extension AgentsUsageTests {
     }
 
     private func quota(_ count: Int) -> QuotaBlock.State {
-        .rows(
-            [QuotaRow.Kind.fiveHour, .week, .month].prefix(count).map {
-                QuotaRow(kind: $0, left: 0.5, reset: nil, pace: nil)
-            })
+        .rows([
+            QuotaPool(
+                name: nil,
+                rows: [QuotaRow.Kind.fiveHour, .week, .month].prefix(count).map {
+                    QuotaRow(kind: $0, left: 0.5, reset: nil, pace: nil)
+                })
+        ])
+    }
+
+    /// What each tool's pools come to: the main pool's kinds, then "name: kinds" for each other.
+    private func shape(_ labels: [(String, Double?)]) -> [String] {
+        AgentsUsage.pools(from: labels.map { meter($0.0, used: 10, hours: $0.1) }, now: now).map {
+            ($0.name.map { "\($0): " } ?? "") + $0.rows.map(\.kind.label).joined(separator: ",")
+        }
+    }
+
+    @Test func aPoolIsNamedByItsMetersLabelLessTheWindowWords() {
+        let names = [
+            "Session", "Weekly", "Monthly", "5-hour", "Weekly limit", "Daily quota", "Weekly quota", "WEEK", "5 hour",
+        ]
+        for label in names { #expect(AgentsUsage.poolName(of: label) == nil, "\(label)") }
+        #expect(AgentsUsage.poolName(of: "Claude") == "Claude" && AgentsUsage.poolName(of: "Claude Weekly") == "Claude")
+        #expect(AgentsUsage.poolName(of: "Spark Weekly") == "Spark" && AgentsUsage.poolName(of: "  spark  ") == "spark")
+        #expect(AgentsUsage.poolName(of: "Sonnet") == "Sonnet")
+    }
+
+    @Test func aToolWithSeveralPoolsShowsAllOfThem() {
+        #expect(
+            shape([("Session", 5), ("Weekly", 168), ("Claude", 5), ("Claude Weekly", 168)])
+                == ["5h,W", "Claude: 5h,W"], "Antigravity")
+        #expect(
+            shape([("Session", 5), ("Weekly", 168), ("Spark", 5), ("Spark Weekly", 168)]) == ["5h,W", "Spark: 5h,W"],
+            "Codex")
+        #expect(
+            shape([("Spark", 5), ("Spark Weekly", 168), ("Session", 5), ("Weekly", 168)]) == ["5h,W", "Spark: 5h,W"],
+            "the main pool is first however the provider orders them")
+        #expect(shape([("Claude", 5), ("Claude Weekly", 168)]) == ["5h,W"], "a tool with one pool shows it unnamed")
+    }
+
+    @Test func everyOtherProvidersMetersAreOneUnnamedPool() {
+        let sets: [String: ([(String, Double?)], [String])] = [
+            "claude": ([("Session", 5), ("Weekly", 168), ("Sonnet", 168), ("Fable", 168)], ["5h,W"]),
+            "cline": ([("5-hour", 5), ("Weekly", 168), ("Monthly", 720)], ["5h,W,M"]),
+            "ollama": ([("Session", 5), ("Weekly", 168), ("Monthly", 720)], ["5h,W,M"]),
+            "opencode": ([("Session", 5), ("Weekly", 168), ("Monthly", 720)], ["5h,W,M"]),
+            "zai": ([("Session", 5), ("Weekly", 168), ("Web Searches", 720)], ["5h,W,M"]),
+            "grok": ([("Weekly limit", 168)], ["W"]),
+            "devin": ([("Daily quota", 24), ("Weekly quota", 168)], ["W"]),
+            "copilot": ([("Credits", 720), ("Chat", 720), ("Completions", 720)], ["M"]),
+            "cursor": (
+                [
+                    ("Total usage", 720), ("Cursor Models", 720), ("Other Models", 720), ("On-demand", 720),
+                    ("Requests", 720), ("Grok Bot usage", 168),
+                ], ["W,M"]
+            ),
+            "openrouter": ([("Credits", nil), ("Key Limit", nil)], []),
+        ]
+        for (id, set) in sets { #expect(shape(set.0) == set.1, "\(id)") }
+    }
+
+    @Test func aRowCountsTheCaptionOfEachNamedPool() {
+        func pool(_ name: String?, _ count: Int) -> QuotaPool {
+            QuotaPool(
+                name: name, rows: (0..<count).map { _ in QuotaRow(kind: .fiveHour, left: 1, reset: nil, pace: nil) })
+        }
+        let two = QuotaBlock(
+            id: "antigravity", name: "Antigravity", state: .rows([pool(nil, 2), pool("Claude", 2)]), detail: nil)
+        let row = ToolRow(id: "antigravity", name: "Antigravity", usage: nil, quota: two)
+        #expect(row.quotaLines == 5 && row.height == 94, "9 + 17 for each of four rows and one caption")
     }
 
     @Test func theTableListsTheToolsWithUsageThenTheOnesWithOnlyAQuota() {

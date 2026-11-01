@@ -59,10 +59,11 @@ struct ToolRow: Identifiable, Equatable {
     /// Nil when the tool has no quota to show.
     let quota: QuotaBlock?
 
-    /// How many lines the quota needs: one for each window, one for a state, none without a block.
+    /// How many lines the quota needs: one for each window and one for each named pool's caption, one for a
+    /// state, none without a block.
     var quotaLines: Int {
         guard let quota else { return 0 }
-        if case .rows(let rows) = quota.state { return rows.count }
+        if case .rows(let pools) = quota.state { return pools.reduce(0) { $0 + $1.lines } }
         return 1
     }
 
@@ -96,10 +97,21 @@ struct QuotaRow: Identifiable, Equatable {
     var id: Kind { kind }
 }
 
-/// A provider's block of quota rows, or the short state in their place.
+/// Quota rows that draw on one allowance: a tool's main pool, or an extra one such as Antigravity's Claude.
+struct QuotaPool: Identifiable, Equatable {
+    /// Nil for the main pool, and for the only pool of a tool.
+    let name: String?
+    let rows: [QuotaRow]
+
+    var id: String { name ?? "" }
+    /// A named pool has its name on a line of its own above its rows.
+    var lines: Int { rows.count + (name == nil ? 0 : 1) }
+}
+
+/// A provider's block of quota pools, or the short state in their place.
 struct QuotaBlock: Identifiable, Equatable {
     enum State: Equatable {
-        case rows([QuotaRow])
+        case rows([QuotaPool])
         case checking
         /// Its tool is not signed in: its own sign-in is what fixes it.
         case signIn
@@ -248,19 +260,45 @@ enum AgentsUsage {
         return nil
     }
 
-    /// A provider's quota rows, one for each kind in the order 5h, W, M, from the first meter of that kind.
-    static func rows(from meters: [Meter], now: Date) -> [QuotaRow] {
-        var seen: Set<QuotaRow.Kind> = []
-        var rows: [QuotaRow] = []
-        for meter in meters {
-            guard let kind = kind(of: meter), seen.insert(kind).inserted else { continue }
-            let left = min(max(1 - meter.fraction, 0), 1)
-            let remaining = meter.resetsAt.map { max($0.timeIntervalSince(now), 0) }
-            var pace: Double?
-            if let remaining, let period = meter.period, period > 0 { pace = min(remaining / period, 1) }
-            rows.append(QuotaRow(kind: kind, left: left, reset: remaining.map(resetText), pace: pace))
+    /// The pool a meter belongs to: its label less the window words ("Claude Weekly" is "Claude"). Nil for the
+    /// main pool, whose labels are only window words ("Session", "Weekly limit", "Daily quota").
+    static func poolName(of label: String) -> String? {
+        let words = #"(?i)\b(session|weekly|week|monthly|month|5[- ]hour|daily|quota|limit)\b"#
+        let name = label.replacingOccurrences(of: words, with: " ", options: .regularExpression)
+            .split(separator: " ").joined(separator: " ")
+        return name.isEmpty ? nil : name
+    }
+
+    private typealias Entry = (name: String?, kind: QuotaRow.Kind, meter: Meter)
+
+    /// A provider's quota pools: the main one first, then the others in the provider's order. A named pool is one
+    /// with a 5-hour window (Antigravity's Claude, Codex's Spark); any other meter, like Claude's Sonnet or
+    /// Cursor's On-demand, joins the main pool. Within a pool, one row for each kind in the order 5h, W, M, from
+    /// the first meter of that kind. A tool with one pool shows it unnamed.
+    static func pools(from meters: [Meter], now: Date) -> [QuotaPool] {
+        let found = meters.compactMap { meter in
+            kind(of: meter).map { (name: poolName(of: meter.label), kind: $0, meter: meter) as Entry }
         }
-        return rows.sorted { $0.kind < $1.kind }
+        var named: [String] = []
+        for case (let name?, .fiveHour, _) in found where !named.contains(name) { named.append(name) }
+        func pool(_ name: String?, _ entries: [Entry]) -> QuotaPool? {
+            var seen: Set<QuotaRow.Kind> = []
+            let rows = entries.compactMap { entry in
+                seen.insert(entry.kind).inserted ? row(entry.meter, entry.kind, now: now) : nil
+            }
+            return rows.isEmpty ? nil : QuotaPool(name: name, rows: rows.sorted { $0.kind < $1.kind })
+        }
+        let main = pool(nil, found.filter { $0.name.map { !named.contains($0) } ?? true })
+        let pools = [main].compactMap { $0 } + named.compactMap { name in pool(name, found.filter { $0.name == name }) }
+        return pools.count == 1 ? [QuotaPool(name: nil, rows: pools[0].rows)] : pools
+    }
+
+    private static func row(_ meter: Meter, _ kind: QuotaRow.Kind, now: Date) -> QuotaRow {
+        let left = min(max(1 - meter.fraction, 0), 1)
+        let remaining = meter.resetsAt.map { max($0.timeIntervalSince(now), 0) }
+        var pace: Double?
+        if let remaining, let period = meter.period, period > 0 { pace = min(remaining / period, 1) }
+        return QuotaRow(kind: kind, left: left, reset: remaining.map(resetText), pace: pace)
     }
 
     /// "3h 12m", "4d 8h", "42m".
@@ -278,9 +316,10 @@ enum AgentsUsage {
         categories: [String: ErrorCategory], now: Date
     ) -> [QuotaBlock] {
         providers.compactMap { provider -> QuotaBlock? in
-            let rows = snapshots[provider.id].map { AgentsUsage.rows(from: $0.meters, now: now) } ?? []
-            if !rows.isEmpty {
-                return QuotaBlock(id: provider.id, name: provider.name, state: .rows(rows), detail: errors[provider.id])
+            let pools = snapshots[provider.id].map { AgentsUsage.pools(from: $0.meters, now: now) } ?? []
+            if !pools.isEmpty {
+                return QuotaBlock(
+                    id: provider.id, name: provider.name, state: .rows(pools), detail: errors[provider.id])
             }
             if let message = errors[provider.id] {
                 let signIn = [.notLoggedIn, .authExpired, .authInvalid].contains(categories[provider.id])

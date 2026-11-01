@@ -2,6 +2,7 @@
 
 ## [0.1.0]
 
+- Agents shows every quota pool of a tool, not only the first 5h and week: Antigravity's Claude pool and Codex's Spark pool each get their own rows under their name.
 - Now's weather column gives the place its own line, so a long name is no longer cut short; with nothing playing it fills the space under the hours with as many days as fit, and Apple's mark is a small footnote at the bottom right.
 - The notch opens on Now every time, rather than on the space used last or the one an ongoing activity belongs to.
 - Floating notes edit like a normal text editor: the text no longer jumps when the pointer enters, a save is not read back into the editor, and a note takes the keyboard only when you click into it or open it, not when the deck or the Command Bar closes.

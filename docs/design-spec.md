@@ -288,8 +288,13 @@ over its days (for All, from the first day with usage).
 
 Middle and right are one table, a row for each tool, level across both and split by hairlines: the tools with
 usage by cost, then the ones that have only a quota. A row is as tall as its quota needs (9 + 17 for each line,
-two at least). Middle: the tool's colour, name and cost (`$241.60`), and under them its tokens (`850k`, `18.2M`,
-`1.2B`, `T`). Right: a row each for 5h, W and M: a bar in the tool's colour for what is left with a tick where even
+two at least, a named pool's caption counting as one). Middle: the tool's colour, name and cost (`$241.60`), and under
+them its tokens (`850k`, `18.2M`, `1.2B`, `T`). Right: a row each for 5h, W and M, for each pool the tool has. A pool is
+named by its meters' labels less the window words (Antigravity's "Claude" and "Claude Weekly" are the Claude pool,
+Codex's Spark the Spark pool) and has a 5h window; the main pool comes first, with no caption, and the other pools
+follow, each under its name as a small tertiary line (13 high, 3 apart from the rows above). Any other meter, like
+Claude's Sonnet or Cursor's On-demand, is not a pool: the main pool keeps the first of each kind. A tool with one pool
+has no caption. A row is a bar in the tool's colour for what is left with a tick where even
 use would have it by now, the percent left (in the stop colour at 0), and the time to the reset. A tool that cannot
 be read shows "Checking…", "Sign in" or "Unavailable" in its place, with the reason in its tooltip, never zeros. More
 rows than fit scroll as one. With usage off the sessions take the full width. Tool colours are tokens: Claude

@@ -174,8 +174,18 @@ private struct QuotaCell: View {
         if let block = row.quota {
             VStack(spacing: 1) {
                 switch block.state {
-                case .rows(let rows):
-                    ForEach(rows) { QuotaRowView(row: $0, color: Deck.Provider.color(block.id), provider: block.name) }
+                case .rows(let pools):
+                    ForEach(pools) { pool in
+                        if let name = pool.name {
+                            Text(name).font(.system(size: 10.5)).foregroundStyle(Deck.tertiary).lineLimit(1)
+                                .frame(maxWidth: .infinity, alignment: .leading).frame(height: 13)
+                                .padding(.top, 3)
+                        }
+                        ForEach(pool.rows) {
+                            QuotaRowView(
+                                row: $0, color: Deck.Provider.color(block.id), provider: block.name, pool: pool.name)
+                        }
+                    }
                 case .checking:
                     state("Checking…")
                 case .signIn:
@@ -202,6 +212,7 @@ private struct QuotaRowView: View {
     let row: QuotaRow
     let color: Color
     let provider: String
+    let pool: String?
 
     var body: some View {
         let percent = Int((row.left * 100).rounded())
@@ -232,7 +243,7 @@ private struct QuotaRowView: View {
         }
         .frame(height: 16)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(provider), \(Self.window(row.kind))")
+        .accessibilityLabel("\([provider, pool].compactMap { $0 }.joined(separator: " ")), \(Self.window(row.kind))")
         .accessibilityValue("\(percent) percent left" + (row.reset.map { ", resets in \($0)" } ?? ""))
     }
 

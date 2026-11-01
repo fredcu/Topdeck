@@ -57,6 +57,8 @@ enum AgentsSample {
                 windows: [
                     Window(label: "Session", left: 0.92, hours: fiveHours, resetsIn: 2 * 3600 + 20 * 60),
                     Window(label: "Weekly", left: 0.77, hours: week, resetsIn: 3 * 86_400 + 4 * 3600),
+                    Window(label: "Claude", left: 0.49, hours: fiveHours, resetsIn: 4 * 3600 + 5 * 60),
+                    Window(label: "Claude Weekly", left: 0.66, hours: week, resetsIn: 6 * 86_400 + 2 * 3600),
                 ], now: now),
             snapshot(
                 "codex", "Codex", tokens: 6_400_000, cost: 58.12,
