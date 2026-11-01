@@ -329,7 +329,7 @@ struct PinnedNoteSurface: View {
         ZStack(alignment: .top) {
             // The bar sits over the strip above the text, so hovering moves nothing in the editor.
             NoteTextEditor(text: $text)
-                .padding(.top, 30)
+                .padding(.top, 20)
             if hovering {
                 controls.transition(.opacity)
             }
@@ -354,19 +354,19 @@ struct PinnedNoteSurface: View {
                 barButton(.arrowUpRight, label: "Back to Notch", on: false) { setMode(nil) }
             }
         }
-        .padding(.horizontal, 4)
-        .frame(height: 26)
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Deck.Paper.bar))
-        .padding(.top, 8)
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 3)
+        .frame(height: 20)
+        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Deck.Paper.bar))
+        .padding(.top, 4)
+        .padding(.horizontal, 6)
     }
 
     private func barButton(_ icon: DeckIcon, label: String, on: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            DeckIconView(icon, size: 13)
+            DeckIconView(icon, size: 12)
                 .foregroundStyle(on ? Deck.Paper.iconOn : Deck.Paper.icon)
-                .frame(width: 26, height: 22)
-                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(on ? Deck.Paper.barOn : .clear))
+                .frame(width: 24, height: 16)
+                .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(on ? Deck.Paper.barOn : .clear))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
