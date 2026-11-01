@@ -29,8 +29,16 @@ extension CalendarFeature {
                     "Five minutes before a meeting with a Zoom, Google Meet, Teams, Webex, Whereby, Jitsi, or "
                         + "FaceTime link, the closed notch counts down to it. Join from Now.")
             }
+            if calendar.access == .granted {
+                CalendarChoiceView(
+                    groups: CalendarChoice.groups(calendar.availableCalendars), isVisible: calendar.isVisible,
+                    setVisible: calendar.setVisible)
+            }
         }
-        .onAppear(perform: calendar.refreshAccess)
+        .onAppear {
+            calendar.refreshAccess()
+            calendar.refreshCalendars()
+        }
     }
 }
 

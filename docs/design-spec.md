@@ -99,6 +99,9 @@ Awake as chips, then add, pin and settings. Between them one slot, in priority o
   mark for notes in a window. With nothing left today, Notes moves up; with nothing at all, "Nothing today".
 - Middle: month grid (six weeks, system first weekday, dots in the accent, today filled in the accent with
   dark text), then the events from tomorrow for a week; a picked day is ringed and lists that day.
+  Which calendars it reads is chosen in Now's settings: with access, the Mac's event calendars in groups by
+  account (local, iCloud, other accounts, subscribed, birthdays), each a checkbox with its colour. All show to
+  begin with; the hidden ones are stored, so a calendar added later shows. With every one hidden Now shows no events.
 - Right: weather from Apple's WeatherKit. Top block: the place on a line of its own, the whole column wide
   (truncated only if it still does not fit, the full name on hover); under it the icon and temperature at the
   left, and at the right the condition over today's low and high ("↓9° ↑19°"); a hairline, and one row of four

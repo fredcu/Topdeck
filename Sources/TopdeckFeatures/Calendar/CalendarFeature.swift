@@ -99,6 +99,11 @@ public final class CalendarFeature: NotchFeature {
             reload()
         }
     }
+    /// The Mac's event calendars, for the settings list. Filled while the settings are on screen.
+    private(set) var availableCalendars: [CalendarInfo] = []
+    /// Per-feature setting: the calendars left out, by identifier. Hidden ones are stored rather than
+    /// shown ones, so a calendar added later shows.
+    private(set) var hiddenCalendars: Set<String>
     /// Per-feature setting: count down in the closed notch to the next meeting with a video link.
     public var countsDownToMeetings: Bool {
         didSet {
@@ -117,6 +122,7 @@ public final class CalendarFeature: NotchFeature {
     static let horizon: TimeInterval = 24 * 3600
     private static let allDayKey = "calendar.showsAllDay"
     private static let countdownKey = "calendar.countsDownToMeetings"
+    private static let hiddenKey = "calendar.hiddenCalendars"
     @ObservationIgnored private let eventStore: EventStore
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var changes: NSObjectProtocol?
@@ -132,10 +138,37 @@ public final class CalendarFeature: NotchFeature {
         self.defaults = defaults
         showsAllDay = defaults.object(forKey: Self.allDayKey) as? Bool ?? true
         countsDownToMeetings = defaults.object(forKey: Self.countdownKey) as? Bool ?? true
+        hiddenCalendars = Set(defaults.stringArray(forKey: Self.hiddenKey) ?? [])
     }
 
     /// Whether the feature is listening for calendar changes.
     var isObserving: Bool { changes != nil }
+
+    func isVisible(_ calendarID: String) -> Bool { !hiddenCalendars.contains(calendarID) }
+
+    /// Shows or hides a calendar's events, in Now and in the countdown.
+    func setVisible(_ calendarID: String, _ visible: Bool) {
+        if visible { hiddenCalendars.remove(calendarID) } else { hiddenCalendars.insert(calendarID) }
+        defaults.set(hiddenCalendars.sorted(), forKey: Self.hiddenKey)
+        reload()
+        watchMeetings()
+    }
+
+    /// Reads the Mac's calendars again, for the settings list.
+    func refreshCalendars() {
+        availableCalendars = access == .granted ? eventStore.store.calendars(for: .event).map(CalendarInfo.init) : []
+    }
+
+    /// The events between two dates in the calendars not hidden. With every calendar hidden there are
+    /// none: EventKit would read all of them for a nil list.
+    private func events(from start: Date, to end: Date) -> [EKEvent] {
+        let store = eventStore.store
+        let all = store.calendars(for: .event)
+        let shown = Set(CalendarChoice.visibleIDs(all.map(CalendarInfo.init), hidden: hiddenCalendars))
+        let calendars = all.filter { shown.contains($0.calendarIdentifier) }
+        guard !calendars.isEmpty else { return [] }
+        return store.events(matching: store.predicateForEvents(withStart: start, end: end, calendars: calendars))
+    }
 
     public func requestAccess() {
         eventStore.store.requestFullAccessToEvents { [weak self] _, _ in
@@ -224,9 +257,7 @@ public final class CalendarFeature: NotchFeature {
     /// shared by every occurrence.
     private func stored(_ event: DayEvent) -> EKEvent? {
         guard access == .granted, event.isEditable else { return nil }
-        let store = eventStore.store
-        let around = store.predicateForEvents(withStart: event.start - 1, end: event.end + 1, calendars: nil)
-        return store.events(matching: around).first { DayEvent.id(for: $0) == event.id }
+        return events(from: event.start - 1, to: event.end + 1).first { DayEvent.id(for: $0) == event.id }
     }
 
     /// Shows the given events as if access were granted: `today` for the Today list, `range` for the
@@ -279,12 +310,14 @@ public final class CalendarFeature: NotchFeature {
     /// the events only while they're on screen.
     private func update() {
         refreshAccess()
+        refreshCalendars()
         let listens = access == .granted && (phase == .foreground || phase == .background && countsDownToMeetings)
         if listens, changes == nil {
             changes = NotificationCenter.default.addObserver(
                 forName: .EKEventStoreChanged, object: eventStore.store, queue: .main
             ) { [weak self] _ in
                 MainActor.assumeIsolated {
+                    self?.refreshCalendars()
                     self?.reload()
                     self?.watchMeetings()
                 }
@@ -309,13 +342,10 @@ public final class CalendarFeature: NotchFeature {
         let start = calendar.startOfDay(for: .now)
         guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: start) else { return }
         let range = CalendarMonth.loadedRange(for: .now, calendar: calendar)
-        let store = eventStore.store
-        rangeEvents = store.events(
-            matching: store.predicateForEvents(withStart: range.lowerBound, end: range.upperBound, calendars: nil)
-        )
-        .map(DayEvent.init)
-        .filter { showsAllDay || !$0.isAllDay }
-        .sorted(by: DayEvent.agendaOrder)
+        rangeEvents = events(from: range.lowerBound, to: range.upperBound)
+            .map(DayEvent.init)
+            .filter { showsAllDay || !$0.isAllDay }
+            .sorted(by: DayEvent.agendaOrder)
         events = rangeEvents.filter { $0.start < tomorrow && $0.end > start }
     }
 
@@ -343,9 +373,8 @@ public final class CalendarFeature: NotchFeature {
         wake = nil
         guard phase != .stopped, countsDownToMeetings, access == .granted else { return count(down: nil) }
         let now = Date.now
-        let store = eventStore.store
-        let ahead = store.predicateForEvents(withStart: now, end: now + Self.horizon, calendars: nil)
-        let next = Self.nextMeeting(in: store.events(matching: ahead).map(DayEvent.init), after: now, skipping: joined)
+        let ahead = events(from: now, to: now + Self.horizon)
+        let next = Self.nextMeeting(in: ahead.map(DayEvent.init), after: now, skipping: joined)
         count(down: next.flatMap { $0.start - Self.lead <= now ? $0 : nil })
         let delay = Self.nextWake(for: next, now: now).timeIntervalSince(now)
         wake = Task { [weak self] in

@@ -2,6 +2,7 @@
 
 ## [0.1.0]
 
+- Now's settings list the Mac's calendars by account, and you choose which ones Topdeck shows (holidays, birthdays and subscribed calendars can be left out); all show to begin with, and one added later shows too.
 - Antigravity shows both of its quota pools: with the `agy` CLI installed, Topdeck reads its read-only `/usage` report (accepted only when it shows no model ran), and otherwise asks Google for the quota summary before any partial per-model data.
 - Agents shows every quota pool of a tool, not only the first 5h and week: Antigravity's Claude pool and Codex's Spark pool each get their own rows under their name.
 - Now's weather column gives the place its own line, so a long name is no longer cut short; with nothing playing it fills the space under the hours with as many days as fit, and Apple's mark is a small footnote at the bottom right.
