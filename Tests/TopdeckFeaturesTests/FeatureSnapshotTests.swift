@@ -143,6 +143,29 @@ struct FeatureSnapshotTests {
         monitors.phase = .stopped
     }
 
+    /// A monitor answering DDC and one the dock doesn't pass DDC to, which is dimmed in software to 60%.
+    @Test func monitorDimmedInSoftware() async throws {
+        let channels: [CGDirectDisplayID: any DDCChannel] = [
+            1: FakeMonitor([
+                .brightness: DDC.Level(current: 70, maximum: 100), .volume: DDC.Level(current: 30, maximum: 100),
+            ])
+        ]
+        let defaults = UserDefaults(suiteName: "SoftDimmingSnapshot-\(UUID())")!
+        SoftDimming.Levels(defaults: defaults).set(0.6, for: "monitor-2")
+        let monitors = MonitorsFeature(
+            backend: .init(
+                displays: { [(1, "LG UltraFine"), (2, "DELL S3422DWG")] },
+                channels: { ids in channels.filter { ids.contains($0.key) } },
+                perform: { $0() }, send: { $0() }, sleepDisplays: { true }, identity: { "monitor-\($0)" },
+                dimmer: FakeDimmer()),
+            defaults: defaults)
+        monitors.phase = .foreground
+        #expect(await eventually { monitors.monitors.allSatisfy { $0.status != .checking } })
+        #expect(monitors.monitors.last?.brightness == 0.6)
+        try render(monitors.view, name: "monitors-soft-dimmed", size: CGSize(width: 428, height: 250))
+        monitors.phase = .stopped
+    }
+
     @Test func shortcutsWhileLoading() throws {
         try render(ShortcutsFeature().view, name: "shortcuts-loading")
     }

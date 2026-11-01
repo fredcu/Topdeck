@@ -65,7 +65,10 @@ private struct MonitorCard: View {
                     if let brightness = monitor.brightness {
                         DeckLevelRow(
                             "Brightness", level: brightness, value: "\(percent(brightness))",
-                            label: "\(monitor.name) brightness", set: { set(.brightness, $0) })
+                            label: "\(monitor.name) brightness", set: { set(.brightness, $0) }
+                        )
+                        .help(
+                            monitor.dimsPicture ? "Dims the picture; the monitor's own brightness stays the same." : "")
                     }
                     if let volume = monitor.volume {
                         DeckLevelRow(

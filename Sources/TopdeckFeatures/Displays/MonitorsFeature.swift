@@ -7,8 +7,11 @@ import SwiftUI
 import TopdeckCore
 
 /// External monitors' brightness and volume over DDC/CI, the protocol their own buttons use, and
-/// putting every display to sleep at once. Monitors that don't answer show as unavailable. Reads
-/// each monitor when the tab comes on screen, since its buttons may have changed it meanwhile.
+/// putting every display to sleep at once. A monitor that doesn't answer DDC (a dock's hub may not pass
+/// it on) has its picture dimmed in software instead, with no volume; one that can't be dimmed either
+/// shows as unavailable. Reads each monitor when the tab comes on screen, since its buttons may have
+/// changed it meanwhile. A dimmed monitor is dimmed again after the displays change and after wake, and
+/// every curve is put back when the feature stops.
 @MainActor
 @Observable
 public final class MonitorsFeature: NotchFeature {
@@ -21,6 +24,8 @@ public final class MonitorsFeature: NotchFeature {
         /// 0...1, or nil when the monitor doesn't have the control.
         public var brightness: Double?
         public var volume: Double?
+        /// Whether `brightness` dims the picture, since the monitor doesn't answer DDC.
+        public var dimsPicture = false
 
         public init(id: CGDirectDisplayID, name: String) {
             self.id = id
@@ -49,6 +54,9 @@ public final class MonitorsFeature: NotchFeature {
         var perform: @Sendable (@escaping @Sendable () -> DDC.Level?) async -> DDC.Level?
         var send: @Sendable (@escaping @Sendable () -> Bool) async -> Bool
         var sleepDisplays: @Sendable () async -> Bool
+        /// What names a monitor in the remembered dimming levels.
+        var identity: @MainActor (CGDirectDisplayID) -> String = { "\($0)" }
+        var dimmer: any SoftDimmer = NoDimmer()
 
         static var system: Backend {
             Backend(
@@ -63,7 +71,12 @@ public final class MonitorsFeature: NotchFeature {
                 channels: { ids in await SystemDDC.perform { SystemDDC.channels(for: ids) } },
                 perform: { await SystemDDC.perform($0) },
                 send: { await SystemDDC.perform($0) },
-                sleepDisplays: { await Subprocess.run("/usr/bin/pmset", ["displaysleepnow"]).status == 0 })
+                sleepDisplays: { await Subprocess.run("/usr/bin/pmset", ["displaysleepnow"]).status == 0 },
+                identity: { display in
+                    let identity = SystemDDC.identity(of: display)
+                    return SoftDimming.key(vendor: identity.vendor, product: identity.product, serial: identity.serial)
+                },
+                dimmer: SystemGamma())
         }
     }
 
@@ -76,9 +89,12 @@ public final class MonitorsFeature: NotchFeature {
     public var phase: FeaturePhase = .stopped {
         didSet {
             guard phase != oldValue else { return }
-            if phase == .foreground { start() }
-            if oldValue == .foreground { stopObserving() }
-            if phase == .stopped { release() }
+            let dimmed = oldValue == .stopped && startWatching()
+            if phase == .foreground || dimmed { refresh() }
+            if phase == .stopped {
+                stopWatching()
+                release()
+            }
         }
     }
     public private(set) var monitors: [Monitor] = []
@@ -89,33 +105,68 @@ public final class MonitorsFeature: NotchFeature {
     @ObservationIgnored private var channels: [CGDirectDisplayID: any DDCChannel] = [:]
     @ObservationIgnored private var levels: [Key: DDC.Level] = [:]
     @ObservationIgnored private var gates: [Key: LatestValueGate<UInt16>] = [:]
-    @ObservationIgnored private var observer: (any NSObjectProtocol)?
+    @ObservationIgnored private var observers: [(center: NotificationCenter, token: any NSObjectProtocol)] = []
+    @ObservationIgnored private let dimLevels: SoftDimming.Levels
+    /// Monitors that answered DDC since the feature started; DDC wins over a remembered dimming level.
+    @ObservationIgnored private var answeringDDC: Set<CGDirectDisplayID> = []
     /// Bumped by each look and by stopping, so a look that finishes late is dropped.
     @ObservationIgnored private var generation = 0
 
     public convenience init() { self.init(backend: .system) }
 
-    init(backend: Backend) {
+    init(backend: Backend, defaults: UserDefaults = .standard) {
         self.backend = backend
+        dimLevels = SoftDimming.Levels(defaults: defaults)
     }
 
     public var view: some View { MonitorsView(monitors: self) }
 
-    private func start() {
-        refresh()
-        observer = NotificationCenter.default.addObserver(
-            forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.refresh() }
+    /// Dims the remembered monitors now, and again whenever the displays change or wake: macOS may put
+    /// their own curve back. Watches in the background too, since the dimming has to hold off screen.
+    /// True if it dimmed any.
+    private func startWatching() -> Bool {
+        let events: [(NotificationCenter, Notification.Name)] = [
+            (.default, NSApplication.didChangeScreenParametersNotification),
+            (NSWorkspace.shared.notificationCenter, NSWorkspace.didWakeNotification),
+            (NSWorkspace.shared.notificationCenter, NSWorkspace.screensDidWakeNotification),
+        ]
+        observers = events.map { center, name in
+            (
+                center,
+                center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.displaysChanged() }
+                }
+            )
         }
+        return dimRemembered()
     }
 
-    private func stopObserving() {
-        if let observer { NotificationCenter.default.removeObserver(observer) }
-        observer = nil
+    private func stopWatching() {
+        for (center, token) in observers { center.removeObserver(token) }
+        observers = []
+    }
+
+    private func displaysChanged() {
+        // A dimmed monitor is looked at again even off screen, in case DDC answers now.
+        let dimmed = dimRemembered()
+        if dimmed || phase == .foreground { refresh() }
+    }
+
+    /// Dims each connected monitor that has a remembered level, unless it answered DDC. True if any was.
+    private func dimRemembered() -> Bool {
+        let displays = backend.displays()
+        backend.dimmer.keepOnly(displays.map(\.id))
+        var dimmed = false
+        for display in displays where !answeringDDC.contains(display.id) {
+            let level = dimLevels.level(for: backend.identity(display.id))
+            if level < 1, backend.dimmer.apply(level, to: display.id) { dimmed = true }
+        }
+        return dimmed
     }
 
     private func release() {
+        backend.dimmer.restoreAll()
+        answeringDDC = []
         generation += 1
         monitors = []
         channels = [:]
@@ -163,11 +214,29 @@ public final class MonitorsFeature: NotchFeature {
             found = found || level != nil
         }
         guard let index = monitors.firstIndex(where: { $0.id == id }) else { return }
-        monitors[index].status = found ? .ready : .unavailable
+        if found {
+            answeringDDC.insert(id)
+            // The curve may have been dimmed at launch, before DDC was known to answer.
+            backend.dimmer.restore(id)
+            monitors[index].dimsPicture = false
+            monitors[index].status = .ready
+            return
+        }
+        answeringDDC.remove(id)
+        // No DDC: dim the picture instead, at the level remembered for this monitor.
+        let level = dimLevels.level(for: backend.identity(id))
+        let dims = backend.dimmer.apply(level, to: id)
+        monitors[index].dimsPicture = dims
+        monitors[index].brightness = dims ? level : nil
+        monitors[index].status = dims ? .ready : .unavailable
     }
 
     /// Sets a monitor's brightness or volume, 0...1. The slider moves at once; the monitor follows.
     func set(_ control: DDC.Control, of id: CGDirectDisplayID, to fraction: Double) {
+        if let index = monitors.firstIndex(where: { $0.id == id }), monitors[index].dimsPicture {
+            if control == .brightness { dim(index, to: fraction) }
+            return
+        }
         let key = Key(monitor: id, control: control)
         guard let level = levels[key], let channel = channels[id],
             let index = monitors.firstIndex(where: { $0.id == id })
@@ -178,6 +247,14 @@ public final class MonitorsFeature: NotchFeature {
         if let now = gates[key, default: LatestValueGate()].submit(value) {
             send(now, control, to: channel, key: key)
         }
+    }
+
+    /// Dims a monitor's picture to `fraction`, not below the floor, and remembers it.
+    private func dim(_ index: Int, to fraction: Double) {
+        let level = SoftDimming.clamp(fraction)
+        guard backend.dimmer.apply(level, to: monitors[index].id) else { return }
+        monitors[index].brightness = level
+        dimLevels.set(level, for: backend.identity(monitors[index].id))
     }
 
     /// The brightness of the first external monitor that has the control, 0...1, for the Mac page's slider.

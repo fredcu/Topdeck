@@ -107,7 +107,7 @@ enum SystemDDC {
     #endif
 
     /// What macOS says about a display, from CoreDisplay when it can, else from Core Graphics.
-    private static func identity(of display: CGDirectDisplayID) -> DDC.DisplayIdentity {
+    static func identity(of display: CGDirectDisplayID) -> DDC.DisplayIdentity {
         guard let info = Private.displayInfo?(display)?.takeRetainedValue() as? [String: Any] else {
             return DDC.DisplayIdentity(
                 vendor: Int64(CGDisplayVendorNumber(display)), product: Int64(CGDisplayModelNumber(display)),

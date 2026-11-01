@@ -226,8 +226,8 @@ a bar of what is used, read and write speed. Battery: Health, the charge, a bar,
 or the time to full, or the state. A Mac without a battery shows its uptime in the last tile. At 620×340 the
 captions and the battery's detail are left out (they stay in the tooltip and for VoiceOver). Right, 192
 wide (176 at the smallest size): one card of the output volume (a click on its icon mutes) and the brightness
-of the external monitors that answer over DDC (hidden when none does; the built-in display needs a private API
-the plan does not name), 40 high each with the percent at the right; then one list of Sound, Displays, Network,
+of the external monitors that answer over DDC, or that are dimmed in software when they don't (hidden when none
+is; the built-in display needs a private API the plan does not name), 40 high each with the percent at the right; then one list of Sound, Displays, Network,
 Storage and System, sharing the height, each with where it stands (the output device, the display count, the
 connection, "Clean up", and for System a summary: "N failed" in stop when launch services failed, else "N updates" in the
 accent when Homebrew packages have updates, else the busiest process as "Xcode  48%" in tertiary, empty when none is
@@ -235,6 +235,19 @@ known; only what the features already hold, so nothing is started for the row) a
 whole body, with the second row back, as "‹ Sound", and everything those screens did stays there. System is there when
 Performance or System Admin is on. The history is
 a ring buffer of a minute kept in memory while the page is on screen.
+
+#### Displays screen
+
+A card for each external monitor: its name, then a Brightness row and, where the monitor has speakers, a Volume row
+(`DeckLevelRow`), both over DDC. A monitor that doesn't answer DDC (a dock's hub may not pass it on) is dimmed in
+software instead: its card has the Brightness row alone, with the tooltip "Dims the picture; the monitor's own
+brightness stays the same." and no visible helper text. The picture is dimmed by scaling the display's gamma table
+(public Core Graphics calls) from the curve it had, so a calibration is kept. The level runs from 100%, the original
+curve exactly, down to 15%, so the screen can't go black. The level is kept per monitor (vendor, product, serial) and
+applied again at launch, after the displays change and after wake; every curve is put back on quit, and macOS puts
+the ColorSync curve back on the next display change if Topdeck crashes. If DDC starts answering (a direct cable), DDC
+wins and the curve goes back to 100%. A monitor with neither shows "Unavailable" and no controls. The Mac page's
+brightness slider drives whichever applies.
 
 #### System screen
 

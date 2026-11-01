@@ -46,7 +46,8 @@ Topdeck is local-first.
   nothing is deleted outright.
 - The Monitors tab talks to the monitors attached to your Mac over DDC, the
   control channel in the display cable, to read and set their brightness and
-  volume. It sends nothing over the network.
+  volume. When a monitor does not answer, Topdeck dims its picture instead by changing the display's
+  color curve on this Mac, and remembers the level you set for each monitor. It sends nothing over the network.
 - The System Admin tab (off until you turn it on) reads and manages your launch
   agents on this Mac with `launchctl`, and sends nothing. Its Homebrew actions
   run `brew`, which contacts Homebrew's servers only when you run an action,
@@ -89,7 +90,7 @@ Topdeck is local-first.
 - The Mac page reads the Mac's own counters (CPU, GPU, memory, disk and
   network totals, the busiest processes' names, temperatures, battery) and
   keeps the last minute in memory only while the page is on screen. It stores
-  and sends nothing. Its brightness slider talks to external monitors over DDC.
+  and sends nothing. Its brightness slider talks to external monitors over DDC, or dims their picture.
 - The bars beside the camera while music plays move to a made-up pattern, not
   to the sound, and listen to nothing. Only the Sound tab listens to your
   Mac's audio output, to set each app's volume (macOS asks for "system audio

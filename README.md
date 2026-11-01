@@ -90,7 +90,8 @@ about to start, a volume change. Nothing is drawn over the camera itself.
 - **Window Switcher**: Option-Tab shows every window with a thumbnail; type to filter (off by default).
 - **Command Bar**: open apps, run actions, and search notes and settings from one field.
 - **Input Sources**: each app keeps its own keyboard input source.
-- **Monitors**: brightness and volume of external monitors over DDC.
+- **Monitors**: brightness and volume of external monitors over DDC or, when a monitor doesn't answer, by
+  dimming the picture.
 - **Storage**: clean Xcode's DerivedData, simulators' device support and caches, and see what fills your
   home folder; everything goes to the Trash after a review (off by default).
 - **Show in Notch**: scripts and other apps can show a message with a `topdeck://show?title=…` link.
