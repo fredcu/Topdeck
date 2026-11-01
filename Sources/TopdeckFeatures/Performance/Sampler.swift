@@ -21,6 +21,7 @@ final class Sampler: SnapshotSource, @unchecked Sendable {
     /// Set up by the first reading, so none of it happens on the main actor.
     private var layout = CoreLayout(efficiency: 0, performance: 0)
     private var sensors: TemperatureSensors?
+    private var smc: SMCReader?
     private var isSetUp = false
     private var snapshot = PerformanceFeature.Snapshot()
     /// The previous reading of each counter, and when.
@@ -32,6 +33,7 @@ final class Sampler: SnapshotSource, @unchecked Sendable {
             isSetUp = true
             layout = Probes.coreLayout()
             sensors = TemperatureSensors()
+            smc = SMCReader()
             snapshot.chipName = Probes.chipName()
         }
         let now = Date.now
@@ -67,8 +69,12 @@ final class Sampler: SnapshotSource, @unchecked Sendable {
         spaceAge += 1
         next.loadAverage = Probes.loadAverage()
         next.thermal = ThermalLevel(ProcessInfo.processInfo.thermalState)
-        if let sensors {
-            let temperatures = Temperatures(from: sensors.read())
+        if sensors != nil || smc != nil {
+            var temperatures = Temperatures(from: sensors?.read() ?? [])
+            // The battery's SMC key is read only when the sensors gave no battery.
+            temperatures.apply(
+                smcGPU: smc?.gpuTemperature(), smcBattery: temperatures.battery == nil ? smc?.batteryTemperature() : nil
+            )
             next.temperatures = temperatures.isEmpty ? nil : temperatures
         }
         next.battery = Probes.battery()

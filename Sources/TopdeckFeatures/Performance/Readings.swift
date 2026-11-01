@@ -174,7 +174,7 @@ struct Temperatures: Equatable, Sendable {
     var chipHottest: Double?
     var ssd: Double?
     var battery: Double?
-    /// Average of the GPU's sensors, where the Mac names them.
+    /// Average of the GPU's sensors: from the SMC where it answers, else those the Mac names.
     var gpu: Double?
 
     init(from raw: [(name: String, value: Double)]) {
@@ -191,6 +191,13 @@ struct Temperatures: Equatable, Sendable {
         battery = sane.filter { $0.name.lowercased().contains("battery") }.map(\.value).max()
         let gpus = sane.filter { $0.name.lowercased().contains("gpu") }.map(\.value)
         gpu = gpus.isEmpty ? nil : gpus.reduce(0, +) / Double(gpus.count)
+    }
+
+    /// Adds what the SMC reads: its GPU temperature, which the sensors do not name on every Mac, wins; its
+    /// battery one only stands in for a missing reading.
+    mutating func apply(smcGPU: Double?, smcBattery: Double?) {
+        if let smcGPU { gpu = smcGPU }
+        if battery == nil { battery = smcBattery }
     }
 
     var isEmpty: Bool { chip == nil && ssd == nil && battery == nil && gpu == nil }

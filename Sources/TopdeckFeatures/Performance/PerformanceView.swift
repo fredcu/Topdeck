@@ -134,8 +134,9 @@ extension Heat {
     }
 }
 
-/// The system's thermal state at the left, then the four temperatures, each with a gauge that fills to its
-/// reading over 110° in the colour of its heat. A Mac that reports no temperatures shows the state alone.
+/// The system's thermal state at the left, then the temperatures, each with a gauge that fills to its reading
+/// over 110° in the colour of its heat. A reading the Mac does not give is left out; a Mac that reports no
+/// temperatures shows the state alone.
 private struct ThermalStrip: View {
     let snapshot: PerformanceFeature.Snapshot
     let compact: Bool
@@ -143,7 +144,7 @@ private struct ThermalStrip: View {
 
     private struct Reading: Identifiable {
         let name: String
-        let value: Double?
+        let value: Double
         var peak: Double?
         var id: String { name }
     }
@@ -151,10 +152,11 @@ private struct ThermalStrip: View {
     var body: some View {
         let temperatures = snapshot.temperatures
         let readings = [
-            Reading(name: "CPU", value: temperatures?.chip, peak: temperatures?.chipHottest),
-            Reading(name: "GPU", value: temperatures?.gpu), Reading(name: "SSD", value: temperatures?.ssd),
-            Reading(name: "Battery", value: temperatures?.battery),
-        ]
+            temperatures?.chip.map { Reading(name: "CPU", value: $0, peak: temperatures?.chipHottest) },
+            temperatures?.gpu.map { Reading(name: "GPU", value: $0) },
+            temperatures?.ssd.map { Reading(name: "SSD", value: $0) },
+            temperatures?.battery.map { Reading(name: "Battery", value: $0) },
+        ].compactMap { $0 }
         HStack(spacing: narrow ? 8 : 10) {
             state.frame(width: narrow ? 62 : 76, alignment: .leading)
             if temperatures != nil {
@@ -202,25 +204,23 @@ private struct ThermalStrip: View {
         let showsPeak: Bool
 
         var body: some View {
-            let heat = reading.value.map { Heat(degrees: $0) }
-            let color = heat?.color ?? Deck.tertiary
+            let heat = Heat(degrees: reading.value)
+            let color = heat.color
             VStack(spacing: 4) {
                 HStack(alignment: .firstTextBaseline, spacing: 3) {
                     // The name gives way first where the strip is short of room.
                     Text(reading.name).font(.system(size: 11.5)).foregroundStyle(Deck.tertiary)
                         .lineLimit(1).minimumScaleFactor(0.5)
                     Spacer(minLength: 0)
-                    Text(MacFormat.degrees(reading.value) ?? "–")
+                    Text(MacFormat.degrees(reading.value) ?? "")
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(heat?.tintsReading == true ? color : Deck.text)
+                        .foregroundStyle(heat.tintsReading ? color : Deck.text)
                         .lineLimit(1).fixedSize()
                 }
                 Capsule().fill(Deck.control).frame(height: 4)
                     .overlay(alignment: .leading) {
                         GeometryReader { track in
-                            if let value = reading.value {
-                                Capsule().fill(color).frame(width: track.size.width * Heat.gauge(value))
-                            }
+                            Capsule().fill(color).frame(width: track.size.width * Heat.gauge(reading.value))
                         }
                     }
                 if showsPeak, let peak = reading.peak, let text = MacFormat.degrees(peak) {
@@ -234,8 +234,7 @@ private struct ThermalStrip: View {
         }
 
         private var spoken: String {
-            guard let value = reading.value else { return "No reading" }
-            let degrees = "\(Int(value.rounded())) degrees"
+            let degrees = "\(Int(reading.value.rounded())) degrees"
             return reading.peak.map { "\(degrees), peak \(Int($0.rounded()))" } ?? degrees
         }
     }
