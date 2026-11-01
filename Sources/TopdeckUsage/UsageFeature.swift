@@ -128,6 +128,16 @@ public final class UsageFeature: NotchFeature {
         AgentsUsage.tools(snapshots: snapshots, providers: enabledProviders, period: period, now: now)
     }
 
+    /// The last 30 days across the tools, whatever the period.
+    func dailySpend(now: Date = .now) -> [DaySpend] {
+        AgentsUsage.daily(snapshots: snapshots, providers: enabledProviders, now: now)
+    }
+
+    /// How many days the period spans, for the daily average.
+    func periodDays(now: Date = .now) -> Int {
+        AgentsUsage.days(in: period, snapshots: snapshots, providers: enabledProviders, now: now)
+    }
+
     /// Each provider's quota rows, or the short state in their place.
     func quotaBlocks(now: Date = .now) -> [QuotaBlock] {
         AgentsUsage.blocks(

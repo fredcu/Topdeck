@@ -4,166 +4,195 @@ import TopdeckCore
 import TopdeckFeatures
 import TopdeckSurface
 
-/// The Agents space's usage column: a donut of what each tool cost in the period with a row for each, and under
-/// a hairline each tool's quota rows in two columns; or, before any tool is on, the ones to turn on.
-struct UsageColumn: View {
-    let usage: UsageFeature
+// MARK: Summary
 
-    var body: some View {
-        // Times to a reset ("3h 12m") move on once a minute, only while the screen is on.
-        TimelineView(.periodic(from: .now, by: 60)) { context in
-            if usage.enabledProviders.isEmpty {
-                UsageOnboarding(usage: usage)
-            } else {
-                content(now: context.date)
-            }
-        }
-        // The same local check onboarding runs, so the menu knows which tools are signed in.
-        .task { if !usage.hasDetected { await usage.detect() } }
-    }
-
-    private func content(now: Date) -> some View {
-        let tools = usage.toolUsage(now: now)
-        let blocks = usage.quotaBlocks(now: now)
-        return VStack(spacing: 9) {
-            if !tools.isEmpty {
-                SpendRow(tools: tools)
-            } else {
-                DeckEmptyLine(usage.refreshing.isEmpty ? "No usage" : "Checking…").frame(height: 60)
-            }
-            if !blocks.isEmpty {
-                DeckSeparator()
-                ScrollView { QuotaGrid(blocks: blocks) }.fadingEdges(length: 6, atStart: false)
-            }
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    }
-}
-
-// MARK: Spend
-
-/// The donut with its total in the middle, and a row for each tool: its colour, its name, its tokens, its cost.
-private struct SpendRow: View {
+/// The period at a glance, for the left column when no session is listed: the total and its tokens, each tool's
+/// share, the last 30 days' spend with today in the accent, and today against the daily average.
+struct UsageSummary: View {
     let tools: [ToolUsage]
+    /// The last 30 days, oldest first, whatever the period.
+    let days: [DaySpend]
+    /// The days the period spans, for the average.
+    let periodDays: Int
+    @Environment(\.deckAccent) private var accent
 
     var body: some View {
-        let shares = AgentsUsage.shares(tools)
-        let dollars = tools.reduce(0) { $0 + ($1.cost ?? 0) }
-        let center =
-            dollars > 0
-            ? AgentsFormat.donutCost(dollars) : AgentsFormat.tokens(tools.reduce(0) { $0 + $1.tokens })
-        HStack(spacing: 14) {
-            Donut(shares: shares, center: center)
-            ScrollView {
-                VStack(spacing: 0) {
-                    ForEach(tools) { tool in
-                        HStack(spacing: 7) {
-                            Circle().fill(Deck.Provider.color(tool.id)).frame(width: 7, height: 7)
-                            Text(tool.name).deckText(.body).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
-                            Text(AgentsFormat.tokens(tool.tokens)).deckText(.caption).frame(
-                                width: 48, alignment: .trailing)
-                            Text(tool.cost.map(AgentsFormat.cost) ?? "–")
-                                .font(.system(size: 12, weight: .semibold).monospacedDigit())
-                                .frame(width: 62, alignment: .trailing)
-                        }
-                        .frame(height: 19)
-                        .accessibilityElement(children: .combine)
-                        .accessibilityLabel(
-                            "\(tool.name), \(AgentsFormat.tokens(tool.tokens)) tokens, \(tool.cost.map(AgentsFormat.cost) ?? "no cost")"
-                        )
-                    }
-                }
-            }
-            .frame(height: 84)
-            .scrollIndicators(.never)
-        }
-        .frame(height: 84)
-    }
-}
-
-/// A ring of one arc for each tool, in the tool's colour, with the total at its centre.
-struct Donut: View {
-    let shares: [(id: String, fraction: Double)]
-    let center: String
-
-    var body: some View {
-        ZStack {
-            ForEach(arcs, id: \.id) { arc in
-                Circle()
-                    .trim(from: arc.from, to: arc.to)
-                    .stroke(Deck.Provider.color(arc.id), style: StrokeStyle(lineWidth: 11, lineCap: .butt))
-                    .rotationEffect(.degrees(-90))
-            }
-            .frame(width: 60, height: 60)
-            Text(center).font(.system(size: 13, weight: .bold)).lineLimit(1).minimumScaleFactor(0.7).frame(width: 52)
-        }
-        .frame(width: 84, height: 84)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Spend by tool")
-        .accessibilityValue(center)
-    }
-
-    /// Each arc's start and end as a share of the circle, with a hair of space between them when there are
-    /// several.
-    private var arcs: [(id: String, from: Double, to: Double)] {
-        let gap = shares.count > 1 ? 1.5 / (2 * .pi * 30) : 0
-        var start = 0.0
-        return shares.map { share in
-            defer { start += share.fraction }
-            return (share.id, start + gap / 2, max(start + share.fraction - gap / 2, start + gap / 2 + 0.001))
-        }
-    }
-}
-
-// MARK: Quota
-
-/// The tools' quota blocks, two to a row.
-private struct QuotaGrid: View {
-    let blocks: [QuotaBlock]
-
-    var body: some View {
-        let rows = stride(from: 0, to: blocks.count, by: 2).map { Array(blocks[$0..<min($0 + 2, blocks.count)]) }
-        Grid(alignment: .topLeading, horizontalSpacing: 14, verticalSpacing: 7) {
-            ForEach(Array(rows.enumerated()), id: \.offset) { _, pair in
-                GridRow {
-                    ForEach(pair) { QuotaBlockView(block: $0) }
-                    if pair.count == 1 { Color.clear.gridCellUnsizedAxes([.horizontal, .vertical]) }
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-    }
-}
-
-private struct QuotaBlockView: View {
-    let block: QuotaBlock
-
-    var body: some View {
-        let color = Deck.Provider.color(block.id)
+        let totals = AgentsUsage.totals(tools)
+        let byCost = totals.cost != nil
+        let average = (totals.cost ?? Double(totals.tokens)) / Double(max(periodDays, 1))
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 6) {
-                Circle().fill(color).frame(width: 7, height: 7)
-                Text(block.name).font(.system(size: 13, weight: .semibold)).foregroundStyle(color).lineLimit(1)
+            Text(totals.cost.map(AgentsFormat.wholeCost) ?? AgentsFormat.tokens(totals.tokens))
+                .deckText(.metric).lineLimit(1).minimumScaleFactor(0.7)
+            if byCost {
+                Text("\(AgentsFormat.tokens(totals.tokens)) tokens").deckText(.caption).lineLimit(1).padding(.top, 4)
             }
-            .frame(height: 19)
-            switch block.state {
-            case .rows(let rows):
-                ForEach(rows) { QuotaRowView(row: $0, color: color, provider: block.name) }
-            case .checking:
-                state("Checking…")
-            case .signIn:
-                state("Sign in")
-            case .unavailable:
-                state("Unavailable")
+            ShareBar(shares: AgentsUsage.shares(tools)).padding(.top, 12)
+            DayBars(days: days, accent: accent).padding(.top, 18)
+            HStack(alignment: .top) {
+                figure("Today", amount(cost: days.last?.cost ?? 0, tokens: days.last?.tokens ?? 0, byCost), .leading)
+                Spacer(minLength: 4)
+                figure("Per day", amount(cost: average, tokens: Int(average), byCost), .trailing)
+            }
+            .padding(.top, 12)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func amount(cost: Double, tokens: Int, _ byCost: Bool) -> String {
+        byCost ? AgentsFormat.cost(cost) : AgentsFormat.tokens(tokens)
+    }
+
+    private func figure(_ label: String, _ value: String, _ alignment: HorizontalAlignment) -> some View {
+        VStack(alignment: alignment, spacing: 1) {
+            Text(label).font(.system(size: 11)).foregroundStyle(Deck.tertiary)
+            Text(value).font(.system(size: 13, weight: .semibold).monospacedDigit()).foregroundStyle(Deck.text)
+        }
+        .lineLimit(1)
+    }
+}
+
+/// Each tool's share of the total as a 5 point bar in the tool's colour, with a hair between segments.
+private struct ShareBar: View {
+    let shares: [(id: String, fraction: Double)]
+    private static let gap: CGFloat = 1.5
+
+    var body: some View {
+        GeometryReader { space in
+            let room = max(space.size.width - Self.gap * CGFloat(max(shares.count - 1, 0)), 0)
+            HStack(spacing: Self.gap) {
+                ForEach(shares, id: \.id) { share in
+                    Rectangle().fill(Deck.Provider.color(share.id)).frame(width: room * share.fraction)
+                }
+            }
+            .clipShape(Capsule())
+        }
+        .frame(height: 5)
+        .accessibilityHidden(true)
+    }
+}
+
+/// The last 30 days as bars, today's in the accent. By cost, or by tokens when no day has a price.
+private struct DayBars: View {
+    let days: [DaySpend]
+    let accent: Color
+    private static let height: CGFloat = 52
+
+    var body: some View {
+        let byCost = days.contains { $0.cost > 0 }
+        let values = days.map { byCost ? $0.cost : Double($0.tokens) }
+        let top = values.max() ?? 0
+        HStack(alignment: .bottom, spacing: 2) {
+            ForEach(days.indices, id: \.self) { index in
+                let amount =
+                    byCost ? AgentsFormat.cost(days[index].cost) : "\(AgentsFormat.tokens(days[index].tokens)) tokens"
+                let date = days[index].date.formatted(.dateTime.month(.abbreviated).day())
+                RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                    .fill(index == days.count - 1 ? accent : Deck.control)
+                    .frame(height: top > 0 ? max(2, Self.height * values[index] / top) : 2)
+                    .frame(maxWidth: .infinity)
+                    .help("\(date): \(amount)")
+                    .accessibilityElement()
+                    .accessibilityLabel(date)
+                    .accessibilityValue(amount)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .help(block.detail ?? "")
+        .frame(height: Self.height, alignment: .bottom)
+    }
+}
+
+// MARK: Table
+
+/// Spend and quota as one table: a row for each tool, level across the two columns and split by hairlines. It
+/// scrolls as one, so the columns never part.
+struct UsageTable: View {
+    let rows: [ToolRow]
+    let middle: CGFloat
+
+    var body: some View {
+        ScrollView {
+            HStack(alignment: .top, spacing: Deck.Metric.columnGap) {
+                column { SpendCell(row: $0) }.frame(width: middle)
+                Color.clear.frame(width: 1)
+                column { QuotaCell(row: $0) }.frame(maxWidth: .infinity)
+            }
+        }
+        // A scroller would take its width from the narrow columns.
+        .scrollIndicators(.never)
+        .fadingEdges(length: 6, atStart: false)
+        // The hairline between the columns runs the body's full height, not just the rows'.
+        .background(alignment: .leading) { DeckRule().padding(.leading, middle + Deck.Metric.columnGap) }
+    }
+
+    private func column<Cell: View>(@ViewBuilder _ cell: @escaping (ToolRow) -> Cell) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                cell(row)
+                    .frame(height: row.height)
+                    .overlay(alignment: .top) { if index > 0 { DeckSeparator() } }
+            }
+        }
+    }
+}
+
+/// A tool's colour and name with its cost, and under them its tokens.
+private struct SpendCell: View {
+    let row: ToolRow
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 6) {
+                Circle().fill(Deck.Provider.color(row.id)).frame(width: 7, height: 7)
+                Text(row.name).font(.system(size: 13, weight: .semibold)).foregroundStyle(Deck.text).lineLimit(1)
+                Spacer(minLength: 4)
+                if let usage = row.usage {
+                    Text(usage.cost.map(AgentsFormat.cost) ?? "–")
+                        .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(Deck.text)
+                        .lineLimit(1)
+                }
+            }
+            .frame(height: 16)
+            if let usage = row.usage {
+                Text("\(AgentsFormat.tokens(usage.tokens)) tokens").deckText(.caption).lineLimit(1)
+                    .padding(.leading, 13).frame(height: 16, alignment: .leading)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            row.usage.map {
+                "\(row.name), \(AgentsFormat.tokens($0.tokens)) tokens, \($0.cost.map(AgentsFormat.cost) ?? "no cost")"
+            } ?? row.name)
+    }
+}
+
+/// A tool's quota rows, or the short state in their place.
+private struct QuotaCell: View {
+    let row: ToolRow
+
+    var body: some View {
+        if let block = row.quota {
+            VStack(spacing: 1) {
+                switch block.state {
+                case .rows(let rows):
+                    ForEach(rows) { QuotaRowView(row: $0, color: Deck.Provider.color(block.id), provider: block.name) }
+                case .checking:
+                    state("Checking…")
+                case .signIn:
+                    state("Sign in")
+                case .unavailable:
+                    state("Unavailable")
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .help(block.detail ?? "")
+        } else {
+            Color.clear
+        }
     }
 
     private func state(_ text: String) -> some View {
-        Text(text).deckText(.caption).lineLimit(1).frame(height: 19, alignment: .leading)
+        Text(text).deckText(.caption).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading).frame(height: 16)
     }
 }
 
@@ -175,8 +204,10 @@ private struct QuotaRowView: View {
     let provider: String
 
     var body: some View {
+        let percent = Int((row.left * 100).rounded())
         HStack(spacing: 6) {
-            Text(row.kind.label).deckText(.caption).frame(width: 18, alignment: .leading)
+            Text(row.kind.label).font(.system(size: 11)).foregroundStyle(Deck.tertiary)
+                .frame(width: 16, alignment: .leading)
             GeometryReader { space in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Deck.control)
@@ -190,18 +221,19 @@ private struct QuotaRowView: View {
                 .frame(maxHeight: .infinity)
             }
             .frame(height: 9)
-            Text("\(Int((row.left * 100).rounded()))%")
+            Text("\(percent)%")
                 .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                .foregroundStyle(percent == 0 ? Deck.stop : Deck.text)
                 .lineLimit(1)
-                .frame(width: 40, alignment: .trailing)
+                .fixedSize()
+                .frame(width: 34, alignment: .trailing)
             Text(row.reset ?? "").font(.system(size: 11).monospacedDigit()).foregroundStyle(Deck.tertiary)
-                .lineLimit(1).fixedSize().frame(width: 46, alignment: .trailing)
+                .lineLimit(1).fixedSize().frame(width: 44, alignment: .trailing)
         }
-        .frame(height: 19)
+        .frame(height: 16)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(provider), \(Self.window(row.kind))")
-        .accessibilityValue(
-            "\(Int((row.left * 100).rounded())) percent left" + (row.reset.map { ", resets in \($0)" } ?? ""))
+        .accessibilityValue("\(percent) percent left" + (row.reset.map { ", resets in \($0)" } ?? ""))
     }
 
     private static func window(_ kind: QuotaRow.Kind) -> String {
@@ -216,7 +248,7 @@ private struct QuotaRowView: View {
 // MARK: Before any tool is on
 
 /// The tools to turn on, the ones signed in on this Mac first.
-private struct UsageOnboarding: View {
+struct UsageOnboarding: View {
     let usage: UsageFeature
 
     var body: some View {

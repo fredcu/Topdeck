@@ -193,18 +193,30 @@ The history is a ring buffer of a minute kept in memory while the page is on scr
 
 ### Agents
 
-Board `Agents3`. Second row: the waiting count as the title ("1 waiting"), or "Agents" when none waits;
-Today, 7 Days, 30 Days and All at the right (the choice is kept), then Refresh, an add-a-provider menu, pin
-and Settings. Left, 206 wide: the requests waiting for an answer first (same answers, safety and Always Allow as
-before), then sessions waiting on their terminal, then sessions at work, each with its project, tool, a
-state dot and what it waits for; a click goes to its terminal. A finished or quiet session is not listed.
-With nothing waiting or running the column and its hairline are gone and usage fills the width. Right, top: a
-donut of cost by tool with the total in the middle (`$328`, `$1.2K`) and a row for each tool: colour, name,
-tokens (`850k`, `18.2M`, `1.2B`, `T`) and cost (`$241.60`). Under a hairline, quota blocks in two columns,
-one per tool, a row each for 5h, W and M: a bar in the tool's colour for what is left, the percent left, the
-time to the reset, and a tick where even use would have the bar by now. A tool that cannot be read shows
-"Checking…", "Sign in" or "Unavailable", with the reason in its tooltip, never zeros. Tool colours are tokens:
-Claude `#F2A773`, Codex `#8FD6A4`, Antigravity `#8FB8FF`, Cline `#E7A6F0`, Grok `#C9D0DE`, any other neutral.
+Board `Agents3`, laid out in three columns like Now: side padding 18, a 14 gap, hairlines between, no cards but
+the request's. Below 660 wide the left column is 150 and the middle 192, else 176 and 214; the right takes the
+rest. Second row: the waiting count as the title ("1 waiting"), or "Agents" when none waits, and with sessions
+listed the period's total beside it (`$4,178.24  17.5B`, the tokens dropping out first when the row is short);
+Today, 7 Days, 30 Days and All at the right (the choice is kept), then Refresh, an add-a-provider menu, pin and
+Settings.
+
+Left, with a request or a session: the requests waiting for an answer first (same answers, safety and Always Allow
+as before, the command in a dark block), then sessions waiting on their terminal, then sessions at
+work, each under a hairline: the tool's colour, the project, how long since it last moved (`now`, `2m`, `1h`,
+`3d`), and under it what it is doing, or "Waiting for you" in the signal colour; a click goes to its terminal. A
+finished or quiet session is not listed. With none, the left column is the period at a glance: the total in whole
+dollars with its tokens (the tokens alone when nothing is priced), a bar of each tool's share, the last 30 days'
+cost as bars with today in the accent (whatever the period), and Today against Per day, the period's total
+over its days (for All, from the first day with usage).
+
+Middle and right are one table, a row for each tool, level across both and split by hairlines: the tools with
+usage by cost, then the ones that have only a quota. A row is as tall as its quota needs (9 + 17 for each line,
+two at least). Middle: the tool's colour, name and cost (`$241.60`), and under them its tokens (`850k`, `18.2M`,
+`1.2B`, `T`). Right: a row each for 5h, W and M: a bar in the tool's colour for what is left with a tick where even
+use would have it by now, the percent left (in the stop colour at 0), and the time to the reset. A tool that cannot
+be read shows "Checking…", "Sign in" or "Unavailable" in its place, with the reason in its tooltip, never zeros. More
+rows than fit scroll as one. With usage off the sessions take the full width. Tool colours are tokens: Claude
+`#F2A773`, Codex `#8FD6A4`, Antigravity `#8FB8FF`, Cline `#E7A6F0`, Grok `#C9D0DE`, any other neutral.
 
 ## Video editor
 

@@ -16,13 +16,22 @@ struct AgentsFormatTests {
         for (count, text) in cases { #expect(AgentsFormat.tokens(count) == text, "\(count)") }
     }
 
-    @Test func costsHaveCentsInRowsAndStayShortInTheDonut() {
+    @Test func costsHaveCentsInRowsAndNoneInTheLargeFigure() {
         #expect(AgentsFormat.cost(241.6) == "$241.60" && AgentsFormat.cost(8.75) == "$8.75")
         #expect(AgentsFormat.cost(1234.5) == "$1,234.50")
-        #expect(AgentsFormat.donutCost(328.4) == "$328" && AgentsFormat.donutCost(327.6) == "$328")
-        #expect(AgentsFormat.donutCost(1234) == "$1.2K" && AgentsFormat.donutCost(12_345) == "$12K")
-        #expect(AgentsFormat.donutCost(999_600) == "$1.0M" && AgentsFormat.donutCost(4.5) == "$4.50")
-        #expect(AgentsFormat.donutCost(0) == "$0.00")
+        #expect(AgentsFormat.wholeCost(4178.24) == "$4,178" && AgentsFormat.wholeCost(4178.6) == "$4,179")
+        #expect(AgentsFormat.wholeCost(0.4) == "$0" && AgentsFormat.wholeCost(1_234_567) == "$1,234,567")
+    }
+
+    @Test func aSessionsAgeIsNowThenMinutesHoursAndDays() {
+        let now = Date(timeIntervalSince1970: 1_793_000_000)
+        func text(_ seconds: TimeInterval) -> String {
+            AgentsFormat.elapsed(since: now.addingTimeInterval(-seconds), now: now)
+        }
+        #expect(text(0) == "now" && text(59) == "now" && text(-30) == "now", "a clock that runs ahead is still now")
+        #expect(text(60) == "1m" && text(119) == "1m" && text(59 * 60 + 59) == "59m")
+        #expect(text(3600) == "1h" && text(23 * 3600 + 3599) == "23h")
+        #expect(text(86_400) == "1d" && text(3 * 86_400 + 5000) == "3d")
     }
 }
 
@@ -89,7 +98,7 @@ struct AgentsUsageTests {
         #expect(tools[1].tokens == 10 && tools[1].cost == nil, "tokens without a price are not a price of zero")
     }
 
-    @Test func theDonutSlicesByCostElseByTokens() {
+    @Test func theShareBarSlicesByCostElseByTokens() {
         let a = ToolUsage(id: "a", name: "A", tokens: 100, cost: 75)
         let b = ToolUsage(id: "b", name: "B", tokens: 900, cost: 25)
         #expect(AgentsUsage.shares([a, b]).map(\.fraction) == [0.75, 0.25])
@@ -159,6 +168,92 @@ struct AgentsUsageTests {
             providers: [provider("claude")], snapshots: ["claude": withRows], errors: ["claude": "Offline"],
             categories: [:], now: now)
         if case .rows = stale[0].state { #expect(stale[0].detail == "Offline") } else { Issue.record("rows expected") }
+    }
+}
+
+extension AgentsUsageTests {
+    @Test func theColumnsNarrowBelowNowsBreakpoint() {
+        #expect(AgentsUsage.columns(width: 659).left == 150 && AgentsUsage.columns(width: 659).middle == 192)
+        #expect(AgentsUsage.columns(width: 660).left == 176 && AgentsUsage.columns(width: 660).middle == 214)
+    }
+
+    @Test func aRowIsAsTallAsItsQuotaNeedsAndTwoLinesAtLeast() {
+        #expect(AgentsUsage.rowHeight(lines: 0) == 43 && AgentsUsage.rowHeight(lines: 1) == 43)
+        #expect(AgentsUsage.rowHeight(lines: 2) == 43 && AgentsUsage.rowHeight(lines: 3) == 60)
+    }
+
+    private func block(_ id: String, _ state: QuotaBlock.State) -> QuotaBlock {
+        QuotaBlock(id: id, name: id.capitalized, state: state, detail: nil)
+    }
+
+    private func quota(_ count: Int) -> QuotaBlock.State {
+        .rows(
+            [QuotaRow.Kind.fiveHour, .week, .month].prefix(count).map {
+                QuotaRow(kind: $0, left: 0.5, reset: nil, pace: nil)
+            })
+    }
+
+    @Test func theTableListsTheToolsWithUsageThenTheOnesWithOnlyAQuota() {
+        let tools = [
+            ToolUsage(id: "claude", name: "Claude", tokens: 9, cost: 3),
+            ToolUsage(id: "grok", name: "Grok", tokens: 1, cost: nil),
+        ]
+        let blocks = [
+            block("cline", quota(3)), block("grok", .signIn), block("claude", quota(2)), block("codex", .checking),
+        ]
+        let rows = AgentsUsage.table(tools: tools, blocks: blocks)
+        #expect(rows.map(\.id) == ["claude", "grok", "cline", "codex"], "usage order, then quota-only in block order")
+        #expect(rows.map(\.quotaLines) == [2, 1, 3, 1])
+        #expect(rows.map(\.height) == [43, 43, 60, 43])
+        #expect(rows[0].usage?.tokens == 9 && rows[0].quota?.id == "claude")
+        #expect(rows[2].usage == nil && rows[2].quota?.id == "cline", "no usage in the period: a row all the same")
+        let bare = AgentsUsage.table(tools: [ToolUsage(id: "cline", name: "Cline", tokens: 5, cost: 1)], blocks: [])
+        #expect(bare.count == 1 && bare[0].quota == nil && bare[0].quotaLines == 0 && bare[0].height == 43)
+        #expect(AgentsUsage.table(tools: [], blocks: []).isEmpty)
+    }
+
+    @Test func totalsHaveNoCostWhenNoToolIsPriced() {
+        let priced = AgentsUsage.totals([
+            ToolUsage(id: "a", name: "A", tokens: 100, cost: 2.5), ToolUsage(id: "b", name: "B", tokens: 50, cost: nil),
+        ])
+        #expect(priced.cost == 2.5 && priced.tokens == 150)
+        let unpriced = AgentsUsage.totals([ToolUsage(id: "b", name: "B", tokens: 50, cost: nil)])
+        #expect(unpriced.cost == nil && unpriced.tokens == 50)
+        #expect(AgentsUsage.totals([]).cost == nil && AgentsUsage.totals([]).tokens == 0)
+    }
+
+    @Test func theDailySeriesSumsTheToolsFillsGapsAndEndsToday() {
+        let snapshots = [
+            "claude": snapshot("claude", [(0, 100, 1), (2, 200, 2), (60, 999, 9)]),
+            "codex": snapshot("codex", [(0, 50, 0.5), (2, 1, nil), (-1, 77, 7)]),
+            "off": snapshot("off", [(0, 1000, 10)]),
+        ]
+        let days = AgentsUsage.daily(
+            snapshots: snapshots, providers: ["claude", "codex", "absent"].map(provider), now: now,
+            calendar: Self.calendar)
+        #expect(days.count == 30)
+        #expect(days.last?.date == Self.calendar.startOfDay(for: now), "today is the last bar")
+        #expect(
+            days.first?.date == Self.calendar.date(byAdding: .day, value: -29, to: Self.calendar.startOfDay(for: now)))
+        #expect(days[29].tokens == 150 && days[29].cost == 1.5, "summed across the tools")
+        #expect(days[27].tokens == 201 && days[27].cost == 2, "an unpriced day adds tokens only")
+        #expect(days[28].tokens == 0 && days[28].cost == 0, "a day with none is zero")
+        #expect(days.map(\.tokens).reduce(0, +) == 351, "outside the 30 days, in the future and off tools are left out")
+    }
+
+    @Test func aPeriodSpansItsDaysAndAllRunsFromTheFirstDayWithUsage() {
+        let snapshots = [
+            "claude": snapshot("claude", [(0, 100, 1), (10, 0, 0), (40, 5, 1)]),
+            "codex": snapshot("codex", [(-3, 9, 9)]),
+        ]
+        let providers = ["claude", "codex"].map(provider)
+        func days(_ period: UsagePeriod, _ snapshots: [String: ProviderSnapshot] = snapshots) -> Int {
+            AgentsUsage.days(in: period, snapshots: snapshots, providers: providers, now: now, calendar: Self.calendar)
+        }
+        #expect([UsagePeriod.today, .week, .month].map { days($0) } == [1, 7, 30])
+        #expect(days(.all) == 41, "from 40 days back through today, a future day and an empty one not counting")
+        #expect(days(.all, ["claude": snapshot("claude", [(0, 3, nil)])]) == 1)
+        #expect(days(.all, [:]) == 1, "no usage at all: one day, never zero")
     }
 }
 
