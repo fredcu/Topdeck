@@ -260,7 +260,9 @@ public final class RecordingController {
     public func stop() {
         switch state {
         case .countdown: cancelCountdown()
-        case .recording, .paused: Task { await finish(failure: nil) }
+        case .recording, .paused:
+            state = .stopping
+            Task { await finish(failure: nil) }
         default: break
         }
     }

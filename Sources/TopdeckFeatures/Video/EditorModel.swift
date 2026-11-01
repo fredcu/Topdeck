@@ -84,6 +84,7 @@ public final class EditorModel {
     @ObservationIgnored private var previewTask: Task<Void, Never>?
     @ObservationIgnored private var saveTask: Task<Void, Never>?
     @ObservationIgnored private var exportTask: Task<Void, Never>?
+    @ObservationIgnored private var exportID: UUID?
     @ObservationIgnored private let now: () -> Date
     @ObservationIgnored private let saveDelay: Duration
 
@@ -474,16 +475,24 @@ public final class EditorModel {
         exportState = .running(0)
         let (source, edit, cursor) = (url, edit, cursor)
         let throttle = ProgressThrottle()
+        let id = UUID()
+        exportID = id
         exportTask = Task { [weak self] in
             do {
                 try await VideoExporter.export(source: source, edit: edit, cursor: cursor, to: target) { value in
                     guard throttle.shouldReport(value) else { return }
-                    Task { @MainActor in self?.exportProgress(value) }
+                    Task { @MainActor in
+                        guard self?.exportID == id else { return }
+                        self?.exportProgress(value)
+                    }
                 }
+                guard self?.exportID == id else { return }
                 self?.exportDone(target)
             } catch is CancellationError {
+                guard self?.exportID == id else { return }
                 self?.exportState = .idle
             } catch {
+                guard self?.exportID == id else { return }
                 self?.exportState = .failed("Couldn't export the video")
             }
         }
@@ -500,6 +509,7 @@ public final class EditorModel {
 
     public func cancelExport() {
         exportTask?.cancel()
+        exportID = nil
         if case .running = exportState { exportState = .idle }
     }
 

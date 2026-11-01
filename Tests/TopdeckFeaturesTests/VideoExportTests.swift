@@ -346,6 +346,39 @@ struct VideoExportTests {
         #expect(try Data(contentsOf: source) == before)
     }
 
+    @Test func exportingKeepsAnExistingPartialAndReplacesTheChosenOutput() async throws {
+        let folder = try temporaryFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let source = folder.appending(path: "clip.mp4")
+        try await SyntheticVideo.make(at: source, seconds: 0.5)
+        let destination = folder.appending(path: "edited.mp4")
+        let partial = URL(filePath: destination.path + ".partial")
+        let existing = Data("keep this file".utf8)
+        try existing.write(to: partial)
+        try Data("old export".utf8).write(to: destination)
+        try await VideoExporter.export(source: source, edit: VideoEdit(), cursor: nil, to: destination) { _ in }
+        #expect(try Data(contentsOf: partial) == existing)
+        #expect(try await AVURLAsset(url: destination).loadTracks(withMediaType: .video).count == 1)
+        #expect(
+            try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted()
+                == ["clip.mp4", "edited.mp4", "edited.mp4.partial"])
+    }
+
+    @Test func aSourceSymlinkCannotBeUsedAsTheExportDestination() async throws {
+        let folder = try temporaryFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let source = folder.appending(path: "clip.mp4")
+        try await SyntheticVideo.make(at: source, seconds: 0.5)
+        let before = try Data(contentsOf: source)
+        let alias = folder.appending(path: "alias.mp4")
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: source)
+        await #expect(throws: VideoExportError.self) {
+            try await VideoExporter.export(source: source, edit: VideoEdit(), cursor: nil, to: alias) { _ in }
+        }
+        #expect(try Data(contentsOf: source) == before)
+        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: alias.path) == source.path)
+    }
+
     @Test func aFileWithNoPictureIsRefused() async throws {
         let folder = try temporaryFolder()
         defer { try? FileManager.default.removeItem(at: folder) }
@@ -534,5 +567,20 @@ struct EditorModelTests {
         try await Task.sleep(for: .milliseconds(600))
         #expect(model.exportState == .idle || !model.isExporting)
         model.close()
+    }
+
+    @Test func aCancelledExportCannotClearItsReplacement() async throws {
+        let (model, url) = try await model(seconds: 1.5)
+        defer {
+            model.close()
+            try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
+        }
+        let destination = url.deletingLastPathComponent().appending(path: "replacement.mp4")
+        model.export(to: destination)
+        model.cancelExport()
+        model.export(to: destination)
+        #expect(await eventually { !model.isExporting })
+        #expect(model.exportState == .done(destination))
+        #expect(FileManager.default.fileExists(atPath: destination.path))
     }
 }

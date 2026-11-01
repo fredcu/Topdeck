@@ -15,7 +15,7 @@ public enum VideoExportError: Error, Equatable {
 }
 
 /// Writes an edit out as a new MP4 or GIF, off the main thread: the source is read through the edit (trimmed, re-timed,
-/// framed) and written to `<destination>.partial`, which takes its name when it is whole. Cancelling the task
+/// framed) and written in a private staging directory, which is removed when the task ends. Cancelling the task
 /// stops it and leaves nothing behind. The source is never written.
 public enum VideoExporter {
     /// `progress` gets 0...1 from the export's thread.
@@ -23,7 +23,10 @@ public enum VideoExporter {
         source: URL, edit: VideoEdit, cursor: CursorTrack?, to destination: URL,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws {
-        guard destination.standardizedFileURL != source.standardizedFileURL else { throw VideoExportError.failed }
+        guard
+            destination.resolvingSymlinksInPath().standardizedFileURL
+                != source.resolvingSymlinksInPath().standardizedFileURL
+        else { throw VideoExportError.failed }
         let asset = AVURLAsset(url: source)
         guard let video = try await asset.loadTracks(withMediaType: .video).first else {
             throw VideoExportError.noVideo
@@ -39,26 +42,27 @@ public enum VideoExporter {
         let prepared = try await EditComposition.build(asset: asset, plan: plan, renderer: renderer)
         try Task.checkCancellation()
 
-        let partial = URL(filePath: destination.path + ".partial")
-        try? FileManager.default.removeItem(at: partial)
-        do {
-            let job = Job()
-            try await withTaskCancellationHandler {
-                switch plan.settings.format {
-                case .mp4: try await writeMP4(prepared, plan: plan, to: partial, job: job, progress: progress)
-                case .gif: try await writeGIF(prepared, plan: plan, to: partial, job: job, progress: progress)
-                }
-            } onCancel: {
-                job.cancel()
+        let staging = destination.deletingLastPathComponent().appending(
+            path: ".topdeck-export-\(UUID())", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: staging) }
+        let partial = staging.appending(path: destination.lastPathComponent + ".partial")
+        let job = Job()
+        try await withTaskCancellationHandler {
+            switch plan.settings.format {
+            case .mp4: try await writeMP4(prepared, plan: plan, to: partial, job: job, progress: progress)
+            case .gif: try await writeGIF(prepared, plan: plan, to: partial, job: job, progress: progress)
             }
-            try Task.checkCancellation()
-            try? FileManager.default.removeItem(at: destination)
-            try FileManager.default.moveItem(at: partial, to: destination)
-            progress(1)
-        } catch {
-            try? FileManager.default.removeItem(at: partial)
-            throw error
+        } onCancel: {
+            job.cancel()
         }
+        try Task.checkCancellation()
+        if FileManager.default.fileExists(atPath: destination.path) {
+            _ = try FileManager.default.replaceItemAt(destination, withItemAt: partial)
+        } else {
+            try FileManager.default.moveItem(at: partial, to: destination)
+        }
+        progress(1)
     }
 
     /// What a running export can be told: stop.

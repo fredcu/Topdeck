@@ -267,6 +267,7 @@ private final class FakeEngine: RecordingEngine {
 
     func stop() async -> URL? {
         events.append("stop")
+        await Task.yield()
         try? Data("mp4".utf8).write(to: url)
         return url
     }
@@ -384,6 +385,23 @@ struct RecordingControllerTests {
         rig.controller.stop()
         #expect(await eventually { rig.saved.count == 1 })
         #expect(rig.saved[0].0.lastPathComponent.hasPrefix("Window Recording"))
+    }
+
+    @Test(arguments: [false, true])
+    func repeatedStopClosesTheRecordingOnce(paused: Bool) async throws {
+        let rig = Harness()
+        rig.controller.begin(.screen(5))
+        #expect(await eventually { rig.controller.state == .recording })
+        if paused { rig.controller.pause() }
+        rig.controller.stop()
+        rig.controller.stop()
+        rig.engine?.onFailure?(.writerFailed)
+        #expect(rig.controller.state == .stopping)
+        #expect(await eventually { rig.controller.state == .idle && !rig.saved.isEmpty })
+        #expect(rig.engine?.events.filter { $0 == "stop" }.count == 1)
+        #expect(rig.saved.count == 1 && rig.saved[0].1)
+        #expect(rig.said.isEmpty)
+        #expect(rig.power.held.isEmpty && rig.power.strayReleases == 0)
     }
 
     @Test func escapeDuringTheCountdownRecordsNothing() async throws {
