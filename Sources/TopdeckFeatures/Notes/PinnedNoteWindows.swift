@@ -54,8 +54,7 @@ public final class PinnedNoteWindows: NSObject, NSWindowDelegate {
         let window = makeWindow(for: id, mode: .top)
         window.isOpenedFromList = true
         place(window, index: windows.count)
-        window.orderFrontRegardless()
-        window.makeKey()
+        window.present()
     }
 
     /// Brings a note's window forward and gives it the keyboard; false when it has none.
@@ -64,8 +63,7 @@ public final class PinnedNoteWindows: NSObject, NSWindowDelegate {
     @discardableResult
     public func bringForward(_ id: Note.ID) -> Bool {
         guard let window = windows[id] else { return false }
-        window.orderFrontRegardless()
-        window.makeKey()
+        window.present()
         return true
     }
 
@@ -148,7 +146,9 @@ public final class PinnedNoteWindows: NSObject, NSWindowDelegate {
         pendingReload?.cancel()
         pendingReload = Task { [weak self] in
             do { try await Task.sleep(for: .milliseconds(300)) } catch { return }
-            self?.notes.loadWindowed()
+            // Topdeck's own saves change the folder too; only another app's change is read back.
+            guard let notes = self?.notes, notes.folderChanged() else { return }
+            notes.loadWindowed()
         }
     }
 
@@ -188,10 +188,12 @@ public final class PinnedNoteWindows: NSObject, NSWindowDelegate {
     }
 }
 
-/// A borderless panel for one note. It takes the keyboard when clicked, without bringing Topdeck
-/// forward, so typing, Chinese input included, goes to its text view.
+/// A borderless panel for one note. It takes the keyboard when clicked or opened on purpose, without bringing
+/// Topdeck forward, so typing, Chinese input included, goes to its text view. It never takes the keyboard
+/// otherwise, such as when the deck or the Command Bar closes while another app is in front.
 final class PinnedNoteWindow: NSPanel {
     let noteID: Note.ID
+    private var keyPolicy = NoteKeyPolicy()
     /// Opened from Now's list rather than pinned: Escape and the bar's close button close it.
     var isOpenedFromList = false
 
@@ -221,8 +223,39 @@ final class PinnedNoteWindow: NSPanel {
         applyMode()
     }
 
-    override var canBecomeKey: Bool { true }
+    override var canBecomeKey: Bool { keyPolicy.canBecomeKey }
     override var canBecomeMain: Bool { false }
+
+    /// Brings the window forward and gives it the keyboard: the user opened it.
+    func present() {
+        keyPolicy.present()
+        orderFrontRegardless()
+        makeKey()
+    }
+
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .leftMouseDown || event.type == .rightMouseDown {
+            keyPolicy.mouseDown()
+            if !isKeyWindow { makeKey() }
+        }
+        super.sendEvent(event)
+    }
+
+    override func resignKey() {
+        keyPolicy.resign()
+        super.resignKey()
+    }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if super.performKeyEquivalent(with: event) { return true }
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting(.capsLock)
+        guard flags == .command || flags == [.command, .shift], let key = event.charactersIgnoringModifiers,
+            let action = NoteKeyPolicy.editingAction(for: key, shift: flags.contains(.shift))
+        else {
+            return false
+        }
+        return NSApp.sendAction(action, to: nil, from: self)
+    }
 
     /// Escape never closes a pinned note, but it closes one opened from the list; an input method
     /// composing text gets it first anyway.
@@ -259,7 +292,11 @@ private struct PinnedNoteView: View {
     var body: some View {
         if let note = notes.notes.first(where: { $0.id == id }) {
             PinnedNoteSurface(
-                text: Binding(get: { note.text }, set: { notes.update(id, text: $0) }), color: note.color,
+                // Reads the model when asked, not the value at this render, so a later render never hands the
+                // editor older text than it has.
+                text: Binding(
+                    get: { notes.notes.first { $0.id == id }?.text ?? note.text }, set: { notes.update(id, text: $0) }),
+                color: note.color,
                 mode: note.window, setMode: { notes.setWindow(id, $0) }, close: note.window == nil ? close : nil)
         }
     }
@@ -290,16 +327,9 @@ struct PinnedNoteSurface: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            TextEditor(text: $text)
-                .font(.system(size: 13))
-                .lineSpacing(4.5)
-                .scrollContentBackground(.hidden)
-                .foregroundStyle(Deck.Paper.ink)
-                .tint(Deck.Paper.ink)
-                .accessibilityLabel("Note text")
-                .padding(.top, hovering ? 40 : 12)
-                .padding(.horizontal, 10)
-                .padding(.bottom, 8)
+            // The bar sits over the strip above the text, so hovering moves nothing in the editor.
+            NoteTextEditor(text: $text)
+                .padding(.top, 30)
             if hovering {
                 controls.transition(.opacity)
             }

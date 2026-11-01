@@ -68,6 +68,9 @@ public final class NotesFeature: NotchFeature {
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var unsaved: Set<Note.ID> = []
     @ObservationIgnored private var pendingSave: Task<Void, Never>?
+    /// The modification date of each Markdown file as Topdeck last read or wrote it, to tell its own saves from
+    /// another app's changes.
+    @ObservationIgnored private var knownDates: [String: Date] = [:]
     @ObservationIgnored private var clearNotice: Task<Void, Never>?
     /// The chosen folder while its security scope is open, in a sandboxed build.
     @ObservationIgnored private var folderAccess: URL?
@@ -157,6 +160,7 @@ public final class NotesFeature: NotchFeature {
             if (try? FileManager.default.trashItem(at: url, resultingItemURL: nil)) == nil {
                 try? FileManager.default.removeItem(at: url)
             }
+            knownDates[name] = nil
         }
         held.remove(id)
         onDelete?(id)
@@ -190,6 +194,12 @@ public final class NotesFeature: NotchFeature {
         switchFolder(to: defaultDirectory, custom: false)
     }
 
+    /// Whether the folder's Markdown files differ from what Topdeck last read or wrote, which is so only
+    /// when another app (or iCloud) changed them.
+    public func folderChanged() -> Bool {
+        modificationDates() != knownDates
+    }
+
     func load() {
         let keys: [URLResourceKey] = [.contentModificationDateKey, .creationDateKey]
         let listing = try? FileManager.default.contentsOfDirectory(
@@ -198,10 +208,12 @@ public final class NotesFeature: NotchFeature {
         // named by title are named by their id.
         let known = Dictionary(
             notes.compactMap { note in note.fileName.map { ($0, note.id) } }, uniquingKeysWith: { first, _ in first })
+        var dates: [String: Date] = [:]
         var stored = (listing ?? []).filter { $0.pathExtension.lowercased() == "md" }.compactMap { url -> Note? in
-            guard let contents = try? String(contentsOf: url, encoding: .utf8) else { return nil }
             let values = try? url.resourceValues(forKeys: Set(keys))
             let name = url.lastPathComponent
+            dates[name] = values?.contentModificationDate ?? .distantPast
+            guard let contents = try? String(contentsOf: url, encoding: .utf8) else { return nil }
             let id = known[name] ?? UUID(uuidString: url.deletingPathExtension().lastPathComponent) ?? UUID()
             return Note(
                 id: id, fileName: name, contents: contents, modified: values?.contentModificationDate ?? .distantPast,
@@ -216,11 +228,24 @@ public final class NotesFeature: NotchFeature {
             unsaved.insert(stored[index].id)
             scheduleSave()
         }
+        knownDates = dates
+        // A note whose file says what it already does stays as it is, so a window's editor isn't handed a new
+        // value (and loses its selection and composition) for a save of its own.
+        let current = Dictionary(notes.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for index in stored.indices {
+            guard var old = current[stored[index].id] else { continue }
+            old.modified = stored[index].modified
+            old.created = stored[index].created
+            if old == stored[index] { stored[index] = current[old.id] ?? stored[index] }
+        }
         // Edits not yet on disk win over what's stored.
         let pending = notes.filter { unsaved.contains($0.id) }
         let pendingIDs = Set(pending.map(\.id))
         let pendingFiles = Set(pending.compactMap(\.fileName))
-        notes = pending + stored.filter { !pendingIDs.contains($0.id) && !pendingFiles.contains($0.fileName ?? "") }
+        let merged =
+            pending + stored.filter { !pendingIDs.contains($0.id) && !pendingFiles.contains($0.fileName ?? "") }
+        // The order the notes are held in doesn't matter, so the same notes are not assigned again.
+        if merged.count != notes.count || !merged.allSatisfy(notes.contains) { notes = merged }
     }
 
     /// Writes every unsaved note now, renaming a file Topdeck named when its title changed; a note
@@ -232,7 +257,10 @@ public final class NotesFeature: NotchFeature {
             guard let index = notes.firstIndex(where: { $0.id == id }) else { continue }
             let note = notes[index]
             if note.isEmpty, note.window == nil {
-                if let name = note.fileName { try? manager.removeItem(at: directory.appending(path: name)) }
+                if let name = note.fileName {
+                    try? manager.removeItem(at: directory.appending(path: name))
+                    knownDates[name] = nil
+                }
                 notes[index].fileName = nil
                 continue
             }
@@ -245,6 +273,7 @@ public final class NotesFeature: NotchFeature {
             if let old = note.fileName, old != name {
                 do {
                     try manager.moveItem(at: directory.appending(path: old), to: directory.appending(path: name))
+                    knownDates[old] = nil
                 } catch {
                     name = old  // keep the old name rather than leave a second copy behind
                 }
@@ -255,11 +284,23 @@ public final class NotesFeature: NotchFeature {
                 // An atomic write replaces the file, so the creation date is put back.
                 try? manager.setAttributes([.creationDate: note.created], ofItemAtPath: url.path)
                 notes[index].fileName = name
+                knownDates[name] =
+                    (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?
+                    .contentModificationDate
             } catch {
                 Log.features.error("Couldn't save a note: \(error.localizedDescription, privacy: .public)")
             }
         }
         unsaved = []
+    }
+
+    private func modificationDates() -> [String: Date] {
+        let listing = try? FileManager.default.contentsOfDirectory(
+            at: directory, includingPropertiesForKeys: [.contentModificationDateKey], options: [.skipsHiddenFiles])
+        return (listing ?? []).filter { $0.pathExtension.lowercased() == "md" }.reduce(into: [:]) { dates, url in
+            let values = try? url.resourceValues(forKeys: [.contentModificationDateKey])
+            dates[url.lastPathComponent] = values?.contentModificationDate ?? .distantPast
+        }
     }
 
     /// Lets go of every note but those with windows or open in one, and edits not yet written.

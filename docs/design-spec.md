@@ -118,6 +118,9 @@ keeps the field editing.
 
 Notes in the left column: a click opens the note in a floating window, the window a pinned note has, to read
 and edit; closing the window keeps the note, and a note that is already in a window is brought forward.
+A note window is a plain AppKit text editor (undo, find, copy and paste, input methods) whose text never moves when
+the bar shows on hover. It takes the keyboard only when clicked or opened on purpose, never when the deck or the
+Command Bar closes; Topdeck's own saves are not read back into the editor, only another app's changes are.
 Right-click: each colour, Pin to Desktop, Keep on Top, Unpin, Keep First in List, Share, Reveal in Finder,
 Delete (after a confirmation). There is no Notes tab. The folder and the sort order are in Settings, search
 is in the Command Bar (Notes appear there by title and the start of their text), and the new-note shortcut

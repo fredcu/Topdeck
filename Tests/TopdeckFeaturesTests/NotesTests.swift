@@ -344,4 +344,80 @@ struct NotesFeatureTests {
         #expect(deleted == [id])
         #expect(notes.windowed.isEmpty)
     }
+
+    @Test func aSavedNoteIsNotReplacedWhenTheFolderIsReadAgain() throws {
+        let notes = NotesFeature(directory: folder)
+        notes.phase = .foreground
+        let texts = [
+            "\n\nLead", "Trail\n\n", "你好\n世界\n", "Rule\n---\nafter", "---\n---\nOpening rule",
+            "---\na: b\n---\nLooks like fields",
+        ]
+        for (index, text) in texts.enumerated() {
+            let id = notes.add()
+            notes.update(id, text: text)
+            if index % 2 == 0 { notes.setWindow(id, index % 4 == 0 ? .top : .desktop) }
+            if index % 3 == 0 { notes.setColor(id, .blue) }
+        }
+        notes.flush()
+        let before = notes.notes
+
+        notes.load()
+        #expect(notes.notes == before, "the same notes in the same order, modified dates included")
+
+        let relaunched = NotesFeature(directory: folder)
+        relaunched.phase = .foreground
+        #expect(Set(relaunched.notes.map(\.text)) == Set(texts), "and what is on disk reads back to the same text")
+    }
+
+    @Test func onlyAnotherAppsChangesCountAsAFolderChange() throws {
+        let notes = NotesFeature(directory: folder)
+        notes.phase = .foreground
+        let id = notes.add()
+        notes.update(id, text: "Mine")
+        notes.flush()
+        #expect(!notes.folderChanged(), "a save of our own")
+
+        notes.update(id, text: "Mine, renamed")
+        notes.flush()
+        #expect(!notes.folderChanged(), "a rename of our own")
+
+        let file = folder.appending(path: "Mine, renamed.md")
+        try "From a Markdown app".write(to: file, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date.now.addingTimeInterval(60)], ofItemAtPath: file.path)
+        #expect(notes.folderChanged())
+        notes.load()
+        #expect(!notes.folderChanged())
+        #expect(notes.notes.first?.text == "From a Markdown app")
+
+        try "New".write(to: folder.appending(path: "Other.md"), atomically: true, encoding: .utf8)
+        #expect(notes.folderChanged(), "a file added")
+        notes.load()
+        notes.delete(notes.notes.first { $0.text == "New" }!.id)
+        #expect(!notes.folderChanged(), "a delete of our own")
+    }
+
+    @Test func aNoteWindowTakesTheKeyboardOnlyWhenAsked() {
+        var policy = NoteKeyPolicy()
+        #expect(!policy.canBecomeKey, "not when AppKit looks for the next key window")
+        policy.mouseDown()
+        #expect(policy.canBecomeKey)
+        policy.resign()
+        #expect(!policy.canBecomeKey)
+        policy.present()
+        #expect(policy.canBecomeKey, "opened from the list or the Command Bar")
+        policy.resign()
+        #expect(!policy.canBecomeKey)
+    }
+
+    @Test func editingKeysMapToTheStandardActions() {
+        #expect(NoteKeyPolicy.editingAction(for: "c", shift: false) == Selector(("copy:")))
+        #expect(NoteKeyPolicy.editingAction(for: "V", shift: false) == Selector(("paste:")))
+        #expect(NoteKeyPolicy.editingAction(for: "x", shift: false) == Selector(("cut:")))
+        #expect(NoteKeyPolicy.editingAction(for: "a", shift: false) == Selector(("selectAll:")))
+        #expect(NoteKeyPolicy.editingAction(for: "z", shift: false) == Selector(("undo:")))
+        #expect(NoteKeyPolicy.editingAction(for: "z", shift: true) == Selector(("redo:")))
+        #expect(NoteKeyPolicy.editingAction(for: "c", shift: true) == nil)
+        #expect(NoteKeyPolicy.editingAction(for: "q", shift: false) == nil)
+    }
 }

@@ -129,7 +129,8 @@ public struct Note: Identifiable, Equatable, Sendable {
         if let window { fields.append("window: \(window.rawValue)") }
         if storesID { fields.append("topdeck-id: \(id.uuidString)") }
         fields += otherFields
-        guard !fields.isEmpty else { return text }
+        // Text that would read as front matter gets an empty block ahead of it, so it comes back as it was.
+        guard !fields.isEmpty else { return Self.splitFrontMatter(text).body == text ? text : "---\n---\n" + text }
         return "---\n" + fields.joined(separator: "\n") + "\n---\n" + text
     }
 

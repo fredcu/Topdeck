@@ -2,6 +2,7 @@
 
 ## [0.1.0]
 
+- Floating notes edit like a normal text editor: the text no longer jumps when the pointer enters, a save is not read back into the editor, and a note takes the keyboard only when you click into it or open it, not when the deck or the Command Bar closes.
 - A space's name is no longer repeated under the navigation: pages with nothing of their own for the second row (an empty Shelf, Clipboard turned off, Tools, Mac) lose it, and pin and Settings move to the body's top right.
 - Mac has a thermal strip with the system's state and the CPU, GPU, SSD and battery temperatures, six plainer tiles (with the battery's time left), the volume and brightness in one card, and a list of Sound, Displays, Network, Storage and System that shows where each stands. The busiest-processes table is gone from the page.
 - Mac shows the GPU's temperature (from the SMC, read-only), leaves out a temperature the Mac does not give, and its System row shows what failed, what has updates or the busiest process instead of the macOS version. The System screen opens on the process table (sortable, with app icons and a CPU bar), then Services and Homebrew; it is there whenever Performance or System Admin is on.
