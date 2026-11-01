@@ -190,6 +190,8 @@ private struct ThermalStrip: View {
             Text(level.title).font(.system(size: 13, weight: .bold)).foregroundStyle(color)
         }
         .lineLimit(1)
+        // "Throttling" keeps its width; the readings beside it give way.
+        .fixedSize()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Thermal state")
         .accessibilityValue(level.title)
