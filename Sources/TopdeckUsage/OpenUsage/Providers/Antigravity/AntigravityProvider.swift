@@ -128,24 +128,35 @@ final class AntigravityProvider: ProviderRuntime {
         var lines: [MetricLine]
     }
 
+    // Topdeck: a local server is used first only for its quota summary. Without one (the `agy` CLI
+    // answers the summary with 401 and its per-model data has no Gemini pool), the Cloud Code summary
+    // comes before any local per-model data, which is the last resort when Cloud Code fails.
     private func probe() async throws -> StrategyResult {
-        if let result = await probeLS(
-            processName: "language_server",
-            markers: ["antigravity", "antigravity-ide"],
-            csrfFlag: "--csrf_token",
-            portFlag: "--extension_server_port"
-        ) {
-            return result
+        let ide = (processName: "language_server", markers: ["antigravity", "antigravity-ide"],
+                   csrfFlag: "--csrf_token", portFlag: Optional("--extension_server_port"))
+        let cli = (processName: "agy", markers: [String](), csrfFlag: "", portFlag: String?.none)
+        for server in [ide, cli] {
+            if let result = await probeLS(processName: server.processName, markers: server.markers,
+                                          csrfFlag: server.csrfFlag, portFlag: server.portFlag, acceptLegacy: false) {
+                return result
+            }
         }
-        if let result = await probeLS(processName: "agy", markers: [], csrfFlag: "", portFlag: nil) {
-            return result
+        do {
+            return try await probeCloudCode()
+        } catch {
+            for server in [ide, cli] {
+                if let result = await probeLS(processName: server.processName, markers: server.markers,
+                                              csrfFlag: server.csrfFlag, portFlag: server.portFlag, acceptLegacy: true) {
+                    return result
+                }
+            }
+            throw error
         }
-        return try await probeCloudCode()
     }
 
     // MARK: - Language server
 
-    private func probeLS(processName: String, markers: [String], csrfFlag: String, portFlag: String?) async -> StrategyResult? {
+    private func probeLS(processName: String, markers: [String], csrfFlag: String, portFlag: String?, acceptLegacy: Bool) async -> StrategyResult? {
         let discovery = self.discovery
         let options = LanguageServerDiscovery.Options(
             processName: processName,
@@ -190,7 +201,8 @@ final class AntigravityProvider: ProviderRuntime {
                 }
             }
 
-            guard let response = await usageClient.callLS(scheme: endpoint.scheme, port: endpoint.port, csrf: discovered.csrf, method: "GetUserStatus"),
+            guard acceptLegacy,
+                  let response = await usageClient.callLS(scheme: endpoint.scheme, port: endpoint.port, csrf: discovered.csrf, method: "GetUserStatus"),
                   (200..<300).contains(response.statusCode)
             else {
                 continue

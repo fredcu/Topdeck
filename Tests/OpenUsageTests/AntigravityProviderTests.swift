@@ -379,6 +379,66 @@ final class AntigravityProviderTests: XCTestCase {
     }
 }
 
+extension AntigravityProviderTests {
+    /// Topdeck: the `agy` CLI is running but answers the quota summary with 401, and its per-model data
+    /// has only the Claude pool. The Cloud Code summary must win, so both pools show.
+    @MainActor
+    func testARunningCLIWithoutASummaryDefersToTheCloudCodeSummary() async {
+        let summaryJSON = """
+        {"groups":[{"buckets":[
+          {"bucketId":"gemini-5h","remainingFraction":0.6,"resetTime":"2026-06-26T09:37:05Z"},
+          {"bucketId":"gemini-weekly","remainingFraction":0.8,"resetTime":"2026-06-30T09:37:05Z"},
+          {"bucketId":"3p-5h","remainingFraction":1,"resetTime":"2026-06-26T09:37:05Z"},
+          {"bucketId":"3p-weekly","remainingFraction":0.5,"resetTime":"2026-06-30T09:37:05Z"}
+        ]}]}
+        """
+        let claudeOnlyStatus = """
+        {"userStatus":{"cascadeModelConfigData":{"clientModelConfigs":[
+          {"label":"Claude Sonnet 4.6","modelOrAlias":{"model":"MODEL_C"},"quotaInfo":{"remainingFraction":1,"resetTime":"2026-06-26T09:37:05Z"}}
+        ]}}}
+        """
+        let routing = RoutingHTTPClient { request in
+            let path = request.url.path
+            if request.url.host == "127.0.0.1" || request.url.host == "localhost" {
+                if path.contains("RetrieveUserQuotaSummary") { return HTTPResponse(statusCode: 401, headers: [:], body: Data()) }
+                if path.contains("GetUserStatus") { return HTTPResponse(statusCode: 200, headers: [:], body: Data(claudeOnlyStatus.utf8)) }
+                return HTTPResponse(statusCode: 404, headers: [:], body: Data())
+            }
+            if path.contains("retrieveUserQuotaSummary") { return HTTPResponse(statusCode: 200, headers: [:], body: Data(summaryJSON.utf8)) }
+            return HTTPResponse(statusCode: 404, headers: [:], body: Data())
+        }
+        let inner = #"{"token":{"access_token":"ya29.kc","refresh_token":"1//r","expiry":"2099-01-01T00:00:00Z"}}"#
+        let provider = AntigravityProvider(
+            authStore: AntigravityAuthStore(
+                keychain: FakeKeychain("go-keyring-base64:" + Data(inner.utf8).base64EncodedString()), files: FakeFiles()),
+            usageClient: AntigravityUsageClient(lsHTTP: routing, http: routing),
+            discovery: LanguageServerDiscovery(processRunner: CLIProcessRunner()),
+            dbUsageScanner: AntigravityDbUsageScanner(conversationsDirectories: { ["/nonexistent-antigravity-tests"] })
+        )
+        let snapshot = await provider.refresh()
+        XCTAssertEqual(
+            snapshot.lines.compactMap { line -> String? in
+                guard case .progress = line else { return nil }
+                return line.label
+            },
+            ["Session", "Weekly", "Claude", "Claude Weekly"])
+    }
+}
+
+/// Discovery finds the `agy` CLI listening on one port, as on the owner's Mac.
+struct CLIProcessRunner: ProcessRunning {
+    func run(executable: String, arguments: [String], environment: [String: String], timeout: TimeInterval) throws -> ProcessResult {
+        if arguments.contains("-ax") {
+            return ProcessResult(exitCode: 0, stdout: "85087 agy --dangerously-skip-permissions\n", stderr: "")
+        }
+        let lsof = """
+        COMMAND PID   USER   FD   TYPE DEVICE SIZE/OFF NODE NAME
+        agy     85087 fred   6u  IPv4 0x1      0t0  TCP 127.0.0.1:61236 (LISTEN)
+        """
+        return ProcessResult(exitCode: 0, stdout: lsof, stderr: "")
+    }
+}
+
 /// Returns empty output for every subprocess — makes language-server discovery find nothing, so a
 /// provider test exercises the Cloud Code path deterministically.
 struct EmptyProcessRunner: ProcessRunning {
