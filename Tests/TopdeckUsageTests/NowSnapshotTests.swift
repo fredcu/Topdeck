@@ -37,6 +37,8 @@ struct NowSnapshotTests {
         var adding = false
         /// The add field as a note, with a colour and a window picked.
         var noteAdd = false
+        /// With the note's style panel open, blue and On Top chosen.
+        var stylePanel = false
         var weather = true
         var day: Int?
     }
@@ -149,8 +151,16 @@ struct NowSnapshotTests {
                 model.begin()
                 model.draft = "Kitchen measurements"
                 model.picked = .note
-                model.pick(.orange)
-                model.toggle(.desktop)
+                model.setColor(.orange)
+                model.setWindow(.desktop)
+            }
+            if sample.stylePanel {
+                model.begin()
+                model.draft = "Buy oat milk and coffee beans"
+                model.picked = .note
+                model.setColor(.blue)
+                model.setWindow(.top)
+                model.isStylePanelOpen = true
             }
         }
 
@@ -295,6 +305,8 @@ struct NowSnapshotTests {
 
     @Test func noteAdd() throws { try single("NoteAdd", Sample(noteAdd: true)) }
 
+    @Test func noteAddStyle() throws { try single("NoteAdd-style", Sample(stylePanel: true)) }
+
     @Test func nowFree() throws { try single("NowFree", Sample(events: false, notes: 10)) }
 
     /// Both states at the smallest size, side by side as on the board.
@@ -317,6 +329,7 @@ struct NowSnapshotTests {
         try single("NowAlert-min", Sample(playing: true, agent: true, timer: true), size: size)
         try single("NowAdd-min", Sample(adding: true, day: 3), size: size)
         try single("NoteAdd-min", Sample(noteAdd: true), size: size)
+        try single("NoteAdd-style-min", Sample(stylePanel: true), size: size)
         try single("NowFree-min", Sample(events: false, notes: 10), size: size)
     }
 

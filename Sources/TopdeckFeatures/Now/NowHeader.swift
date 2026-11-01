@@ -106,8 +106,8 @@ private struct MeetingBar: View {
 }
 
 /// The add field: a line of plain words that becomes an event or a note. Return saves, Tab switches Event
-/// and Note, and clicking away closes it. With Note chosen the field also offers the note's colour in five
-/// dots and, as two toggles that exclude each other, a window on the desktop or on top.
+/// and Note, and clicking away closes it. The icon before the text shows which it will be and switches it;
+/// a note's colour and window are one small button after it, which opens a panel under the field.
 struct NowAddField: View {
     let calendar: CalendarFeature?
     let notes: NotesFeature?
@@ -115,13 +115,6 @@ struct NowAddField: View {
 
     @FocusState private var focused: Bool
     @State private var didFocus = false
-    /// The slot's width, which decides whether the Event/Note control has room beside a note's options.
-    @State private var slotWidth: CGFloat = .infinity
-    @Environment(\.deckAccent) private var accent
-
-    /// The width below which the control goes: at the smallest deck a note's colours and windows take the
-    /// room, and Tab still switches.
-    static let roomForKindControl: CGFloat = 440
 
     private var canEvent: Bool { calendar?.access == .granted }
     private var canNote: Bool { notes != nil }
@@ -129,7 +122,7 @@ struct NowAddField: View {
     var body: some View {
         let kind = model.kind(canEvent: canEvent, canNote: canNote)
         DeckSlot {
-            DeckIconView(.plus, size: 14).foregroundStyle(Deck.secondary)
+            kindIcon(kind)
             TextField("", text: $model.draft)
                 .textFieldStyle(.plain)
                 .deckText(.body)
@@ -139,8 +132,12 @@ struct NowAddField: View {
                 .onChange(of: model.draft) { model.edited() }
                 .onSubmit(save)
                 .onKeyPress(.tab) {
-                    model.toggleKind(canEvent: canEvent, canNote: canNote)
+                    switchKind()
                     return .handled
+                }
+                .onKeyPress(phases: .down) { press in
+                    guard press.modifiers == .command, let key = press.characters.first else { return .ignored }
+                    return model.styleKey(key, kind: kind) ? .handled : .ignored
                 }
             if let problem = model.problem {
                 Text(problem).deckText(.caption).lineLimit(1)
@@ -149,77 +146,178 @@ struct NowAddField: View {
                     NowModel.chips(for: model.draft, on: calendar?.selectedDay), id: \.self
                 ) { DeckValueChip($0) }
             } else {
-                noteOptions
-            }
-            if canEvent, canNote, slotWidth >= Self.roomForKindControl || kind == .event {
-                DeckSegmented(NowEntryKind.allCases, selection: kind, compact: true, title: \.title) {
-                    model.picked = $0
-                }
-                .padding(.leading, 4)
+                NowStyleButton(model: model)
             }
         }
-        .onGeometryChange(for: CGFloat.self) {
-            $0.size.width
-        } action: {
-            slotWidth = $0
+        .overlay(alignment: .topTrailing) {
+            // Under the style button's trailing edge: the slot is 34 high and pads 5 at the end.
+            if kind == .note, model.isStylePanelOpen {
+                NowStylePanel(model: model).offset(x: -5, y: 40)
+            }
         }
         .onAppear { Task { @MainActor in focused = true } }
+        .onChange(of: kind) { _, now in if now == .event { model.isStylePanelOpen = false } }
         .onChange(of: focused) { _, now in
             // The field loses the keyboard when the user clicks elsewhere, or another app is picked.
             if now { didFocus = true } else if didFocus, model.isAdding { model.cancel() }
         }
     }
 
-    // MARK: Note options
-
-    /// Five colour dots, a hairline, then Desktop and On Top.
-    private var noteOptions: some View {
-        HStack(spacing: 8) {
-            ForEach(NowModel.noteColors) { color in dot(color) }
-            Rectangle().fill(Deck.hairline).frame(width: 1, height: 18).accessibilityHidden(true)
-            windowToggle(.desktop, icon: .display, label: "Desktop")
-            windowToggle(.top, icon: .onTop, label: "On Top")
+    /// What the entry will be: a button that switches it when both are possible, otherwise just the icon.
+    @ViewBuilder private func kindIcon(_ kind: NowEntryKind) -> some View {
+        let icon = DeckIconView(kind == .event ? .calendar : .note, size: 14).foregroundStyle(Deck.secondary)
+        if canEvent, canNote {
+            let other = kind == .event ? "Note" : "Event"
+            Button(action: switchKind) { icon.frame(width: 18, height: 18).contentShape(Rectangle()) }
+                .buttonStyle(.plain)
+                .focusable(false)
+                .help("Switch to \(other)")
+                .accessibilityLabel("Switch to \(other)")
+        } else {
+            icon.accessibilityLabel(kind.title)
         }
-        .accessibilityElement(children: .contain)
     }
 
-    private func dot(_ color: NoteColor) -> some View {
-        let chosen = model.noteColor == color
-        return Button {
-            model.pick(color)
-        } label: {
-            Circle()
-                .fill(color.swatch)
-                .frame(width: 15, height: 15)
-                .padding(3.5)
-                .overlay { if chosen { Circle().strokeBorder(Deck.text, lineWidth: 1.5).padding(1) } }
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .padding(-3.5)
-        .help(color.name)
-        .accessibilityLabel(color.name)
-        .accessibilityAddTraits(chosen ? .isSelected : [])
-    }
-
-    private func windowToggle(_ window: NoteWindow, icon: DeckIcon, label: String) -> some View {
-        let on = model.noteWindow == window
-        return Button {
-            model.toggle(window)
-        } label: {
-            DeckIconView(icon, size: 14)
-                .foregroundStyle(on ? accent : Deck.secondary)
-                .frame(width: 28, height: 24)
-                .background(Capsule().fill(on ? accent.tint() : Deck.control))
-                .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .help(label)
-        .accessibilityLabel(label)
-        .accessibilityAddTraits(on ? .isSelected : [])
-    }
+    private func switchKind() { model.toggleKind(canEvent: canEvent, canNote: canNote) }
 
     private func save() {
         model.submit(calendar: canEvent ? calendar : nil, notes: notes, day: calendar?.selectedDay)
+    }
+}
+
+/// A note's colour as a square: filled, or hollow for none.
+private struct NowSwatch: View {
+    let color: NoteColor?
+    let side: CGFloat
+    let radius: CGFloat
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        if let color {
+            shape.fill(color.swatch).frame(width: side, height: side)
+        } else {
+            shape.strokeBorder(Deck.tertiary, lineWidth: 1.5).frame(width: side, height: side)
+        }
+    }
+}
+
+/// The one button for a note's style: its colour as a swatch, with a small badge for the window.
+private struct NowStyleButton: View {
+    @Bindable var model: NowModel
+
+    var body: some View {
+        let open = model.isStylePanelOpen
+        Button {
+            model.isStylePanelOpen.toggle()
+        } label: {
+            NowSwatch(color: model.noteColor, side: 16, radius: 5)
+                .frame(width: 30, height: 30)
+                .overlay(alignment: .bottomTrailing) { badge.padding(2) }
+                .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(open ? Deck.control : .clear))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .help("Colour and window (\u{2318}.)")
+        .accessibilityLabel("Colour and window")
+        .accessibilityValue(summary)
+    }
+
+    @ViewBuilder private var badge: some View {
+        if let window = model.noteWindow {
+            let shape = RoundedRectangle(cornerRadius: 4, style: .continuous)
+            DeckIconView(window == .desktop ? .display : .onTop, size: 9)
+                .foregroundStyle(Deck.text)
+                .frame(width: 13, height: 13)
+                .background(shape.fill(Deck.cardRaised))
+                .overlay(shape.strokeBorder(Deck.cardRaised, lineWidth: 1.5).padding(-1.5))
+        }
+    }
+
+    private var summary: String {
+        let colour = model.noteColor?.name ?? "No colour"
+        guard let window = model.noteWindow else { return colour }
+        return colour + (window == .desktop ? ", desktop" : ", on top")
+    }
+}
+
+/// The panel under the style button: the colours in a row, then None, Desktop and On Top as one control.
+/// Drawn in the deck rather than as a popover, since the field closes when it loses the keyboard; its
+/// buttons never take the keyboard, so choosing leaves the text field editing.
+private struct NowStylePanel: View {
+    @Bindable var model: NowModel
+    @Environment(\.deckAccent) private var accent
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+        VStack(spacing: 12) {
+            HStack(spacing: 0) {
+                colour(nil, help: "No colour (\u{2318}0)")
+                ForEach(Array(NowModel.noteColors.enumerated()), id: \.element) { index, color in
+                    Spacer(minLength: 0)
+                    colour(color, help: "\(color.name) (\u{2318}\(index + 1))")
+                }
+            }
+            HStack(spacing: 2) {
+                window(nil, label: "No window")
+                window(.desktop, label: "Desktop")
+                window(.top, label: "On Top")
+            }
+            .padding(2)
+            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Deck.body))
+        }
+        .padding(12)
+        .frame(width: 232)
+        .background(shape.fill(Deck.cardRaised))
+        .overlay(shape.strokeBorder(Deck.hairline, lineWidth: 1))
+        .shadow(color: .black.opacity(0.55), radius: 15, y: 10)
+        .contentShape(shape)
+        .accessibilityElement(children: .contain)
+    }
+
+    private func colour(_ color: NoteColor?, help: String) -> some View {
+        let chosen = model.noteColor == color
+        return Button {
+            model.setColor(color)
+        } label: {
+            NowSwatch(color: color, side: 18, radius: 6)
+                .frame(width: 28, height: 28)
+                .overlay {
+                    if chosen {
+                        RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(Deck.text, lineWidth: 2)
+                    }
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .help(help)
+        .accessibilityLabel(color?.name ?? "No colour")
+        .accessibilityAddTraits(chosen ? .isSelected : [])
+    }
+
+    private func window(_ window: NoteWindow?, label: String) -> some View {
+        let chosen = model.noteWindow == window
+        return Button {
+            model.setWindow(window)
+        } label: {
+            Group {
+                switch window {
+                case nil: Capsule().frame(width: 8, height: 1.5)
+                case .desktop: DeckIconView(.display, size: 15)
+                case .top: DeckIconView(.onTop, size: 15)
+                }
+            }
+            .foregroundStyle(chosen ? accent : Deck.secondary)
+            .frame(maxWidth: .infinity)
+            .frame(height: 28)
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(chosen ? accent.tint() : .clear))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .help(label)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(chosen ? .isSelected : [])
     }
 }

@@ -21,9 +21,11 @@ public final class NowModel {
     /// The kind picked by hand for this entry; nil while the field chooses as the text is typed.
     public var picked: NowEntryKind?
     /// The colour a new note gets; nil for none. Only a note has one.
-    public var noteColor: NoteColor?
+    public private(set) var noteColor: NoteColor?
     /// The window a new note opens in: on the desktop, on top, or none. Never both.
     public private(set) var noteWindow: NoteWindow?
+    /// The panel under the field's style button is open.
+    public var isStylePanelOpen = false
     /// A problem saving, shown where the chips are. Clears itself as the text changes.
     public private(set) var problem: String?
 
@@ -39,18 +41,31 @@ public final class NowModel {
         picked = nil
         noteColor = nil
         noteWindow = nil
+        isStylePanelOpen = false
         problem = nil
         isAdding = true
     }
 
-    /// Picks a colour for the note; picking the same one again takes it off.
-    public func pick(_ color: NoteColor) {
-        noteColor = noteColor == color ? nil : color
-    }
+    /// Sets the note's colour; nil for none.
+    public func setColor(_ color: NoteColor?) { noteColor = color }
 
-    /// Turns a window for the note on; turning the one that is on off. Desktop and On Top exclude each other.
-    public func toggle(_ window: NoteWindow) {
-        noteWindow = noteWindow == window ? nil : window
+    /// Sets the note's window; nil for none. Desktop and On Top exclude each other by being one value.
+    public func setWindow(_ window: NoteWindow?) { noteWindow = window }
+
+    /// A key pressed with Command in the field: `.` opens or closes the style panel, 1 to 5 pick the
+    /// colours in order and 0 clears it. Only a note has a style. True when the key was used.
+    public func styleKey(_ key: Character, kind: NowEntryKind) -> Bool {
+        guard kind == .note else { return false }
+        if key == "." {
+            isStylePanelOpen.toggle()
+        } else if key == "0" {
+            setColor(nil)
+        } else if let number = key.wholeNumberValue, (1...Self.noteColors.count).contains(number) {
+            setColor(Self.noteColors[number - 1])
+        } else {
+            return false
+        }
+        return true
     }
 
     /// Closes the field and keeps nothing.
@@ -60,13 +75,15 @@ public final class NowModel {
         picked = nil
         noteColor = nil
         noteWindow = nil
+        isStylePanelOpen = false
         problem = nil
     }
 
-    /// Esc: closes the field and drops its text. False, so the deck can close, when no field is open.
+    /// Esc: closes the style panel if it is open, otherwise the field, dropping its text. False, so the
+    /// deck can close, when no field is open.
     public func escape() -> Bool {
         guard isAdding else { return false }
-        cancel()
+        if isStylePanelOpen { isStylePanelOpen = false } else { cancel() }
         return true
     }
 
@@ -86,6 +103,7 @@ public final class NowModel {
     /// Tab: the other kind, for this entry.
     public func toggleKind(canEvent: Bool = true, canNote: Bool = true) {
         guard canEvent, canNote else { return }
+        isStylePanelOpen = false
         picked = kind(canEvent: canEvent, canNote: canNote) == .event ? .note : .event
     }
 

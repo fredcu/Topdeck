@@ -5,6 +5,7 @@
 - Recording stops only once on repeated clicks. Cancelling an export and retrying keeps the new task's state; exports use separate temporary files and replace an existing output without deleting it first.
 - Topdeck starts from ILoveNotch 1.4.0, without Mirror, Android sharing, the App Store edition or Sparkle.
 - A new deck: black at the notch, fading to a deep blue-grey, 700 by 430 to begin with, and a colour for each space. Six spaces sit in two wings beside the camera: Now, Shelf and Clipboard on the left, Tools, Agents and Mac on the right, with sub-tabs for Agents and Mac. Settings reorders and hides them. Now shows what's playing, the agent waiting, the day's events and notes, a month, the weather, the timer and Keep Awake. The Glass theme, the tab row and the app drawer are gone.
+- Now's add field is an icon, the text and one style button: the icon shows whether the entry is an event or a note and switches it, and a note's colour and window are set in a small panel under the button.
 - Notes live in Now: the add field takes a colour and a window, a click opens a note in a floating window, and a right-click colours, pins, shares, reveals or deletes it. Search is in the Command Bar.
 - Settings has one page, Shortcuts & Windows, for Windows, Window Switcher, Command Bar and Input Sources.
 - While music plays, four thin bars in the cover's colour move beside the camera.

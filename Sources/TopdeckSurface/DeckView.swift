@@ -30,6 +30,7 @@ struct DeckView: View {
         VStack(spacing: 0) {
             wings(state.spaceSet)
             secondRow(detail: detail)
+                .zIndex(1)  // the add field's style panel hangs over the columns
             pageBody(Page(space: space, detail: detail), enabled: state.spaceSet.enabled)
         }
         // Inside the shoulders, which are the shape's concave top corners.

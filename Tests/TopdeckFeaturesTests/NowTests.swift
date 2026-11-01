@@ -204,7 +204,7 @@ struct NowAddFieldTests {
         #expect(saved.title == "Gift ideas" && saved.window == nil)
         model.begin()
         model.draft = "Trip packing list"
-        model.toggle(.desktop)
+        model.setWindow(.desktop)
         #expect(model.submit(calendar: nil, notes: notes, day: nil))
         #expect(notes.visibleNotes.first { $0.title == "Trip packing list" }?.window == .desktop)
         notes.flush()
@@ -219,8 +219,8 @@ struct NowAddFieldTests {
         model.begin()
         #expect(model.noteColor == nil && model.noteWindow == nil, "both off to begin with")
         model.draft = "Wi-Fi for guests"
-        model.pick(.purple)
-        model.toggle(.top)
+        model.setColor(.purple)
+        model.setWindow(.top)
         #expect(model.submit(calendar: nil, notes: notes, day: nil))
         let saved = try #require(notes.notes.first)
         #expect(saved.color == .purple && saved.window == .top)
@@ -230,18 +230,80 @@ struct NowAddFieldTests {
         try? FileManager.default.removeItem(at: folder)
     }
 
-    @Test func desktopAndOnTopExcludeEachOtherAndEitherTurnsOffByAClickOnIt() {
+    @Test func settersSetRatherThanToggle() {
         let model = NowModel()
-        model.toggle(.desktop)
-        #expect(model.noteWindow == .desktop)
-        model.toggle(.top)
+        model.setWindow(.desktop)
+        model.setWindow(.desktop)
+        #expect(model.noteWindow == .desktop, "choosing it again keeps it")
+        model.setWindow(.top)
         #expect(model.noteWindow == .top, "On Top replaces Desktop")
-        model.toggle(.top)
+        model.setWindow(nil)
         #expect(model.noteWindow == nil)
-        model.pick(.green)
-        model.pick(.green)
-        #expect(model.noteColor == nil, "picking the colour again takes it off")
+        model.setColor(.green)
+        model.setColor(.green)
+        #expect(model.noteColor == .green)
+        model.setColor(nil)
+        #expect(model.noteColor == nil)
         #expect(NowModel.noteColors.count == 5)
+    }
+
+    @Test func theStylePanelOpensWithTheKeyAndClosesBeforeTheField() {
+        let model = NowModel()
+        model.begin()
+        #expect(!model.isStylePanelOpen)
+        #expect(model.styleKey(".", kind: .note) && model.isStylePanelOpen)
+        #expect(model.escape() && !model.isStylePanelOpen && model.isAdding, "the first Esc closes the panel")
+        #expect(model.escape() && !model.isAdding, "the second closes the field")
+        model.begin()
+        model.isStylePanelOpen = true
+        model.setColor(.blue)
+        model.cancel()
+        #expect(!model.isStylePanelOpen && model.noteColor == nil)
+        let folder = FileManager.default.temporaryDirectory.appending(path: "NowNotes-\(UUID().uuidString)")
+        let notes = NotesFeature(directory: folder, defaults: UserDefaults(suiteName: "Now.\(UUID())")!)
+        notes.phase = .foreground
+        model.begin()
+        model.isStylePanelOpen = true
+        model.draft = "Gift ideas"
+        #expect(model.submit(calendar: nil, notes: notes, day: nil))
+        #expect(!model.isStylePanelOpen, "saving closes the panel")
+        notes.flush()
+        try? FileManager.default.removeItem(at: folder)
+    }
+
+    @Test func switchingToAnEventClosesThePanel() {
+        let model = NowModel()
+        model.begin()
+        model.isStylePanelOpen = true
+        model.toggleKind()
+        #expect(!model.isStylePanelOpen)
+    }
+
+    @Test func commandKeysPickTheColoursOnlyForANote() {
+        let model = NowModel()
+        model.begin()
+        #expect(model.styleKey("4", kind: .note) && model.noteColor == .blue)
+        #expect(model.styleKey("1", kind: .note) && model.noteColor == .yellow)
+        #expect(model.styleKey("0", kind: .note) && model.noteColor == nil)
+        #expect(!model.styleKey("6", kind: .note) && !model.styleKey("x", kind: .note))
+        #expect(!model.styleKey("2", kind: .event) && model.noteColor == nil, "an event has no colour")
+        #expect(!model.styleKey(".", kind: .event) && !model.isStylePanelOpen)
+    }
+
+    @Test func anEventEntryIgnoresTheNoteStyle() {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "NowNotes-\(UUID().uuidString)")
+        let notes = NotesFeature(directory: folder, defaults: UserDefaults(suiteName: "Now.\(UUID())")!)
+        let calendar = CalendarFeature(eventStore: EventStore(), defaults: UserDefaults(suiteName: "Now.\(UUID())")!)
+        let model = NowModel()
+        model.begin()
+        model.draft = "Dentist tomorrow 3pm"
+        model.setColor(.orange)
+        model.setWindow(.top)
+        #expect(model.kind() == .event, "the style doesn't change the kind")
+        #expect(!model.submit(calendar: calendar, notes: notes, day: nil), "no calendar access: nothing saved")
+        #expect(notes.notes.isEmpty, "and no note made from it")
+        #expect(model.noteColor == .orange && model.noteWindow == .top, "the style waits for a note")
+        try? FileManager.default.removeItem(at: folder)
     }
 
     @Test func anEventWithoutADateStaysInTheField() {
@@ -264,8 +326,8 @@ struct NowAddFieldTests {
         model.begin()
         model.draft = "Half a thought"
         model.picked = .note
-        model.pick(.blue)
-        model.toggle(.desktop)
+        model.setColor(.blue)
+        model.setWindow(.desktop)
         model.cancel()
         #expect(!model.isAdding && model.draft.isEmpty && model.picked == nil)
         #expect(model.noteColor == nil && model.noteWindow == nil)

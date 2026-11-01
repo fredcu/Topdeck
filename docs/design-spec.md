@@ -101,10 +101,14 @@ Awake as chips, then add, pin and settings. Between them one slot, in priority o
   No air quality.
 - At 620×340: no month title, two event rows, hours but no days, one lyric block of two lines, artwork 36.
 
-Add field: Return saves; an Event/Note control chooses itself from the text (a date or time is an Event) until
-picked; Tab switches; Esc closes only the field. With Note chosen the field also shows five colour dots
-(yellow, orange, green, blue, purple) and two toggles, Desktop and On Top, which exclude each other. All
-are off to begin with, and Return saves the note with that colour and window.
+Add field: an icon, the text, and at the right either the parsed date and time (an Event) or one style button
+(a Note). The icon is a note or a calendar and says what Return will save; a date or time makes it an Event
+until picked, and a click on the icon (or Tab) switches it, when both are possible. Return saves; Esc closes the
+style panel first, then the field. The style button is a 30 square holding the note's colour as a 16 swatch
+(hollow for none), with a small badge for the Desktop or On Top window; it opens a panel under it (also ⌘.)
+with none and five colours (yellow, orange, green, blue, purple; ⌘0 to ⌘5) and a None, Desktop, On Top
+control. Colour and window are off to begin with. The panel is drawn in the deck, not a popover, and choosing
+keeps the field editing.
 
 Notes in the left column: a click opens the note in a floating window, the window a pinned note has, to read
 and edit; closing the window keeps the note, and a note that is already in a window is brought forward.
