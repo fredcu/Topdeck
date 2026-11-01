@@ -116,6 +116,8 @@ struct UsageTable: View {
                 column { QuotaCell(row: $0) }.frame(maxWidth: .infinity)
             }
         }
+        // A scroller would take its width from the narrow columns.
+        .scrollIndicators(.never)
         .fadingEdges(length: 6, atStart: false)
         // The hairline between the columns runs the body's full height, not just the rows'.
         .background(alignment: .leading) { DeckRule().padding(.leading, middle + Deck.Metric.columnGap) }

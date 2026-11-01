@@ -25,6 +25,7 @@ struct AgentsColumn: View {
             }
             .padding(.bottom, 6)
         }
+        .scrollIndicators(.never)
         .fadingEdges(length: 6, atStart: false)
     }
 }
@@ -132,9 +133,8 @@ private struct AgentRequestCard: View {
                 .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Deck.deck.opacity(0.28)))
         }
         HStack(spacing: 6) {
-            Button("Deny") { agents.answer(request, .deny) }.buttonStyle(.deck(fill: true, slot: true, height: 26))
-            Button("Allow") { agents.answer(request, .allow) }.buttonStyle(
-                .deck(.primary, fill: true, slot: true, height: 26))
+            Button("Deny") { agents.answer(request, .deny) }.buttonStyle(.deck(fill: true, slot: true))
+            Button("Allow") { agents.answer(request, .allow) }.buttonStyle(.deck(.primary, fill: true, slot: true))
         }
         if let rule = request.alwaysAllowRule {
             Button {

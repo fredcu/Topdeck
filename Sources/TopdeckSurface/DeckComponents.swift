@@ -64,21 +64,16 @@ public struct DeckButtonStyle: ButtonStyle {
     let compact: Bool
     let fill: Bool
     let slot: Bool
-    let height: CGFloat?
 
-    public init(
-        _ kind: DeckButtonKind = .standard, compact: Bool = false, fill: Bool = false, slot: Bool = false,
-        height: CGFloat? = nil
-    ) {
+    public init(_ kind: DeckButtonKind = .standard, compact: Bool = false, fill: Bool = false, slot: Bool = false) {
         self.kind = kind
         self.compact = compact
         self.fill = fill
         self.slot = slot
-        self.height = height
     }
 
     public func makeBody(configuration: Configuration) -> some View {
-        Rendered(kind: kind, compact: compact, fill: fill, slot: slot, height: height, configuration: configuration)
+        Rendered(kind: kind, compact: compact, fill: fill, slot: slot, configuration: configuration)
     }
 
     private struct Rendered: View {
@@ -86,7 +81,6 @@ public struct DeckButtonStyle: ButtonStyle {
         let compact: Bool
         let fill: Bool
         let slot: Bool
-        let height: CGFloat?
         let configuration: ButtonStyleConfiguration
         @Environment(\.isEnabled) private var enabled
         @Environment(\.deckAccent) private var accent
@@ -101,7 +95,7 @@ public struct DeckButtonStyle: ButtonStyle {
                 .lineLimit(1)
                 .padding(.horizontal, slot ? 11 : compact ? 9 : 13)
                 .frame(maxWidth: fill ? .infinity : nil)
-                .frame(height: height ?? (slot ? 28 : compact ? 23 : Deck.Metric.buttonHeight))
+                .frame(height: slot ? 28 : compact ? 23 : Deck.Metric.buttonHeight)
                 .background(shape.fill(background))
                 .overlay { if kind == .outline { shape.strokeBorder(Deck.hairline, lineWidth: 1) } }
                 .contentShape(shape)
@@ -152,12 +146,11 @@ public struct DeckIconButtonStyle: ButtonStyle {
 }
 
 extension ButtonStyle where Self == DeckButtonStyle {
-    /// The deck's text button; `height` sets one that none of the sizes fits.
+    /// The deck's text button.
     public static func deck(
-        _ kind: DeckButtonKind = .standard, compact: Bool = false, fill: Bool = false, slot: Bool = false,
-        height: CGFloat? = nil
+        _ kind: DeckButtonKind = .standard, compact: Bool = false, fill: Bool = false, slot: Bool = false
     ) -> DeckButtonStyle {
-        DeckButtonStyle(kind, compact: compact, fill: fill, slot: slot, height: height)
+        DeckButtonStyle(kind, compact: compact, fill: fill, slot: slot)
     }
 }
 

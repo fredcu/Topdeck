@@ -201,7 +201,7 @@ Today, 7 Days, 30 Days and All at the right (the choice is kept), then Refresh, 
 Settings.
 
 Left, with a request or a session: the requests waiting for an answer first (same answers, safety and Always Allow
-as before, the command in a dark block, buttons 26 high), then sessions waiting on their terminal, then sessions at
+as before, the command in a dark block), then sessions waiting on their terminal, then sessions at
 work, each under a hairline: the tool's colour, the project, how long since it last moved (`now`, `2m`, `1h`,
 `3d`), and under it what it is doing, or "Waiting for you" in the signal colour; a click goes to its terminal. A
 finished or quiet session is not listed. With none, the left column is the period at a glance: the total in whole
