@@ -45,6 +45,9 @@ decorative uses it. Go and stop are for state, not decoration.
 ## The deck
 
 - Default open size 700×430. Keep drag-to-resize, with a minimum of 620×340.
+- Opening the closed notch (hover, click, the shortcut) always shows Now, not the space used last, and not the
+  space of an ongoing activity such as Keep Awake. A live activity hovered or clicked as it appears opens its own
+  feature's space (Now for a system one); files dragged near open the Shelf. With Now hidden, the first space.
 - The panel is pure black at the top, flush with the hardware notch, with concave top shoulders and
   bottom radius 30. Below the notch it fades over 55 points to the body colour, which holds to the
   bottom. There is no border or glass theme. Remove the Glass theme.

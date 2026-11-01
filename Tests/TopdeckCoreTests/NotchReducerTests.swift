@@ -132,10 +132,23 @@ struct NotchReducerTests {
         #expect(shown.presentation == .focused(space: .agents, pinned: false))
     }
 
-    @Test func theLastSpaceIsRemembered() {
+    @Test func theClosedNotchAlwaysOpensOnNow() {
         #expect(
-            after(.show, .clicked, .selectSpace(.tools), .dismiss, .clicked).presentation == .expanded(space: .tools))
+            after(.show, .clicked, .selectSpace(.tools), .dismiss, .clicked).presentation == .expanded(space: .now),
+            "the space used last isn't where it opens next")
+        var hovered = after(.show, .clicked, .selectSpace(.mac), .dismiss, .pointerEntered)
+        _ = hovered.handle(.deadline(.hoverDwell))
+        #expect(hovered.presentation == .expanded(space: .now))
         #expect(after(.show).lastSpace == .now, "Now is the default")
+        let awake = Activity(
+            feature: .timer, symbol: "cup.and.saucer.fill", title: "Awake", duration: .zero)
+        var ongoing = after(.show, .setOngoing(awake), .pointerEntered)
+        _ = ongoing.handle(.deadline(.hoverDwell))
+        #expect(ongoing.presentation == .expanded(space: .now), "an ongoing activity doesn't pull it to its space")
+        #expect(
+            after(.show, .setSpaces(SpaceSet(hidden: [.now], enabled: [.capture])), .clicked).presentation
+                == .expanded(space: .tools),
+            "with Now hidden, the first space on show")
     }
 
     @Test func aDetailScreenSlidesOverMacAndGoesWhenTheSpaceOrTheNotchChanges() {
@@ -159,7 +172,7 @@ struct NotchReducerTests {
         _ = state.handle(.openDetail(.storage))
         _ = state.handle(.dismiss)
         _ = state.handle(.clicked)
-        #expect(state.presentation == .expanded(space: .mac) && state.detail == nil, "a closed notch forgets it")
+        #expect(state.presentation == .expanded(space: .now) && state.detail == nil, "a closed notch forgets it")
     }
 
     @Test func aDetailForAFeatureThatIsOffIsNotOpened() {
@@ -238,7 +251,7 @@ struct NotchReducerTests {
         let retabbed = after(.show, .activity(volume), .setSpaces(only(.notes)))
         #expect(retabbed.presentation == .transient(volume), "it has no feature to lose")
         let opened = after(.show, .clicked, .selectSpace(.tools), .dismiss, .activity(volume), .clicked)
-        #expect(opened.presentation == .expanded(space: .tools), "a system activity opens the last space")
+        #expect(opened.presentation == .expanded(space: .now), "a system activity opens Now")
         var hovered = after(.show, .activity(volume))
         _ = hovered.handle(.pointerEntered)
         _ = hovered.handle(.deadline(.hoverDwell))
@@ -275,9 +288,9 @@ struct NotchReducerTests {
         #expect(state.presentation == .compact && state.pointerInside && state.restingActivity == recording)
         _ = state.handle(.pointerExited)
         #expect(!state.pointerInside && state.presentation == .compact)
-        #expect(after(.show, .setOngoing(recording), .clicked).presentation == .expanded(space: .tools))
+        #expect(after(.show, .setOngoing(recording), .clicked).presentation == .expanded(space: .now))
         #expect(
-            after(.show, .setOngoing(recording), .pointerEntered, .clicked).presentation == .expanded(space: .tools))
+            after(.show, .setOngoing(recording), .pointerEntered, .clicked).presentation == .expanded(space: .now))
         // Anything else still opens on hover.
         #expect(after(.show, .setOngoing(meeting), .pointerEntered).presentation == .hoverArmed)
     }

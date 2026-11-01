@@ -347,26 +347,28 @@ public struct NotchState: Hashable, Sendable {
         case (.suspended, _):
             break
 
-        // Opening. Like a live activity, an ongoing one opens the space that shows its feature, except a
-        // recording: hovering it shows Pause and Stop, and only a click opens.
+        // Opening. The closed notch opens on Now, whatever is going on in it; a recording only on a click,
+        // since hovering it shows Pause and Stop.
         case (.compact, .pointerEntered) where restingActivity?.recording != nil:
             break
         case (.compact, .pointerEntered):
-            aim(at: restingActivity?.feature)
+            aimHome()
             presentation = .hoverArmed
             return [.schedule(.hoverDwell, after: NotchTiming.hoverDwell)]
         case (.compact, .clicked):
-            aim(at: restingActivity?.feature)
+            aimHome()
             open(lastSpace)
         case (.transient(let activity), .pointerEntered):
-            // Hovering a live activity opens the space of the feature that raised it, or the last
-            // space for a system activity.
+            // Hovering a live activity as it appears opens the space of the feature that raised it, or Now
+            // for a system activity.
+            aimHome()
             aim(at: activity.feature)
             presentation = .hoverArmed
             return [.schedule(.hoverDwell, after: NotchTiming.hoverDwell)]
         case (.hoverArmed, .clicked), (.hoverArmed, .deadline(.hoverDwell)):
             open(lastSpace)
         case (.transient(let activity), .clicked):
+            aimHome()
             aim(at: activity.feature)
             open(lastSpace)
         case (.hoverArmed, .pointerExited), (.hoverArmed, .dragExited), (.hoverArmed, .dismiss):
@@ -474,6 +476,12 @@ public struct NotchState: Hashable, Sendable {
         guard let feature, spaceSet.enabled.contains(feature), let space = spaceSet.target(for: feature) else { return }
         lastSpace = space
         detail = space.details.contains(feature) ? feature : nil
+    }
+
+    /// Makes Now the space to open next, or the first space on show when Now is hidden.
+    private mutating func aimHome() {
+        detail = nil
+        if let home = spaceSet.spaces.contains(.now) ? .now : spaceSet.spaces.first { lastSpace = home }
     }
 
     /// Opens `space`, or the first space on show if it isn't one.
