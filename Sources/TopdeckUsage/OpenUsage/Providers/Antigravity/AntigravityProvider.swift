@@ -140,6 +140,10 @@ final class AntigravityProvider: ProviderRuntime {
                                           csrfFlag: server.csrfFlag, portFlag: server.portFlag, acceptLegacy: false) {
                 return result
             }
+            // The CLI's own /usage report has both pools, where its server's summary needs a CSRF token.
+            if server.processName == ide.processName, let lines = await probeCLIUsage() {
+                return StrategyResult(plan: nil, lines: lines)
+            }
         }
         do {
             return try await probeCloudCode()
@@ -155,6 +159,27 @@ final class AntigravityProvider: ProviderRuntime {
     }
 
     // MARK: - Language server
+
+    // MARK: - The CLI's /usage report
+
+    /// Topdeck, after Forge: runs the installed `agy -p "/usage" --output-format json`, a read-only report
+    /// that calls no model (the parser checks the output proves it). Nil when `agy` isn't installed, the
+    /// run fails or times out, or the output doesn't pass.
+    private func probeCLIUsage() async -> [MetricLine]? {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        guard let agy = ["\(home)/.local/bin/agy", "/opt/homebrew/bin/agy", "/usr/local/bin/agy"]
+            .first(where: { FileManager.default.isExecutableFile(atPath: $0) })
+        else { return nil }
+        let runner = discovery.processRunner
+        return await loadOffMainActor {
+            guard let result = try? runner.run(
+                executable: agy, arguments: ["-p", "/usage", "--output-format", "json", "--print-timeout", "20s"],
+                environment: [:], timeout: 30),
+                result.exitCode == 0
+            else { return nil }
+            return AntigravityUsageMapper.parseCLIUsage(result.stdout)
+        }
+    }
 
     private func probeLS(processName: String, markers: [String], csrfFlag: String, portFlag: String?, acceptLegacy: Bool) async -> StrategyResult? {
         let discovery = self.discovery

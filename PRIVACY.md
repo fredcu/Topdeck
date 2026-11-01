@@ -136,7 +136,9 @@ For each provider you turn on, Topdeck:
 
 - Sends your sign-in only to that provider's own service, to ask for your
   usage. Antigravity is asked through its language server on this Mac, found
-  with `ps` and `lsof`.
+  with `ps` and `lsof`, or, when its `agy` CLI is installed, through the CLI's
+  own read-only report (`agy -p "/usage"`), which Topdeck accepts only when the
+  output shows no model was run.
 - When a sign-in has expired, renews it with that provider and saves the new
   token back where its tool keeps it, the same way the tool would. For
   Antigravity, it asks you to open Antigravity instead.

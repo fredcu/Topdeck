@@ -65,6 +65,10 @@ enum AntigravityUsageMapper {
             return nil
         }
 
+        // Topdeck: which buckets came back, for when a pool goes missing. Ids and fractions only.
+        AppLog.debug(LogTag.plugin("antigravity"), "quota summary: \(groups.count) groups, buckets "
+            + groups.flatMap { $0.buckets ?? [] }.map { "\($0.bucketId ?? "<absent>")=\($0.remainingFraction.map { String($0) } ?? "nil")" }
+            .joined(separator: ", "))
         var pooled: [String: (fraction: Double, resetTime: Date?)] = [:]
         for bucket in groups.flatMap({ $0.buckets ?? [] }) {
             guard let id = bucket.bucketId, summaryBuckets.contains(where: { $0.bucketID == id }) else {
@@ -83,6 +87,46 @@ enum AntigravityUsageMapper {
             guard let entry = pooled[spec.bucketID] else { return nil }
             return line(pool: spec.label, fraction: entry.fraction, resetTime: entry.resetTime, periodMs: spec.periodMs)
         }
+    }
+
+    // MARK: - The CLI's /usage command
+
+    /// Topdeck, after Forge's `AntigravityQuotaParser` (same author): `agy -p "/usage" --output-format json`
+    /// → up to four pool meters, from `command.data.groups[].buckets[]` matched by the same exact bucket ids
+    /// as the summary. Accepted only when the output proves no model ran: `status` "SUCCESS", `num_turns`
+    /// present and 0, an empty `conversation_id`, every usage counter 0, and the read-only `usage` command.
+    /// Missing evidence fails closed (nil), and the caller tries the next source.
+    static func parseCLIUsage(_ stdout: String) -> [MetricLine]? {
+        let trimmed = stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let start = trimmed.firstIndex(of: "{"), let end = trimmed.lastIndex(of: "}"), start < end,
+              let object = try? JSONSerialization.jsonObject(with: Data(trimmed[start...end].utf8)) as? [String: Any],
+              object["status"] as? String == "SUCCESS",
+              let turns = (object["num_turns"] as? NSNumber)?.intValue, turns == 0,
+              let conversation = object["conversation_id"] as? String, conversation.isEmpty
+        else { return nil }
+        if let usage = object["usage"] as? [String: Any] {
+            for key in ["input_tokens", "output_tokens", "thinking_tokens", "cache_read_tokens", "total_tokens"]
+            where ((usage[key] as? NSNumber)?.intValue ?? 0) != 0 {
+                return nil
+            }
+        }
+        guard let command = object["command"] as? [String: Any], command["name"] as? String == "usage",
+              let data = command["data"] as? [String: Any], let groups = data["groups"] as? [[String: Any]]
+        else { return nil }
+
+        var pooled: [String: (fraction: Double, resetTime: Date?)] = [:]
+        for bucket in groups.flatMap({ $0["buckets"] as? [[String: Any]] ?? [] }) {
+            guard let id = bucket["id"] as? String, summaryBuckets.contains(where: { $0.bucketID == id }),
+                  pooled[id] == nil, bucket["disabled"] as? Bool != true,
+                  let fraction = (bucket["remaining_fraction"] as? NSNumber)?.doubleValue, fraction.isFinite
+            else { continue }
+            pooled[id] = (fraction, (bucket["reset_time"] as? String).flatMap { OpenUsageISO8601.date(from: $0) })
+        }
+        let lines = summaryBuckets.compactMap { spec -> MetricLine? in
+            guard let entry = pooled[spec.bucketID] else { return nil }
+            return line(pool: spec.label, fraction: entry.fraction, resetTime: entry.resetTime, periodMs: spec.periodMs)
+        }
+        return lines.isEmpty ? nil : lines
     }
 
     // MARK: - Response parsing (legacy per-model endpoints)
