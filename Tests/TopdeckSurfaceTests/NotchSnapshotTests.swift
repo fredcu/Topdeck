@@ -132,6 +132,46 @@ struct NotchSnapshotTests {
         try draw("wings-four", metrics: notched, events: [.show, .clicked], preferences: preferences, badge: 1)
     }
 
+    /// A closed activity's pieces stay in their wings, clear of the camera housing, whether or not there is
+    /// anything on the right: an empty right wing once slid "Awake" 18 points under the camera.
+    @Test(arguments: [
+        notched,
+        // A 14" MacBook Pro at More Space: a 208-point camera.
+        NotchMetrics(
+            screen: CGRect(x: 0, y: 0, width: 1710, height: 1112), safeAreaTop: 37.5,
+            left: CGRect(x: 0, y: 1074.5, width: 751, height: 37.5),
+            right: CGRect(x: 959, y: 1074.5, width: 751, height: 37.5)),
+    ])
+    func closedPiecesStayClearOfTheCamera(metrics: NotchMetrics) throws {
+        let awake = Activity(feature: .timer, symbol: "cup.and.saucer.fill", title: "Awake", duration: .zero)
+        let volume = Activity(
+            feature: nil, symbol: "speaker.wave.2.fill", title: "50%", level: 0.5, duration: .seconds(1))
+        for activity in [awake, volume] {
+            let content = ClosedContent(activity)
+            let wings = metrics.closedWings(for: content)
+            let size = metrics.closedSize(for: activity)
+            let view = ClosedNotchView(content: content, metrics: metrics)
+                .frame(width: size.width, height: size.height)
+                .background(Color.black)
+            let bitmap = try #require(Self.render(view, size: size, name: "closed-\(activity.title)"))
+            let scale = CGFloat(bitmap.pixelsWide) / size.width
+            // The columns anything light is drawn in, in points.
+            let drawn = (0..<bitmap.pixelsWide).filter { x in
+                (0..<bitmap.pixelsHigh).contains { y in
+                    (bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB)?.redComponent ?? 0) > 0.3
+                }
+            }.map { CGFloat($0) / scale }
+            let camera = wings.leading...(wings.leading + metrics.housing.width)
+            let inset = NotchMetrics.flare + NotchMetrics.closedPadding
+            #expect(!drawn.isEmpty)
+            #expect(!drawn.contains { camera.contains($0) }, "\(activity.title): nothing under the camera")
+            #expect(drawn.min()! >= inset - 2, "\(activity.title): the leading piece starts at its inset")
+            #expect(
+                drawn.filter { $0 < camera.lowerBound }.max()! <= camera.lowerBound - NotchMetrics.closedPadding + 1,
+                "\(activity.title): the label keeps its padding from the camera")
+        }
+    }
+
     private static func preferences() -> NotchPreferences {
         NotchPreferences(defaults: UserDefaults(suiteName: "Snapshots.\(UUID().uuidString)")!)
     }

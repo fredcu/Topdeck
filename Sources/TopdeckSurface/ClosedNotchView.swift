@@ -19,15 +19,17 @@ struct ClosedNotchView: View {
         Group {
             if metrics.notch != nil {
                 let wings = metrics.closedWings(for: content)
+                // Each wing keeps its width with nothing in it: an empty trailing view would take its frame
+                // away with it, and the row, centred, would slide its label under the camera.
                 HStack(spacing: 0) {
-                    leading
-                        .padding(.leading, NotchMetrics.flare + NotchMetrics.closedPadding)
-                        .frame(width: wings.leading, alignment: .leading)
+                    Color.clear.frame(width: wings.leading).overlay(alignment: .leading) {
+                        leading.padding(.leading, NotchMetrics.flare + NotchMetrics.closedPadding)
+                    }
                     // Nothing under the camera housing, where it couldn't be seen.
                     Color.clear.frame(width: metrics.housing.width)
-                    trailing
-                        .padding(.trailing, NotchMetrics.flare + NotchMetrics.closedPadding)
-                        .frame(width: wings.trailing, alignment: .trailing)
+                    Color.clear.frame(width: wings.trailing).overlay(alignment: .trailing) {
+                        trailing.padding(.trailing, NotchMetrics.flare + NotchMetrics.closedPadding)
+                    }
                 }
             } else {
                 // Inside the pill, both ends of one row.
