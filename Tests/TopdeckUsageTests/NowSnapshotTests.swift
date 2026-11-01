@@ -40,6 +40,7 @@ struct NowSnapshotTests {
         /// With the note's style panel open, blue and On Top chosen.
         var stylePanel = false
         var weather = true
+        var place = "Hobart"
         var day: Int?
     }
 
@@ -116,7 +117,7 @@ struct NowSnapshotTests {
                     forecast: { _, _ in throw WeatherLocationError.unavailable },
                     attribution: { throw WeatherLocationError.unavailable }),
                 cache: nil)
-            weather.show(sample.weather ? Self.forecast(now: now) : nil)
+            weather.show(sample.weather ? Self.forecast(now: now, place: sample.place) : nil)
 
             media = MediaFeature(defaults: defaults())
             if sample.playing {
@@ -166,7 +167,7 @@ struct NowSnapshotTests {
 
         deinit { try? FileManager.default.removeItem(at: folder) }
 
-        static func forecast(now: Date) -> WeatherSnapshot {
+        static func forecast(now: Date, place: String) -> WeatherSnapshot {
             typealias Sky = (name: String, symbol: String)
             let clear: Sky = ("Clear", "sun.max")
             let partly: Sky = ("Partly Cloudy", "cloud.sun")
@@ -194,7 +195,7 @@ struct NowSnapshotTests {
                 temperature: 17.1, apparent: 15, humidity: 62, condition: "Partly Cloudy",
                 symbol: "cloud.sun")
             return WeatherSnapshot(
-                place: "Hobart", latitude: -42.88, longitude: 147.33,
+                place: place, latitude: -42.88, longitude: 147.33,
                 forecast: .init(current: current, hours: hours, days: days), fetched: now)
         }
 
@@ -343,5 +344,9 @@ struct NowSnapshotTests {
         try single("extra-Nothing\(suffix)", Sample(events: false, notes: 0, weather: false), size: size)
         try single("extra-PlayingNoWeather\(suffix)", Sample(playing: true, weather: false), size: size)
         try single("extra-NotesOnly\(suffix)", Sample(events: false, notes: 3), size: size)
+        for (name, place) in [("KingsLangley", "Kings Langley"), ("LongPlace", "Llanfairpwllgwyngyll")] {
+            try single("extra-\(name)\(suffix)", Sample(place: place), size: size)
+            try single("extra-\(name)Playing\(suffix)", Sample(playing: true, place: place), size: size)
+        }
     }
 }

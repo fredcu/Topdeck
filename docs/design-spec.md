@@ -99,16 +99,19 @@ Awake as chips, then add, pin and settings. Between them one slot, in priority o
   mark for notes in a window. With nothing left today, Notes moves up; with nothing at all, "Nothing today".
 - Middle: month grid (six weeks, system first weekday, dots in the accent, today filled in the accent with
   dark text), then the events from tomorrow for a week; a picked day is ringed and lists that day.
-- Right: weather from Apple's WeatherKit. Top block: the place with the icon and temperature, then the
-  condition with today's low and high ("↓9° ↑19°"), a hairline, and one row of four figures (feels like,
-  humidity, rain chance, UV) spread edge to edge; then the next five hours and five days. The icons are in
+- Right: weather from Apple's WeatherKit. Top block: the place on a line of its own, the whole column wide
+  (truncated only if it still does not fit, the full name on hover); under it the icon and temperature at the
+  left, and at the right the condition over today's low and high ("↓9° ↑19°"); a hairline, and one row of four
+  figures (feels like, humidity, rain chance, UV) spread edge to edge; then the next five hours and, with
+  nothing playing, as many of the next five days as fit in the height left (at least two, else none). The icons are in
   colour (SF Symbols' multicolor, fill variant) and each day's range bar runs from blue through yellow to
   orange. The clock is in the accent and so is the scrubber's played part. A player with no artwork shows
   `music.note` on a control tile. While something
   plays, the same top block with a smaller temperature, then the player with a thin scrubber and the lyric
-  lines. Apple's mark, linking to its legal page, closes the column in both states, as WeatherKit requires.
+  lines. Apple's mark, linking to its legal page, closes the column in both states as a small, faint footnote at
+  the bottom right, as WeatherKit requires.
   No air quality.
-- At 620×340: no month title, two event rows, hours but no days, one lyric block of two lines, artwork 36.
+- At 620×340: no month title, two event rows, the hours and, with nothing playing, the two days that fit, one lyric block of two lines, artwork 36.
 
 Add field: an icon, the text, and at the right either the parsed date and time (an Event) or one style button
 (a Note). The icon is a note or a calendar and says what Return will save; a date or time makes it an Event

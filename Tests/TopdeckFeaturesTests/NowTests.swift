@@ -358,11 +358,29 @@ struct NowMetricsTests {
     @Test func theDefaultAndTheSmallestDeckMatchTheBoards() {
         let normal = NowMetrics(size: CGSize(width: 700, height: 333))
         #expect(normal.left == 176 && normal.middle == 214 && normal.artwork == 52)
-        #expect(normal.showsMonthTitle && normal.showsNextLyric && normal.showsDailyForecast)
+        #expect(normal.showsMonthTitle && normal.showsNextLyric && normal.largeTemperature)
         #expect(normal.dayHeight == 26 && normal.eventHeight == 36 && normal.itemHeight == 30)
         let smallest = NowMetrics(size: CGSize(width: 620, height: 243))
         #expect(smallest.left == 150 && smallest.middle == 192 && smallest.artwork == 36)
-        #expect(!smallest.showsMonthTitle && !smallest.showsNextLyric && !smallest.showsDailyForecast)
+        #expect(!smallest.showsMonthTitle && !smallest.showsNextLyric && !smallest.largeTemperature)
         #expect(smallest.dayHeight == 21 && smallest.eventHeight == 30 && smallest.itemHeight == 26)
+    }
+
+    @Test func theDaysShownAreAsManyAsFitUnderTheHours() {
+        let normal = NowMetrics(size: CGSize(width: 700, height: 333))
+        let smallest = NowMetrics(size: CGSize(width: 620, height: 243))
+        func height(_ metrics: NowMetrics, rows: CGFloat, extra: CGFloat = 0) -> CGFloat {
+            NowMetrics.forecastLead + rows * metrics.forecastRow + extra
+        }
+        #expect(smallest.forecastDays(fitting: -10) == 0 && smallest.forecastDays(fitting: 0) == 0)
+        #expect(smallest.forecastDays(fitting: height(smallest, rows: 1, extra: 21)) == 0, "one row and a bit")
+        #expect(smallest.forecastDays(fitting: height(smallest, rows: 2)) == 2)
+        #expect(smallest.forecastDays(fitting: height(smallest, rows: 3, extra: -0.5)) == 2)
+        #expect(smallest.forecastDays(fitting: height(smallest, rows: 3)) == 3)
+        #expect(smallest.forecastDays(fitting: height(smallest, rows: 4, extra: 10)) == 4)
+        #expect(smallest.forecastDays(fitting: height(smallest, rows: 5)) == 5)
+        #expect(smallest.forecastDays(fitting: height(smallest, rows: 9)) == 5, "never more than five")
+        #expect(normal.forecastDays(fitting: height(normal, rows: 2)) == 2)
+        #expect(normal.forecastDays(fitting: height(normal, rows: 7)) == 5)
     }
 }

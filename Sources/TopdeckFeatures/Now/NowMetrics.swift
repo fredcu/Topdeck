@@ -9,6 +9,11 @@ struct NowMetrics: Equatable {
     /// The height below which the rows tighten and the month loses its title.
     static let short: CGFloat = 290
 
+    /// The hairline and the gaps around it above the days.
+    static let forecastLead: CGFloat = 15
+    /// The most days the forecast shows.
+    static let forecastDays = 5
+
     let left: CGFloat
     let middle: CGFloat
     /// A day in the grid.
@@ -24,7 +29,8 @@ struct NowMetrics: Equatable {
     let artwork: CGFloat
     /// The smallest deck shows one lyric block and no next line.
     let showsNextLyric: Bool
-    let showsDailyForecast: Bool
+    /// The weather's temperature at its largest, or one size down.
+    let largeTemperature: Bool
     /// Events under "Today" after the first.
     let laterEvents: Int
     /// How many rows of the list under the grid show at once; nil scrolls them all.
@@ -42,8 +48,14 @@ struct NowMetrics: Equatable {
         showsMonthTitle = !short
         artwork = short ? 36 : 52
         showsNextLyric = !short
-        showsDailyForecast = !short
+        largeTemperature = !short
         laterEvents = short ? 2 : 4
         eventRows = short ? 2 : nil
+    }
+
+    /// How many days fit in `height` under the hours: five at most, and none when not even two fit.
+    func forecastDays(fitting height: CGFloat) -> Int {
+        let rows = Int(max(0, height - Self.forecastLead) / forecastRow)
+        return rows < 2 ? 0 : min(rows, Self.forecastDays)
     }
 }
