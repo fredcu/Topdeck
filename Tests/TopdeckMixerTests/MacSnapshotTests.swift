@@ -20,7 +20,9 @@ struct MacSnapshotTests {
 
     /// A reading like the board's: a quiet Mac with a battery, and a minute of history that moves a little.
     /// `hot` is a Mac that is slowing down; `sensors` false one that reports no temperatures.
-    private func sample(battery: Bool = true, hot: Bool = false, sensors: Bool = true) -> PerformanceFeature {
+    private func sample(
+        battery: Bool = true, hot: Bool = false, sensors: Bool = true, gpuSensor: Bool = true
+    ) -> PerformanceFeature {
         func reading(_ step: Int) -> PerformanceFeature.Snapshot {
             var snapshot = PerformanceFeature.Snapshot()
             let wave = Double((step * 37) % 11)
@@ -34,7 +36,7 @@ struct MacSnapshotTests {
             snapshot.diskTotal = 460_000_000_000
             snapshot.network = Rate(down: 2_800 + wave * 700, up: 300 + wave * 40)
             if sensors {
-                snapshot.temperatures = Temperatures(
+                var temperatures = Temperatures(
                     from: hot
                         ? [
                             (name: "PMU tdie1", value: 88), (name: "PMU tdie2", value: 104),
@@ -46,6 +48,9 @@ struct MacSnapshotTests {
                             (name: "GPU MTR Temp Sensor", value: 41), (name: "NAND CH0 temp", value: 38),
                             (name: "gas gauge battery", value: 34),
                         ])
+                // A Mac whose sensors do not name the GPU, and no SMC to ask.
+                if !gpuSensor { temperatures.gpu = nil }
+                snapshot.temperatures = temperatures
             }
             snapshot.thermal = hot ? .throttling : .normal
             snapshot.loadAverage = 1.42
@@ -60,8 +65,9 @@ struct MacSnapshotTests {
                 snapshot.battery = report
             }
             let apps: [(String, Double, Double)] = [
-                ("ChatGPT", 1.4, 2.5e9), ("Claude", 0.2, 2.1e9), ("Xcode", 0.9, 1.3e9), ("Safari", 0.6, 0.98e9),
-                ("Slack", 0.4, 0.9e9), ("Finder", 0.1, 0.5e9), ("Mail", 0.1, 0.4e9),
+                ("Xcode", 48.2, 3.1e9), ("Safari", 12.6, 1.4e9), ("WindowServer", 9.8, 0.612e9),
+                ("Topdeck", 3.1, 0.188e9), ("Claude", 2.7, 0.54e9), ("Music", 1.9, 0.31e9),
+                ("mds_stores", 1.2, 0.096e9), ("Finder", 0.6, 0.142e9), ("Terminal", 0.4, 0.088e9),
             ]
             let usage = apps.enumerated().map {
                 ProcessUsage(pid: Int32($0.offset + 1), cpu: $0.element.1, memory: $0.element.2, name: $0.element.0)
@@ -108,11 +114,11 @@ struct MacSnapshotTests {
         #expect(monitors.brightness == 0.8)
         let enabled = Set(FeatureID.allCases)
         let screen = MacScreen(
-            performance: sample(), mixer: mixer(), monitors: monitors, enabled: enabled,
+            performance: sample(), mixer: mixer(), monitors: monitors, admin: nil, enabled: enabled,
             detail: { AnyView(Text(SpaceID.mac.detailTitle($0)).deckText(.body)) })
         try render(screen, name: "R3c-Mac", detail: nil)
         let sound = MacScreen(
-            performance: sample(), mixer: mixer(), monitors: monitors, enabled: enabled,
+            performance: sample(), mixer: mixer(), monitors: monitors, admin: nil, enabled: enabled,
             detail: { _ in AnyView(SoundView(mixer: mixer(), monitors: monitors)) })
         try render(sound, name: "R3c-Mac-Sound", detail: .sound)
         monitors.phase = .stopped
@@ -122,7 +128,7 @@ struct MacSnapshotTests {
         let hot = sample(hot: true)
         #expect(hot.snapshot.thermal == .throttling && hot.snapshot.temperatures?.chip == 96)
         let screen = MacScreen(
-            performance: hot, mixer: mixer(), monitors: nil, enabled: Set(FeatureID.allCases),
+            performance: hot, mixer: mixer(), monitors: nil, admin: nil, enabled: Set(FeatureID.allCases),
             detail: { _ in AnyView(EmptyView()) })
         try render(screen, name: "R3c-Mac-hot", detail: nil)
     }
@@ -131,23 +137,113 @@ struct MacSnapshotTests {
         let quiet = sample(sensors: false)
         #expect(quiet.snapshot.temperatures == nil)
         let screen = MacScreen(
-            performance: quiet, mixer: mixer(), monitors: nil, enabled: Set(FeatureID.allCases),
+            performance: quiet, mixer: mixer(), monitors: nil, admin: nil, enabled: Set(FeatureID.allCases),
             detail: { _ in AnyView(EmptyView()) })
         try render(screen, name: "R3c-Mac-nosensors", detail: nil)
     }
 
-    @Test func theSystemRowNamesTheVersion() {
+    @Test func aReadingTheMacDoesNotGiveIsLeftOutOfTheStrip() throws {
+        let performance = sample(gpuSensor: false)
+        #expect(performance.snapshot.temperatures?.gpu == nil && performance.snapshot.temperatures?.chip != nil)
+        let screen = MacScreen(
+            performance: performance, mixer: mixer(), monitors: nil, admin: nil, enabled: Set(FeatureID.allCases),
+            detail: { _ in AnyView(EmptyView()) })
+        try render(screen, name: "R3c-Mac-nogpu", detail: nil)
+    }
+
+    @Test func theSystemRowPutsWhatNeedsALookBeforeTheBusiestProcess() {
+        let xcode = (name: "Xcode", cpu: 48.2)
+        #expect(MacRows.systemSummary(failed: 0, updates: 0, busiest: xcode) == .init(text: "Xcode  48%"))
         #expect(
-            MacRows.systemName(OperatingSystemVersion(majorVersion: 27, minorVersion: 2, patchVersion: 0))
-                == "macOS 27.2")
+            MacRows.systemSummary(failed: 0, updates: 3, busiest: xcode) == .init(text: "3 updates", tone: .accent))
+        #expect(MacRows.systemSummary(failed: 0, updates: 1, busiest: nil) == .init(text: "1 update", tone: .accent))
         #expect(
-            MacRows.systemName(OperatingSystemVersion(majorVersion: 15, minorVersion: 6, patchVersion: 1))
-                == "macOS 15.6.1")
+            MacRows.systemSummary(failed: 2, updates: 3, busiest: xcode) == .init(text: "2 failed", tone: .stop),
+            "a failure outranks an update")
+        #expect(MacRows.systemSummary(failed: 0, updates: 0, busiest: nil) == .init(text: ""))
+        #expect(
+            MacRows.systemSummary(failed: 0, updates: 0, busiest: (name: "kernel_task", cpu: 0.4)).text
+                == "kernel_task  0%")
+    }
+
+    @Test func theRowsFiguresComeFromWhatTheFeaturesAlreadyKnow() {
+        let performance = sample()
+        #expect(performance.busiestProcess?.name == "Xcode" && performance.busiestProcess?.cpu == 48.2)
+        #expect(PerformanceFeature(source: { Sampler() }, interval: 3600).busiestProcess == nil)
+        let known = admin(failed: 1, updates: 2)
+        #expect(known.failedCount == 1 && known.outdated.count == 2)
+        #expect(SystemAdminFeature().failedCount == 0, "nothing is read until its screen is open")
+    }
+
+    @Test func theSystemRowShowsFailuresAndUpdates() throws {
+        for (name, failed, updates) in [("failed", 2, 3), ("updates", 0, 3)] {
+            let screen = MacScreen(
+                performance: sample(), mixer: mixer(), monitors: nil, admin: admin(failed: failed, updates: updates),
+                enabled: Set(FeatureID.allCases), detail: { _ in AnyView(EmptyView()) })
+            try render(screen, name: "R3c-Mac-system-\(name)", detail: nil)
+        }
+    }
+
+    @Test func theSystemScreenOpensOnTheProcessTable() throws {
+        let performance = sample()
+        for (name, part, failed) in [("", SystemScreen.Part.processes, 0), ("-services", .services, 2)] {
+            let admin = admin(failed: failed, updates: 3)
+            let screen = MacScreen(
+                performance: performance, mixer: mixer(), monitors: nil, admin: admin,
+                enabled: Set(FeatureID.allCases),
+                detail: { _ in
+                    AnyView(SystemScreen(performance: performance, admin: admin, icon: icon, part: part))
+                })
+            try render(screen, name: "R3c-System\(name)", detail: .admin)
+        }
+    }
+
+    @Test func withSystemAdminOffTheSystemScreenIsTheProcessTableAlone() throws {
+        let performance = sample()
+        let screen = MacScreen(
+            performance: performance, mixer: mixer(), monitors: nil, admin: nil,
+            enabled: Set(FeatureID.allCases).subtracting([.admin]),
+            detail: { _ in AnyView(SystemScreen(performance: performance, admin: nil, icon: icon, part: .processes)) })
+        // The deck's own settings leave System Admin off, as they do on a fresh install.
+        try render(screen, name: "R3c-System-noadmin", detail: .admin)
+    }
+
+    private func admin(failed: Int, updates: Int) -> SystemAdminFeature {
+        let admin = SystemAdminFeature()
+        let services = (0..<5).map { index in
+            LaunchItem(
+                label: "com.example.agent\(index)",
+                plist: URL(filePath: "/Users/me/Library/LaunchAgents/a\(index).plist"), scope: .user,
+                domain: "gui/501", state: index < failed ? .failed : (index == 4 ? .loaded : .running),
+                pid: index < failed || index == 4 ? nil : 400 + index)
+        }
+        let packages = (0..<6).map { index in
+            BrewPackage(
+                name: ["wget", "node", "git", "ffmpeg", "jq", "ripgrep"][index], kind: .formula,
+                version: "1.\(index).0", latest: index < updates ? "1.\(index).1" : nil)
+        }
+        admin.preview(services: services, packages: packages)
+        return admin
+    }
+
+    /// Stand-ins for app icons: a coloured tile for most, none for the system's own processes.
+    private func icon(_ pid: Int32) -> NSImage? {
+        let colors: [Int32: NSColor] = [
+            1: .systemBlue, 2: .systemCyan, 4: .systemOrange, 5: .systemBrown, 6: .systemRed, 8: .systemTeal,
+            9: .lightGray,
+        ]
+        guard let color = colors[pid] else { return nil }
+        return NSImage(size: NSSize(width: 18, height: 18), flipped: false) { rect in
+            color.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: 5, yRadius: 5).fill()
+            return true
+        }
     }
 
     @Test func aMacWithoutABatteryShowsItsUptime() throws {
         let screen = MacScreen(
-            performance: sample(battery: false), mixer: nil, monitors: nil, enabled: [.performance, .storage],
+            performance: sample(battery: false), mixer: nil, monitors: nil, admin: nil,
+            enabled: [.performance, .storage],
             detail: { _ in AnyView(EmptyView()) })
         try render(screen, name: "R3c-Mac-nobattery", detail: nil)
     }

@@ -46,6 +46,12 @@ public enum SpaceID: String, CaseIterable, Codable, Hashable, Identifiable, Send
         self == .mac ? [.sound, .monitors, .network, .storage, .admin] : []
     }
 
+    /// The detail screens that can open when `enabled` are on: those whose feature is, and Mac's System as soon as
+    /// Performance is, since the process table it opens with is Performance's.
+    public func openableDetails(enabled: Set<FeatureID>) -> [FeatureID] {
+        details.filter { enabled.contains($0) || ($0 == .admin && enabled.contains(.performance)) }
+    }
+
     /// Whether the page has anything for the second row. The top navigation already names the space, so a row
     /// with nothing of the page's own in it is not drawn, and the body moves up. Now and Agents (its period
     /// and refresh, while usage is on) keep theirs; the Shelf's holds its files, the Clipboard's its history.

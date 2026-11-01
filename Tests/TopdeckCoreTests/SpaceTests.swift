@@ -24,6 +24,14 @@ struct SpaceTests {
         #expect(FeatureID.storage.detailSpace == .mac && FeatureID.performance.detailSpace == nil)
     }
 
+    @Test func systemIsOpenableAsSoonAsPerformanceOrSystemAdminIsOn() {
+        #expect(SpaceID.mac.openableDetails(enabled: Set(FeatureID.allCases)) == SpaceID.mac.details)
+        #expect(SpaceID.mac.openableDetails(enabled: [.performance]) == [.admin])
+        #expect(SpaceID.mac.openableDetails(enabled: [.admin, .sound]) == [.sound, .admin])
+        #expect(SpaceID.mac.openableDetails(enabled: [.sound]) == [.sound])
+        #expect(SpaceID.tools.openableDetails(enabled: [.performance]).isEmpty)
+    }
+
     @Test func eachFeatureHasOneHomeAmongTheSpacesThatHoldIt() {
         for feature in FeatureID.allCases {
             #expect(feature.home.features.contains(feature), "\(feature) is not in \(feature.home)")

@@ -172,6 +172,19 @@ struct NotchReducerTests {
         #expect(state.onScreen == [.performance], "its feature went off, so it no longer runs")
     }
 
+    @Test func systemOpensWheneverPerformanceIsOnAndRunsOnlyWithSystemAdmin() {
+        var state = after(.show, .setSpaces(only(.performance)), .clicked, .selectSpace(.mac))
+        _ = state.handle(.openDetail(.admin))
+        #expect(state.detail == .admin, "the process table is Performance's")
+        #expect(state.onScreen == [.performance], "System Admin is off, so it does not run")
+        _ = state.handle(.setSpaces(only(.performance, .admin)))
+        #expect(state.onScreen == [.performance, .admin])
+        _ = state.handle(.openDetail(nil))
+        _ = state.handle(.setSpaces(only(.sound)))
+        _ = state.handle(.openDetail(.admin))
+        #expect(state.detail == nil, "with neither on there is no System")
+    }
+
     @Test func showingAFeatureOpensItsSpaceOnItsDetailScreenIfItIsOne() {
         let clipboard = after(.show, .showFeature(.clipboard))
         #expect(clipboard.presentation == .expanded(space: .clipboard))

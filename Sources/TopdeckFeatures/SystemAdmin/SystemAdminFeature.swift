@@ -140,6 +140,15 @@ public final class SystemAdminFeature: NotchFeature {
 
     public var outdated: [BrewPackage] { packages?.filter(\.isOutdated) ?? [] }
 
+    /// How many launch services failed, as far as they have been read.
+    public var failedCount: Int { services?.filter { $0.state == .failed }.count ?? 0 }
+
+    /// Shows these lists as read, with no reading: for screenshots and tests.
+    func preview(services: [LaunchItem]?, packages: [BrewPackage]?) {
+        self.services = services
+        self.packages = packages
+    }
+
     /// Reads the open section's list again.
     public func refresh() {
         loadTask?.cancel()

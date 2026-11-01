@@ -73,7 +73,7 @@ hidden list that names Stash becomes Shelf and Clipboard in its place.
 | Shelf | tiles and targets | shelf |
 | Clipboard | list and preview | clipboard |
 | Agents | sessions and usage | agents, usage |
-| Mac | cards and processes; Sound, Displays, Network, Storage and System slide over it | performance, sound, monitors, network, storage, admin |
+| Mac | cards; Sound, Displays, Network, Storage and System (processes, services, Homebrew) slide over it | performance, sound, monitors, network, storage, admin |
 | Tools | tiles, recent captures and tools | capture, timer, keep awake, shortcuts |
 
 There are no sub-tabs. A space with nothing on is hidden, and Now is the default. Keep `FeatureID` and
@@ -216,7 +216,8 @@ weighted 1.45 to 1 (charts above, bars below). The strip: "Thermal" (Semibold 12
 CPU, GPU, SSD and Battery, each its name (11.5 tertiary), its degrees (Rounded 15 semibold) and a 4 point
 gauge filled to the reading over 110° in the colour of its heat: blue under 70, yellow to 84, orange to 94,
 stop from 95; from 85 the degrees take the colour too. Under CPU, "peak N°" (the hottest die), except at 620×340. A
-reading the Mac does not give shows "–" and an empty gauge; a Mac with no sensors shows the state alone.
+reading the Mac does not give is left out, with no "–" (the GPU's comes from the SMC, so most Macs show all four); a Mac
+with no sensors shows the state alone.
 A tile: its name (Semibold 12 secondary) and a detail at the right (12 tertiary), the value (Rounded 26
 semibold, its unit 14), a chart or a bar and one caption (11.5 tertiary), no icon chips. CPU: cores, the
 last minute, Load. GPU: the chip, the last minute, "Idle" when it is. Wi-Fi or Ethernet: the last minute,
@@ -228,9 +229,22 @@ wide (176 at the smallest size): one card of the output volume (a click on its i
 of the external monitors that answer over DDC (hidden when none does; the built-in display needs a private API
 the plan does not name), 40 high each with the percent at the right; then one list of Sound, Displays, Network,
 Storage and System, sharing the height, each with where it stands (the output device, the display count, the
-connection, "Clean up", the macOS version) and a chevron. A row slides that tab's existing screen over the
-whole body, with the second row back, as "‹ Sound", and everything those screens did stays there. The history is
+connection, "Clean up", and for System a summary: "N failed" in stop when launch services failed, else "N updates" in the
+accent when Homebrew packages have updates, else the busiest process as "Xcode  48%" in tertiary, empty when none is
+known; only what the features already hold, so nothing is started for the row) and a chevron. A row slides that tab's existing screen over the
+whole body, with the second row back, as "‹ Sound", and everything those screens did stays there. System is there when
+Performance or System Admin is on. The history is
 a ring buffer of a minute kept in memory while the page is on screen.
+
+#### System screen
+
+A segmented Processes / Services / Homebrew at the top left, Processes first and selected on opening. Processes is one card
+filling the screen (radius 14): a 30 high header of Process, CPU and Memory (11 Semibold tertiary; click to sort, the
+sorted one in the text colour with a ↓), then 30 high rows with a hairline between, as many as fit: the app's icon (18,
+a plain glyph for a process with none), the name (13), the CPU (12.5 secondary, right-aligned, 64 wide) over a faint bar
+of its share in the accent, and the memory (80 wide). Services and Homebrew are the System Admin lists as before, with
+Refresh and the Homebrew buttons at the right of the same row. Without System Admin (it starts off) the screen is the
+table alone and has no segmented control; without Performance it is Services and Homebrew as before.
 
 ### Agents
 

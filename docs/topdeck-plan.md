@@ -125,7 +125,7 @@ the Mac.
 - Scrolling capture.
 - Window switcher.
 - Command bar with Chinese input.
-- Temperature and disk readings.
+- Temperature and disk readings, the SMC's GPU temperature on other chips than the M5, and the process table's icons.
 - Synced lyrics (`lyrics-lrclib`, LRCLIB) in the Now card with a real player.
 
 The window switcher defaults to Option-Tab because Command-Tab needs an event tap.
@@ -160,6 +160,15 @@ three public lists. Cline is a provider: tokens and cost from `~/.cline/data/ses
 conversation is held in memory, and its plan limits from Cline's own endpoint with the CLI's access token.
 The owner's earlier usage readers (price feed, aggregator, Cline, Codex and Grok history) were compared with
 these and not copied where the app already had the same thing.
+
+Mac temperatures and System (`system-and-gpu`) use one approved private API: the Mac page reads temperatures from the
+SMC (the `AppleSMC` user client, through IOKit's `IOConnectCallStructMethod`). It is read-only and never writes a key,
+needs no root, and fails soft: if the service cannot be opened the page falls back to the IOHID sensors alone. The GPU's
+temperature comes from the SMC, from a flat list of its keys across Apple silicon generations (key names as listed by
+the Stats project, MIT; no code copied); the others come from IOHID, with the SMC only as a fallback where IOHID gives
+none (the battery; the CPU has no reliable cross-generation key list, so none). The System row on the Mac page shows a
+summary (what failed, what has updates, else the busiest process), and the System screen opens on the process table
+(Processes, Services, Homebrew); it exists whenever Performance or System Admin is on.
 
 Batch 4 of round 3 (`round3-record`) adds window and screen recording and the video editor (`Editor3`), adapted from Snapzy
 (BSD-3-Clause, commit `77d3d3feb7f4`; the clone is deleted when the batch is done). Recording is ScreenCaptureKit into

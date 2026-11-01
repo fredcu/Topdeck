@@ -181,7 +181,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .network: return AnyView(network.view)
         case .usage, .agents: return AnyView(EmptyView())  // the Agents screen draws them
         case .monitors: return AnyView(monitors.view)
-        case .admin: return AnyView(admin.view)
+        case .admin:
+            return AnyView(
+                SystemScreen(
+                    performance: preferences.isEnabled(.performance) ? performance : nil,
+                    admin: preferences.isEnabled(.admin) ? admin : nil))
         case .performance: return AnyView(performance.view)
         }
     }
@@ -204,7 +208,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 MacScreen(
                     performance: enabled.contains(.performance) ? performance : nil,
                     mixer: enabled.contains(.sound) ? mixer : nil,
-                    monitors: enabled.contains(.monitors) ? monitors : nil, enabled: enabled,
+                    monitors: enabled.contains(.monitors) ? monitors : nil,
+                    admin: enabled.contains(.admin) ? admin : nil, enabled: enabled,
                     detail: { [unowned self] in featureView(for: $0) }))
         default:
             return nil

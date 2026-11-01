@@ -6,6 +6,8 @@ import TopdeckSurface
 /// list, and a question before anything destructive.
 struct SystemAdminView: View {
     @Bindable var admin: SystemAdminFeature
+    /// The segments of a screen that has more parts than this view's two; nil, and the view draws its own.
+    var picker: AnyView?
 
     var body: some View {
         VStack(spacing: Deck.Metric.gap) {
@@ -26,8 +28,12 @@ struct SystemAdminView: View {
 
     private var header: some View {
         HStack(spacing: 6) {
-            DeckSegmented(SystemAdminFeature.Section.allCases, selection: admin.section, title: \.title) {
-                admin.section = $0
+            if let picker {
+                picker
+            } else {
+                DeckSegmented(SystemAdminFeature.Section.allCases, selection: admin.section, title: \.title) {
+                    admin.section = $0
+                }
             }
             Spacer(minLength: 0)
             let busy = admin.job?.isRunning == true

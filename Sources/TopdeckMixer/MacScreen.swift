@@ -6,13 +6,15 @@ import TopdeckSurface
 
 /// The Mac space's body, as the board: the thermal strip and the performance tiles on the left; on the right
 /// one card with the output volume and display brightness, then one list of Sound, Displays, Network, Storage
-/// and System, each with its current value. A row slides its screen over the whole body (the deck's back
-/// button brings the page back), so everything those screens do stays where it was. A part is left out when
-/// its feature is off. The page has no second row of its own: pin and Settings stand above the right column.
+/// and System, each with its current value (System: what needs a look, else the busiest process). A row slides
+/// its screen over the whole body (the deck's back button brings the page back), so everything those screens do
+/// stays where it was. A part is left out when its feature is off, except System, which is there whenever
+/// Performance is. The page has no second row of its own: pin and Settings stand above the right column.
 public struct MacScreen: View {
     let performance: PerformanceFeature?
     let mixer: Mixer?
     let monitors: MonitorsFeature?
+    let admin: SystemAdminFeature?
     let enabled: Set<FeatureID>
     /// The existing screen of a Mac feature.
     let detail: (FeatureID) -> AnyView
@@ -20,15 +22,17 @@ public struct MacScreen: View {
     @Environment(\.deckDetail) private var open
     @Environment(\.openDeckDetail) private var openDetail
     @Environment(\.deckCornerInset) private var cornerInset
+    @Environment(\.deckAccent) private var accent
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(
-        performance: PerformanceFeature?, mixer: Mixer?, monitors: MonitorsFeature?, enabled: Set<FeatureID>,
-        detail: @escaping (FeatureID) -> AnyView
+        performance: PerformanceFeature?, mixer: Mixer?, monitors: MonitorsFeature?, admin: SystemAdminFeature?,
+        enabled: Set<FeatureID>, detail: @escaping (FeatureID) -> AnyView
     ) {
         self.performance = performance
         self.mixer = mixer
         self.monitors = monitors
+        self.admin = admin
         self.enabled = enabled
         self.detail = detail
     }
@@ -84,7 +88,7 @@ public struct MacScreen: View {
 
     /// The screens that slide over the page, in one card sharing its height, each with where things stand.
     private var list: some View {
-        let features = SpaceID.mac.details.filter(enabled.contains)
+        let features = SpaceID.mac.openableDetails(enabled: enabled)
         return VStack(spacing: 0) {
             ForEach(Array(features.enumerated()), id: \.element) { index, feature in
                 if index > 0 { Rectangle().fill(Deck.hairline).frame(height: 1) }
@@ -98,12 +102,18 @@ public struct MacScreen: View {
     private func row(_ feature: FeatureID) -> some View {
         let title = SpaceID.mac.detailTitle(feature)
         let value = value(of: feature)
+        let color: Color =
+            switch value.tone {
+            case .stop: Deck.stop
+            case .accent: accent
+            case .quiet: Deck.tertiary
+            }
         return Button {
             openDetail(feature)
         } label: {
             HStack(spacing: 8) {
                 Text(title).font(.system(size: 13, weight: .semibold)).lineLimit(1).layoutPriority(1)
-                Text(value).font(.system(size: 12)).foregroundStyle(Deck.tertiary).lineLimit(1)
+                Text(value.text).font(.system(size: 12)).foregroundStyle(color).lineLimit(1)
                     .truncationMode(.tail).frame(maxWidth: .infinity, alignment: .trailing)
                 DeckIconView(.chevronRight, size: 10).foregroundStyle(Deck.tertiary)
             }
@@ -114,28 +124,43 @@ public struct MacScreen: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title)
-        .accessibilityValue(value)
+        .accessibilityValue(value.text)
     }
 
     /// Where the screen's subject stands now.
-    private func value(of feature: FeatureID) -> String {
-        switch feature {
-        case .sound: mixer?.output?.name ?? ""
-        case .monitors: "\(NSScreen.screens.count)"
-        case .network: performance?.networkName ?? ""
-        case .storage: "Clean up"
-        case .admin: MacRows.systemName(ProcessInfo.processInfo.operatingSystemVersion)
-        default: ""
-        }
+    private func value(of feature: FeatureID) -> MacRows.Summary {
+        let text: String =
+            switch feature {
+            case .sound: mixer?.output?.name ?? ""
+            case .monitors: "\(NSScreen.screens.count)"
+            case .network: performance?.networkName ?? ""
+            case .storage: "Clean up"
+            default: ""
+            }
+        guard feature == .admin else { return MacRows.Summary(text: text) }
+        // Only what the features already know: the admin lists are read while its screen is open.
+        return MacRows.systemSummary(
+            failed: admin?.failedCount ?? 0, updates: admin?.outdated.count ?? 0, busiest: performance?.busiestProcess)
     }
 }
 
 /// Words on the page's rows, as pure functions.
 enum MacRows {
-    /// "macOS 27.2", with the patch when there is one: "macOS 15.6.1".
-    static func systemName(_ version: OperatingSystemVersion) -> String {
-        let patch = version.patchVersion > 0 ? ".\(version.patchVersion)" : ""
-        return "macOS \(version.majorVersion).\(version.minorVersion)\(patch)"
+    /// A row's words and how they are coloured.
+    struct Summary: Equatable {
+        enum Tone { case stop, accent, quiet }
+
+        var text: String
+        var tone = Tone.quiet
+    }
+
+    /// The System row: launch services that failed ("1 failed", in stop), else Homebrew packages with updates
+    /// ("3 updates", in the accent), else the busiest process ("Xcode  48%"); empty when none is known.
+    static func systemSummary(failed: Int, updates: Int, busiest: (name: String, cpu: Double)?) -> Summary {
+        if failed > 0 { return Summary(text: "\(failed) failed", tone: .stop) }
+        if updates > 0 { return Summary(text: "\(updates) \(updates == 1 ? "update" : "updates")", tone: .accent) }
+        guard let busiest else { return Summary(text: "") }
+        return Summary(text: "\(busiest.name)  \(Int(busiest.cpu.rounded()))%")
     }
 }
 

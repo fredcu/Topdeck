@@ -450,7 +450,7 @@ public struct NotchState: Hashable, Sendable {
             open(lastSpace, pinned: presentation.isPinned)
         case (_, .openDetail(let feature)):
             guard let space = presentation.openSpace else { break }
-            if let feature, space.details.contains(feature), spaceSet.enabled.contains(feature) {
+            if let feature, space.openableDetails(enabled: spaceSet.enabled).contains(feature) {
                 detail = feature
             } else if feature == nil {
                 detail = nil

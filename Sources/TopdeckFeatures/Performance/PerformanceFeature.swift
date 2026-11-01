@@ -84,6 +84,11 @@ public final class PerformanceFeature: NotchFeature {
     /// "Wi-Fi", "Ethernet" or the interface's name, for the Mac page's Network row.
     public var networkName: String? { snapshot.networkInterface }
 
+    /// The process using the most CPU now, for the Mac page's System row; nil while none is known or none is busy.
+    public var busiestProcess: (name: String, cpu: Double)? {
+        snapshot.topCPU.first.flatMap { $0.name.isEmpty ? nil : ($0.name, $0.cpu) }
+    }
+
     /// Whether a reading is scheduled.
     var isSampling: Bool { timer != nil }
 
