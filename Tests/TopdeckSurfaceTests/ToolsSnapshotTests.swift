@@ -8,7 +8,7 @@ import TopdeckCore
 @testable import TopdeckFeatures
 @testable import TopdeckSurface
 
-/// Tools in the real deck, with sample data, at the default and the smallest size; and the
+/// Tools in the real deck, with sample data, idle at the default and the smallest size and running; and the
 /// closed notch of a meeting about to start. With SNAPSHOT_DIR set, also writes PNGs there.
 @MainActor
 struct ToolsSnapshotTests {
@@ -18,13 +18,14 @@ struct ToolsSnapshotTests {
 
     private func defaults() -> UserDefaults { UserDefaults(suiteName: "PlanTools.\(UUID().uuidString)")! }
 
-    /// A folder of captures with sample pictures: three screenshots and a GIF, the newest first.
+    /// A folder of captures with sample pictures: seven screenshots and a GIF, the newest first.
     private func captures() throws -> URL {
         let folder = FileManager.default.temporaryDirectory.appending(path: "ToolsSnapshot-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let shades: [(String, UInt32, UInt32)] = [
             ("a.png", 0x2B4C7E, 0x6B4FA0), ("b.gif", 0x3B4660, 0x2E6CB8), ("c.png", 0xB5562B, 0xA8325E),
-            ("d.png", 0x1E8E7E, 0x3B4660),
+            ("d.png", 0x1E8E7E, 0x3B4660), ("e.png", 0x4B3B60, 0x2E6CB8), ("f.png", 0x7E6B2B, 0x3B4660),
+            ("g.png", 0x2B7E5A, 0x6B4FA0), ("h.png", 0x602B3B, 0xB8862E),
         ]
         for (offset, shade) in shades.enumerated() {
             let url = folder.appending(path: shade.0)
@@ -51,17 +52,21 @@ struct ToolsSnapshotTests {
         return folder
     }
 
-    private func tools() async throws -> (CaptureFeature, TimerFeature, ShortcutsFeature) {
+    /// `running`: the timer counting down, Keep Awake on and System audio chosen.
+    private func tools(running: Bool) async throws -> (CaptureFeature, TimerFeature, ShortcutsFeature) {
         let colors = defaults()
         colors.set(["#FFB340", "#3B82F6", "#FC3C44", "#34C759"], forKey: CaptureFeature.colorsKey)
         let timer = TimerFeature(defaults: defaults())
-        timer.start(1498)
-        timer.keepAwake(for: 4320)
+        if running {
+            timer.start(1498)
+            timer.keepAwake(for: 4320)
+        }
         let capture = CaptureFeature(defaults: colors, folder: try captures())
         capture.reloadRecents()
         try await Task.sleep(for: .milliseconds(300))
-        #expect(capture.recents.count == 4, "the sample captures are listed")
+        #expect(capture.recents.count == 8, "the sample captures are listed")
         for item in capture.recents { _ = await capture.thumbnails.image(for: item, maxPixel: 360) }
+        capture.recorder.options.systemAudio = running
         return (capture, timer, ShortcutsFeature(defaults: defaults()))
     }
 
@@ -90,10 +95,12 @@ struct ToolsSnapshotTests {
     }
 
     @Test(arguments: [
-        ("R3c-Tools", NotchPreferences.defaultExpandedSize), ("R3c-Tools-min", NotchPreferences.minimumExpandedSize),
+        ("R3c-Tools", NotchPreferences.defaultExpandedSize, false),
+        ("R3c-Tools-min", NotchPreferences.minimumExpandedSize, false),
+        ("R3c-Tools-running", NotchPreferences.defaultExpandedSize, true),
     ])
-    func toolsFitItsDeck(name: String, size: CGSize) async throws {
-        let (capture, timer, shortcuts) = try await tools()
+    func toolsFitItsDeck(name: String, size: CGSize, running: Bool) async throws {
+        let (capture, timer, shortcuts) = try await tools(running: running)
         let content = content(
             screen: { space, _ in
                 space == .tools

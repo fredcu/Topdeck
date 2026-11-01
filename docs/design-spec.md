@@ -158,24 +158,32 @@ also copied stays one item (the pictures are matched by a fingerprint of their P
 
 ### Tools
 
-Board `Tools3`, with the owner's changes. Body, left: row one Area, Window, Screen, Scrolling, Text; row
-two Record Window, Record Screen, Edit Video (there is no Record Area; see Recording below); under them the recent captures as thumbnails, as many as fit
-(real images), each with a kind badge (PNG, MP4 or GIF) and its time. Click opens a picture in the editor,
+Board `Tools3`, with the owner's changes, tidied. Body, left: two toolbars, each one card cut into equal cells
+by hairlines (64 high, 56 at the smallest size): a 19pt line icon over a Semibold 12 name, no icon chips,
+the icons in the Tools accent. Bar one: Area, Window, Screen, Scrolling, Text. Bar two: Record Window, Record
+Screen, Edit Video and a narrow last cell with the recording options (see Recording); the two Record cells
+draw their icon in the text colour with a small red dot at its top-right (there is no Record Area). Under
+them the recent captures as a grid of 16:10 thumbnails with a hairline, four columns (three at the smallest
+size) and as many rows as fit, each with its time; a recording or GIF has a dark pill at the bottom-left with
+a play glyph and its length (or "GIF"), a picture has no badge. Click opens a picture in the editor,
 drag takes the file out, right-click offers Copy, Reveal and Delete (to the Trash). Every screenshot,
 including a scrolling or pinned one, is kept as a PNG in the Captures folder, which the list reads; the
-thumbnail model also takes recordings. Right, 192 wide (176 at the smallest size): Timer, Keep Awake, Sleep
-Screen, Pick Colour and Shortcuts, each with a pill (the running time, the time left, "Now", the key, the
-count). Timer, Keep Awake, Pick Colour and Shortcuts open their controls in a popover; the recent colours
-live in Pick Colour's. QR Code and Pin stay on their shortcuts and in the Command Bar. At 620×340 the tiles
-and thumbnails shrink.
+thumbnail model also takes recordings. Right, 192 wide (176 at the smallest size): one card of Timer, Keep
+Awake, Sleep Screen, Pick Colour and Shortcuts, the rows sharing its height, split by hairlines. A row is an
+18pt line icon, the name and a capsule at its end: the timer's time left in the accent while it runs
+("Start" when idle), Keep Awake's time left in the accent ("Off" when off), "Now", a swatch of the last
+colour picked (the key before any), the count. Timer, Keep Awake, Pick Colour and Shortcuts open their
+controls in a popover, Sleep Screen acts at once; the recent colours live in Pick Colour's. QR Code and Pin
+stay on their shortcuts and in the Command Bar.
 
 #### Recording
 
 Record Window picks a window with the Window tool's highlight and pick overlay; Record Screen records the
-only display, or asks which from a menu at the pointer when there are several. A small button in a Record
-tile's corner opens a popover with three switches, remembered: System audio and Microphone (both off to begin
-with) and Show clicks (on). While a recording is on, the two Record tiles read Stop (in the stop colour) and a
-press ends it, or cancels its countdown. Both are also commands (Record Window, Record Screen) with shortcuts in
+only display, or asks which from a menu at the pointer when there are several. The last cell of the
+second toolbar holds three small icon toggles, remembered: System audio and Microphone (both off to begin
+with) and Show clicks (on; its tooltip says screen recordings only). While a recording is on, the toggles are
+fixed and the two Record cells read Stop (in the stop colour) and a press ends it, or cancels its countdown.
+Both are also commands (Record Window, Record Screen) with shortcuts in
 Settings › Capture, like the other tools.
 
 Three seconds count down in the closed notch, a red dot to the left of the camera and the number to the right;

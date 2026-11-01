@@ -4,9 +4,9 @@ import SwiftUI
 import TopdeckCore
 import TopdeckSurface
 
-/// The Tools space's body, as the board: the capture tiles and the captures kept lately on the left; on
-/// the right Timer, Keep Awake, Sleep Screen, Pick Colour and Shortcuts, each opening its controls in a
-/// popover. A part is left out when its feature is off.
+/// The Tools space's body, as the board: the capture toolbars and the captures kept lately on the left; on
+/// the right one list of Timer, Keep Awake, Sleep Screen, Pick Colour and Shortcuts, each opening its
+/// controls in a popover. A part is left out when its feature is off.
 public struct ToolsScreen: View {
     let capture: CaptureFeature?
     let timer: TimerFeature?
@@ -16,7 +16,7 @@ public struct ToolsScreen: View {
     @Environment(\.deckAccent) private var accent
     @State private var open: Row?
 
-    private enum Row: Hashable { case timer, awake, color, shortcuts }
+    private enum Row: Hashable { case timer, awake, sleep, color, shortcuts }
 
     public init(
         capture: CaptureFeature?, timer: TimerFeature?, shortcuts: ShortcutsFeature?,
@@ -29,47 +29,87 @@ public struct ToolsScreen: View {
     }
 
     public var body: some View {
-        // The smallest decks take the shorter tiles and rows.
+        // The smallest decks take the shorter toolbars.
         GeometryReader { body in
             let compact = body.size.height < Self.compactBelow
-            HStack(spacing: Deck.Metric.gap) {
+            HStack(spacing: Deck.Metric.columnGap) {
                 if let capture {
                     CaptureView(capture: capture, compact: compact)
-                    Rectangle().fill(Deck.hairline).frame(width: 1)
                 }
-                rows(compact: compact)
+                list
                     .frame(width: capture == nil ? nil : (body.size.width < 560 ? 176 : 192))
             }
         }
     }
 
-    /// The body height under which the full-size tiles would not fit.
+    /// The body height under which the full-size toolbars would not fit.
     static let compactBelow: CGFloat = 275
 
-    private func rows(compact: Bool) -> some View {
-        VStack(spacing: 7) {
+    private var rows: [Row] {
+        (timer == nil ? [] : [.timer, .awake]) + [.sleep] + (capture == nil ? [] : [.color])
+            + (shortcuts == nil ? [] : [.shortcuts])
+    }
+
+    /// The rows in one card, sharing its height, split by hairlines.
+    private var list: some View {
+        let shape = RoundedRectangle(cornerRadius: Deck.Radius.tile + 2, style: .continuous)
+        return VStack(spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.element) { index, which in
+                if index > 0 { Rectangle().fill(Deck.hairline).frame(height: 1) }
+                rowView(which)
+            }
+        }
+        .background(shape.fill(Deck.card))
+        .overlay(shape.strokeBorder(Deck.hairline, lineWidth: 1))
+        .clipShape(shape)
+        .frame(maxHeight: .infinity)
+    }
+
+    // MARK: Rows
+
+    @ViewBuilder private func rowView(_ which: Row) -> some View {
+        switch which {
+        case .timer:
             if let timer {
                 row(.timer, "Timer", .clock, Deck.Accent.now) {
                     timerPill(timer)
                 } popover: {
                     TimerView(timer: timer, only: .clock).frame(width: 264, height: 168)
                 }
+            }
+        case .awake:
+            if let timer {
                 row(.awake, "Keep Awake", .coffee, Deck.Tint.yellow) {
                     awakePill(timer)
                 } popover: {
                     TimerView(timer: timer, only: .awake).frame(width: 264, height: 98)
                 }
             }
-            plainRow("Sleep Screen", .moon, Deck.Accent.clipboard, pill: "Now", action: sleepDisplays)
+        case .sleep:
+            Button(action: sleepDisplays) {
+                ToolRowLabel(title: "Sleep Screen", icon: .moon, tint: Deck.Accent.clipboard) { Pill(text: "Now") }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Sleep Screen")
+        case .color:
             if let capture {
                 row(.color, "Pick Colour", .colorPicker, accent) {
-                    if let code = KeyboardShortcuts.getShortcut(for: .capture(.color)) {
+                    if let code = capture.colors.first, let color = ColorCode.rgb(code)?.color {
+                        Pill {
+                            RoundedRectangle(cornerRadius: 4, style: .continuous).fill(color)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 4, style: .continuous).strokeBorder(Deck.hairline)
+                                )
+                                .frame(width: 12, height: 12)
+                        }
+                    } else if let code = KeyboardShortcuts.getShortcut(for: .capture(.color)) {
                         Pill(text: "\(code)")
                     }
                 } popover: {
                     ColorPopover(capture: capture) { open = nil }
                 }
             }
+        case .shortcuts:
             if let shortcuts {
                 row(.shortcuts, "Shortcuts", .keyboard, Deck.secondary) {
                     if shortcuts.status == .ready { Pill(text: "\(shortcuts.visible.count)") }
@@ -78,10 +118,7 @@ public struct ToolsScreen: View {
                 }
             }
         }
-        .frame(maxHeight: .infinity)
     }
-
-    // MARK: Rows
 
     /// A row that opens a popover.
     private func row<P: View, Pop: View>(
@@ -100,42 +137,55 @@ public struct ToolsScreen: View {
         .accessibilityLabel(title)
     }
 
-    /// A row that acts at once.
-    private func plainRow(_ title: String, _ icon: DeckIcon, _ tint: Color, pill: String, action: @escaping () -> Void)
-        -> some View
-    {
-        Button(action: action) {
-            ToolRowLabel(title: title, icon: icon, tint: tint) { Pill(text: pill) }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(title)
-    }
-
-    @ViewBuilder private func timerPill(_ timer: TimerFeature) -> some View {
-        if timer.mode == .stopwatch {
-            let watch = timer.stopwatch
-            if watch.isRunning || watch.elapsed(at: .now) > 0 {
-                TimelineView(.periodic(from: .now, by: watch.isRunning ? 1 : 3600)) { context in
-                    Pill(text: formatTime(watch.elapsed(at: context.date)))
-                }
-            }
-        } else if let countdown = timer.countdown {
-            TimelineView(.periodic(from: .now, by: countdown.isRunning ? 1 : 3600)) { context in
-                Pill(text: formatTime(countdown.remaining(at: context.date)))
-            }
+    private func timerPill(_ timer: TimerFeature) -> some View {
+        let running = TimerPill.face(for: timer, at: .now).live
+        return TimelineView(.periodic(from: .now, by: running ? 1 : 3600)) { context in
+            let face = TimerPill.face(for: timer, at: context.date)
+            Pill(text: face.text, live: face.live)
         }
     }
 
     @ViewBuilder private func awakePill(_ timer: TimerFeature) -> some View {
         if let until = timer.awakeUntil {
             TimelineView(.everyMinute) { context in
-                Pill(text: AwakeLabel.short(until: until, now: context.date))
+                Pill(text: TimerPill.awake(until: until, now: context.date), live: true)
             }
+        } else {
+            Pill(text: TimerPill.awake(until: nil))
         }
     }
 }
 
-/// A row's face: an icon chip, the name and a small pill at the right, on a card.
+/// What the Timer and Keep Awake rows' pills say: a running clock in the accent, anything else plain.
+@MainActor enum TimerPill {
+    struct Face: Equatable {
+        var text: String
+        var live: Bool
+    }
+
+    /// The countdown's or stopwatch's time, live while it runs; "Start" with nothing under way. A countdown
+    /// goes back to nothing when cancelled, so no set duration is kept to show.
+    static func face(for timer: TimerFeature, at date: Date) -> Face {
+        face(mode: timer.mode, countdown: timer.countdown, stopwatch: timer.stopwatch, at: date)
+    }
+
+    static func face(mode: TimerFeature.Mode, countdown: Countdown?, stopwatch: Stopwatch, at date: Date) -> Face {
+        if mode == .stopwatch {
+            let elapsed = stopwatch.elapsed(at: date)
+            guard stopwatch.isRunning || elapsed > 0 else { return Face(text: "Start", live: false) }
+            return Face(text: formatTime(elapsed, roundingUp: false), live: stopwatch.isRunning)
+        }
+        guard let countdown else { return Face(text: "Start", live: false) }
+        return Face(text: formatTime(countdown.remaining(at: date)), live: countdown.isRunning)
+    }
+
+    /// The time left, or "On" with no end; "Off" when Keep Awake is not on.
+    static func awake(until: Date?, now: Date = .now) -> String {
+        until.map { AwakeLabel.short(until: $0, now: now) } ?? "Off"
+    }
+}
+
+/// A row's face: a line icon, the name and a pill at the trailing edge.
 private struct ToolRowLabel<P: View>: View {
     let title: String
     let icon: DeckIcon
@@ -143,38 +193,42 @@ private struct ToolRowLabel<P: View>: View {
     @ViewBuilder let pill: P
 
     var body: some View {
+        // Tight enough for "Sleep Screen" and its pill in the 176-wide column.
         HStack(spacing: 8) {
-            DeckIconView(icon, size: 15)
-                .foregroundStyle(tint)
-                .frame(width: 26, height: 26)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(tint.tint(0.2)))
+            DeckIconView(icon, size: 18).foregroundStyle(tint)
             Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(Deck.text).lineLimit(1)
-                .layoutPriority(1)
-            Spacer(minLength: 0)
+                .minimumScaleFactor(0.9)
+                .frame(maxWidth: .infinity, alignment: .leading)
             pill
         }
-        .padding(.horizontal, 8)
+        .padding(.leading, 10)
+        .padding(.trailing, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(RoundedRectangle(cornerRadius: Deck.Radius.tile, style: .continuous).fill(Deck.card))
-        .overlay(
-            RoundedRectangle(cornerRadius: Deck.Radius.tile, style: .continuous).strokeBorder(
-                Deck.hairline, lineWidth: 1)
-        )
-        .contentShape(RoundedRectangle(cornerRadius: Deck.Radius.tile, style: .continuous))
+        .contentShape(Rectangle())
     }
 }
 
-/// A small status at the right of a row: a running time, a count, a key.
-private struct Pill: View {
-    let text: String
+/// A capsule at the right of a row: a running time, a state, a count, a key, a swatch. `live` is a running
+/// one, in the accent.
+private struct Pill<Content: View>: View {
+    var live = false
+    @ViewBuilder let content: Content
+    @Environment(\.deckAccent) private var accent
 
     var body: some View {
-        Text(text)
+        content
             .font(.system(size: 12, weight: .semibold).monospacedDigit())
-            .foregroundStyle(Deck.secondary)
+            .foregroundStyle(live ? accent : Deck.secondary)
             .lineLimit(1)
-            .padding(.horizontal, 7)
-            .frame(height: 22)
-            .background(Capsule().fill(Deck.cardRaised))
+            .fixedSize()
+            .padding(.horizontal, 8)
+            .frame(height: 24)
+            .background(Capsule().fill(live ? accent.tint(0.18) : Deck.cardRaised))
+    }
+}
+
+extension Pill where Content == Text {
+    fileprivate init(text: String, live: Bool = false) {
+        self.init(live: live) { Text(text) }
     }
 }

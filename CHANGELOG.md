@@ -2,6 +2,7 @@
 
 ## [0.1.0]
 
+- Tools is tidier: the capture tools are two toolbars, the recording options are three small toggles at the end of the second, recent captures are a grid without kind badges, and Timer, Keep Awake, Sleep Screen, Pick Colour and Shortcuts are one list with a pill on each row.
 - An empty Shelf is a drop zone with an illustration and a Choose Files… button; with files, Add Files… is an icon in the second row, and dragging files over the tiles shows how many will be added.
 - Recording stops only once on repeated clicks. Cancelling an export and retrying keeps the new task's state; exports use separate temporary files and replace an existing output without deleting it first.
 - Topdeck starts from ILoveNotch 1.4.0, without Mirror, Android sharing, the App Store edition or Sparkle.
