@@ -66,6 +66,7 @@ final class Sampler: SnapshotSource, @unchecked Sendable {
         if spaceAge % 15 == 0 { next.networkInterface = Probes.primaryInterface() }
         spaceAge += 1
         next.loadAverage = Probes.loadAverage()
+        next.thermal = ThermalLevel(ProcessInfo.processInfo.thermalState)
         if let sensors {
             let temperatures = Temperatures(from: sensors.read())
             next.temperatures = temperatures.isEmpty ? nil : temperatures

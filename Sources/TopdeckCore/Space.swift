@@ -46,6 +46,20 @@ public enum SpaceID: String, CaseIterable, Codable, Hashable, Identifiable, Send
         self == .mac ? [.sound, .monitors, .network, .storage, .admin] : []
     }
 
+    /// Whether the page has anything for the second row. The top navigation already names the space, so a row
+    /// with nothing of the page's own in it is not drawn, and the body moves up. Now and Agents (its period
+    /// and refresh, while usage is on) keep theirs; the Shelf's holds its files, the Clipboard's its history.
+    /// A detail screen always has one: its back button lives there.
+    public func hasSecondRow(shelfFilled: Bool, clipboardHistory: Bool, agentsRow: Bool = true) -> Bool {
+        switch self {
+        case .now: true
+        case .shelf: shelfFilled
+        case .clipboard: clipboardHistory
+        case .agents: agentsRow
+        case .tools, .mac: false
+        }
+    }
+
     /// A detail screen's title, which can differ from its feature's name.
     public func detailTitle(_ feature: FeatureID) -> String {
         switch (self, feature) {

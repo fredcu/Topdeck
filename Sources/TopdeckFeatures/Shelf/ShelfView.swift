@@ -12,6 +12,7 @@ struct ShelfView: View {
     /// How many files are already being dragged over the zone or the tiles, for a picture of that.
     var incoming: Int?
     @FocusState private var focused: Bool
+    @Environment(\.deckCornerInset) private var cornerInset
 
     var body: some View {
         HStack(alignment: .top, spacing: Deck.Metric.gap) {
@@ -23,6 +24,7 @@ struct ShelfView: View {
             VStack(spacing: 8) {
                 ForEach(ShelfFeature.Target.allCases, id: \.self) { ShelfTargetView(shelf: shelf, target: $0) }
             }
+            .padding(.top, cornerInset)
             .frame(width: 172)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

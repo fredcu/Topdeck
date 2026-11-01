@@ -89,6 +89,17 @@ struct SpaceTests {
         #expect(one.wings.left == [.mac] && one.wings.right.isEmpty)
     }
 
+    @Test func aPageHasASecondRowOnlyWhenItHasSomethingOfItsOwnForIt() {
+        func row(_ space: SpaceID, shelf: Bool = false, history: Bool = false, agents: Bool = true) -> Bool {
+            space.hasSecondRow(shelfFilled: shelf, clipboardHistory: history, agentsRow: agents)
+        }
+        #expect(row(.now), "the clock, the slot and the actions")
+        #expect(!row(.shelf) && row(.shelf, shelf: true), "files bring their count and actions")
+        #expect(!row(.clipboard) && row(.clipboard, history: true), "history on brings its filters")
+        #expect(!row(.tools) && !row(.mac, shelf: true, history: true), "never, whatever else is on")
+        #expect(row(.agents) && !row(.agents, agents: false), "its period and refresh, while usage is on")
+    }
+
     @Test func aFeatureOpensItsHomeOrAnotherSpaceThatHoldsIt() {
         let all = Set(FeatureID.allCases)
         #expect(SpaceSet.all.target(for: .calendar) == .now && SpaceSet.all.target(for: .weather) == .now)

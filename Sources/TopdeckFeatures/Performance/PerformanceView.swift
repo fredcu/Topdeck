@@ -2,156 +2,342 @@
 import SwiftUI
 import TopdeckSurface
 
-/// The Mac page's left side, as the board: six cards in three columns by two rows (CPU, GPU, network, disk,
-/// memory, battery), each an icon, a large value, a sparkline of the last minute and a line of detail; and
-/// under them the busiest processes, as many rows as fit, sorted by a click on a header. A Mac without a
-/// battery shows its uptime in the last card.
+/// The Mac page's left side, as the board: a thermal strip (the system's verdict on heat, then CPU, GPU, SSD
+/// and battery temperatures), and under it six tiles in three columns by two rows (CPU, GPU, network, memory,
+/// storage, battery), each with its name and a detail, a large value, a chart or a bar of the last minute and
+/// a line of detail. A Mac without a battery shows its uptime in the last tile.
 public struct PerformanceView: View {
     let performance: PerformanceFeature
 
-    @State private var sort = ProcessSort.cpu
-
     public init(performance: PerformanceFeature) { self.performance = performance }
+
+    /// Under this body height the strip drops its peak line and the tiles their captions.
+    static let compactBelow: CGFloat = 320
+    /// Under this width the strip's state block and gaps are tighter.
+    static let narrowBelow: CGFloat = 430
+    static let stripHeight: CGFloat = 52
+    static let gap: CGFloat = 10
 
     public var body: some View {
         let snapshot = performance.snapshot
         let history = performance.history
-        VStack(spacing: 8) {
-            Grid(horizontalSpacing: 8, verticalSpacing: 8) {
-                GridRow {
-                    cpu(snapshot, history)
-                    gpu(snapshot, history)
-                    network(snapshot, history)
+        GeometryReader { space in
+            let compact = space.size.height < Self.compactBelow
+            // The two rows share what the strip leaves, charts 1.45 to the bars' 1.
+            let rows = space.size.height - Self.stripHeight - 2 * Self.gap
+            let top = max(rows * 1.45 / 2.45, 0)
+            VStack(spacing: Self.gap) {
+                ThermalStrip(snapshot: snapshot, compact: compact, narrow: space.size.width < Self.narrowBelow)
+                    .frame(height: Self.stripHeight)
+                HStack(spacing: Self.gap) {
+                    cpu(snapshot, history, compact)
+                    gpu(snapshot, history, compact)
+                    network(snapshot, history, compact)
                 }
-                GridRow {
-                    disk(snapshot, history)
-                    memory(snapshot, history)
-                    battery(snapshot, history)
+                .frame(height: top)
+                HStack(spacing: Self.gap) {
+                    memory(snapshot, compact)
+                    storage(snapshot, compact)
+                    battery(snapshot, compact)
                 }
+                .frame(maxHeight: .infinity)
             }
-            ProcessTable(snapshot: snapshot, sort: $sort)
         }
         .monospacedDigit()
     }
 
-    // MARK: Cards
+    // MARK: Tiles
 
-    private func cpu(_ snapshot: PerformanceFeature.Snapshot, _ history: PerformanceHistory) -> some View {
-        let temperature = MacFormat.degrees(snapshot.temperatures?.chip)
-        return MetricCard(
-            icon: .cpu, tint: Deck.Accent.mac, detail: ["CPU", temperature].compactMap { $0 }.joined(separator: ", "),
-            value: MacFormat.whole(snapshot.cpu), unit: "%", history: history.cpu.values, floor: 10,
-            line: snapshot.loadAverage.map { String(format: "Load %.2f", $0) } ?? "",
-            spoken: "CPU \(MacFormat.whole(snapshot.cpu)) percent")
-    }
-
-    private func gpu(_ snapshot: PerformanceFeature.Snapshot, _ history: PerformanceHistory) -> some View {
-        let temperature = MacFormat.degrees(snapshot.temperatures?.gpu)
-        return MetricCard(
-            icon: .gpu, tint: Deck.Accent.tools,
-            detail: ["GPU", temperature].compactMap { $0 }.joined(separator: ", "),
-            value: MacFormat.whole(snapshot.gpu), unit: "%", history: history.gpu.values, floor: 10,
-            line: snapshot.chipName ?? "", spoken: "GPU \(MacFormat.whole(snapshot.gpu)) percent")
-    }
-
-    private func network(_ snapshot: PerformanceFeature.Snapshot, _ history: PerformanceHistory) -> some View {
-        let traffic = MacFormat.traffic(snapshot.network)
-        return MetricCard(
-            icon: .globe, tint: Deck.Accent.now, detail: snapshot.networkInterface ?? "Network", value: traffic.value,
-            unit: traffic.unit, history: history.network.values, floor: 1000, line: traffic.detail,
-            spoken: "Network \(traffic.value) \(traffic.unit)")
-    }
-
-    private func disk(_ snapshot: PerformanceFeature.Snapshot, _ history: PerformanceHistory) -> some View {
-        let free = MacFormat.bytes(snapshot.diskFree)
-        return MetricCard(
-            icon: .disk, tint: Deck.Tint.magenta,
-            detail: snapshot.diskTotal.map { MacFormat.capacity($0, memory: false) } ?? "",
-            value: free.value, unit: "\(free.unit) free", history: history.disk.values, floor: 1000,
-            line: MacFormat.disk(read: snapshot.diskRead, written: snapshot.diskWritten),
-            spoken: "Disk, \(free.value) \(free.unit) free")
-    }
-
-    private func memory(_ snapshot: PerformanceFeature.Snapshot, _ history: PerformanceHistory) -> some View {
-        let sample = snapshot.memory
-        let percent = sample.flatMap { $0.total > 0 ? $0.used / $0.total * 100 : nil }
-        return MetricCard(
-            icon: .memory, tint: Deck.Tint.yellow,
-            detail: sample.map { MacFormat.capacity(Int64($0.total), memory: true) } ?? "",
-            value: MacFormat.whole(percent), unit: "%", history: history.memory.values, ceiling: 100,
-            line: sample.map { "Used \(MacFormat.gigabytes($0.used))" } ?? "",
-            tone: snapshot.pressure == .normal ? nil : (snapshot.pressure == .warning ? .signal : .stop),
-            spoken: "Memory \(MacFormat.whole(percent)) percent, pressure \(snapshot.pressure.title)")
-    }
-
-    @ViewBuilder private func battery(_ snapshot: PerformanceFeature.Snapshot, _ history: PerformanceHistory)
+    private func cpu(_ snapshot: PerformanceFeature.Snapshot, _ history: PerformanceHistory, _ compact: Bool)
         -> some View
     {
+        let cores = snapshot.efficiencyCores.count + snapshot.performanceCores.count
+        return MetricTile(
+            name: "CPU", detail: cores > 0 ? "\(cores) cores" : "", value: MacFormat.whole(snapshot.cpu), unit: "%",
+            visual: .line(history.cpu.values, tint: Deck.Accent.mac, floor: 10),
+            caption: snapshot.loadAverage.map { String(format: "Load %.2f", $0) } ?? "", compact: compact)
+    }
+
+    private func gpu(_ snapshot: PerformanceFeature.Snapshot, _ history: PerformanceHistory, _ compact: Bool)
+        -> some View
+    {
+        MetricTile(
+            name: "GPU", detail: snapshot.chipName ?? "", value: MacFormat.whole(snapshot.gpu), unit: "%",
+            visual: .line(history.gpu.values, tint: Deck.Accent.tools, floor: 10),
+            caption: (snapshot.gpu ?? 100) < 1 ? "Idle" : "", compact: compact)
+    }
+
+    private func network(_ snapshot: PerformanceFeature.Snapshot, _ history: PerformanceHistory, _ compact: Bool)
+        -> some View
+    {
+        let traffic = MacFormat.traffic(snapshot.network)
+        return MetricTile(
+            name: snapshot.networkInterface ?? "Network", detail: "", value: traffic.value, unit: traffic.unit,
+            visual: .line(history.network.values, tint: Deck.Accent.now, floor: 1000), caption: traffic.detail,
+            compact: compact)
+    }
+
+    private func memory(_ snapshot: PerformanceFeature.Snapshot, _ compact: Bool) -> some View {
+        let sample = snapshot.memory
+        let percent = sample.flatMap { $0.total > 0 ? $0.used / $0.total * 100 : nil }
+        // App, wired and compressed memory, each lighter than the one before.
+        let parts = sample.map { sample in
+            [(sample.active, 1.0), (sample.wired, 0.55), (sample.compressed, 0.3)].map {
+                (fraction: $0.0 / max(sample.total, 1), strength: $0.1)
+            }
+        }
+        return MetricTile(
+            name: "Memory", detail: sample.map { MacFormat.capacity(Int64($0.total), memory: true) } ?? "",
+            value: MacFormat.whole(percent), unit: "%", visual: .bar(parts ?? [], tint: Deck.Tint.yellow),
+            caption: sample.map { "\(MacFormat.gigabytes($0.used)) used" } ?? "",
+            tone: snapshot.pressure == .normal ? nil : (snapshot.pressure == .warning ? .signal : .stop),
+            compact: compact)
+    }
+
+    private func storage(_ snapshot: PerformanceFeature.Snapshot, _ compact: Bool) -> some View {
+        let free = MacFormat.bytes(snapshot.diskFree)
+        var used = 0.0
+        if let free = snapshot.diskFree, let total = snapshot.diskTotal, total > 0 {
+            used = 1 - Double(free) / Double(total)
+        }
+        return MetricTile(
+            name: "Storage", detail: snapshot.diskTotal.map { MacFormat.capacity($0, memory: false) } ?? "",
+            value: free.value, unit: "\(free.unit) free", visual: .bar([(used, 1)], tint: Deck.Tint.magenta),
+            caption: MacFormat.disk(read: snapshot.diskRead, written: snapshot.diskWritten), compact: compact)
+    }
+
+    @ViewBuilder private func battery(_ snapshot: PerformanceFeature.Snapshot, _ compact: Bool) -> some View {
         if let battery = snapshot.battery {
-            MetricCard(
-                icon: .battery, tint: Deck.Accent.mac, detail: MacFormat.degrees(snapshot.temperatures?.battery) ?? "",
-                value: "\(battery.percent)", unit: "%", history: history.battery.values, ceiling: 100,
-                line: battery.health.map { "Health \($0)%" } ?? "", spoken: "Battery \(battery.percent) percent")
+            MetricTile(
+                name: "Battery", detail: battery.health.map { "Health \($0)%" } ?? "", value: "\(battery.percent)",
+                unit: "%", visual: .bar([(Double(battery.percent) / 100, 1)], tint: Deck.Accent.mac),
+                caption: MacFormat.battery(battery), compact: compact, hidesDetail: true)
         } else {
             // A Mac without a battery: how long it has been on.
-            let uptime = MacFormat.uptime(ProcessInfo.processInfo.systemUptime)
-            MetricCard(
-                icon: .bolt, tint: Deck.Accent.mac, detail: "AC", value: uptime, unit: "", history: [], floor: 1,
-                line: "",
-                spoken: "Up \(uptime)")
+            MetricTile(
+                name: "Uptime", detail: "", value: MacFormat.uptime(ProcessInfo.processInfo.systemUptime), unit: "",
+                visual: .none, caption: "", compact: compact)
         }
     }
 }
 
-// MARK: Pieces
+// MARK: Thermal strip
 
-/// One card: a tinted icon and a detail, the value with its unit, a sparkline and a line of detail.
-private struct MetricCard: View {
-    let icon: DeckIcon
-    let tint: Color
+extension Heat {
+    fileprivate var color: Color {
+        switch self {
+        case .cool: Deck.Accent.now
+        case .warm: Deck.Tint.yellow
+        case .hot: Deck.Accent.tools
+        case .critical: Deck.stop
+        }
+    }
+}
+
+/// The system's thermal state at the left, then the four temperatures, each with a gauge that fills to its
+/// reading over 110° in the colour of its heat. A Mac that reports no temperatures shows the state alone.
+private struct ThermalStrip: View {
+    let snapshot: PerformanceFeature.Snapshot
+    let compact: Bool
+    let narrow: Bool
+
+    private struct Reading: Identifiable {
+        let name: String
+        let value: Double?
+        var peak: Double?
+        var id: String { name }
+    }
+
+    var body: some View {
+        let temperatures = snapshot.temperatures
+        let readings = [
+            Reading(name: "CPU", value: temperatures?.chip, peak: temperatures?.chipHottest),
+            Reading(name: "GPU", value: temperatures?.gpu), Reading(name: "SSD", value: temperatures?.ssd),
+            Reading(name: "Battery", value: temperatures?.battery),
+        ]
+        HStack(spacing: narrow ? 8 : 10) {
+            state.frame(width: narrow ? 62 : 76, alignment: .leading)
+            if temperatures != nil {
+                Rectangle().fill(Deck.hairline).frame(width: 1).padding(.vertical, 10)
+                ForEach(readings) { reading in
+                    ReadingView(reading: reading, showsPeak: !compact).frame(maxWidth: .infinity)
+                }
+            } else {
+                Spacer(minLength: 0)
+            }
+        }
+        .padding(.horizontal, narrow ? 10 : 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: Deck.Radius.tile + 2, style: .continuous).fill(Deck.card)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Deck.Radius.tile + 2, style: .continuous).strokeBorder(
+                Deck.hairline, lineWidth: 1)
+        )
+    }
+
+    private var state: some View {
+        let level = snapshot.thermal
+        let color: Color =
+            switch level {
+            case .normal: Deck.go
+            case .fair: Deck.secondary
+            case .throttling: Deck.signal
+            }
+        return VStack(alignment: .leading, spacing: 2) {
+            Text("Thermal").font(.system(size: 12, weight: .semibold)).foregroundStyle(Deck.secondary)
+            Text(level.title).font(.system(size: 13, weight: .bold)).foregroundStyle(color)
+        }
+        .lineLimit(1)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Thermal state")
+        .accessibilityValue(level.title)
+    }
+
+    private struct ReadingView: View {
+        let reading: Reading
+        let showsPeak: Bool
+
+        var body: some View {
+            let heat = reading.value.map { Heat(degrees: $0) }
+            let color = heat?.color ?? Deck.tertiary
+            VStack(spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    // The name gives way first where the strip is short of room.
+                    Text(reading.name).font(.system(size: 11.5)).foregroundStyle(Deck.tertiary)
+                        .lineLimit(1).minimumScaleFactor(0.5)
+                    Spacer(minLength: 0)
+                    Text(MacFormat.degrees(reading.value) ?? "–")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(heat?.tintsReading == true ? color : Deck.text)
+                        .lineLimit(1).fixedSize()
+                }
+                Capsule().fill(Deck.control).frame(height: 4)
+                    .overlay(alignment: .leading) {
+                        GeometryReader { track in
+                            if let value = reading.value {
+                                Capsule().fill(color).frame(width: track.size.width * Heat.gauge(value))
+                            }
+                        }
+                    }
+                if showsPeak, let peak = reading.peak, let text = MacFormat.degrees(peak) {
+                    Text("peak \(text)").font(.system(size: 11.5)).foregroundStyle(Deck.tertiary).lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(reading.name) temperature")
+            .accessibilityValue(spoken)
+        }
+
+        private var spoken: String {
+            guard let value = reading.value else { return "No reading" }
+            let degrees = "\(Int(value.rounded())) degrees"
+            return reading.peak.map { "\(degrees), peak \(Int($0.rounded()))" } ?? degrees
+        }
+    }
+}
+
+// MARK: Tiles
+
+/// One tile: its name and a detail, the value with its unit, a chart or a bar and a line of detail.
+private struct MetricTile: View {
+    enum Visual {
+        /// The last minute as a line, scaled to its largest value (at least `floor`).
+        case line([Double], tint: Color, floor: Double)
+        /// A bar in parts of the whole, each with its own strength of the tint.
+        case bar([(fraction: Double, strength: Double)], tint: Color)
+        case none
+    }
+
+    let name: String
     let detail: String
     let value: String
     let unit: String
-    let history: [Double]
-    var floor: Double = 1
-    var ceiling: Double?
-    let line: String
+    let visual: Visual
+    let caption: String
     var tone: DeckTone?
-    let spoken: String
+    /// The smallest deck: no caption line (and for the battery no detail); they stay in the tooltip.
+    let compact: Bool
+    var hidesDetail = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                DeckIconView(icon, size: 13)
-                    .foregroundStyle(tint)
-                    .frame(width: 22, height: 22)
-                    .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(tint.tint(0.2)))
-                Spacer(minLength: 4)
-                Text(detail).deckText(.caption).lineLimit(1)
+        let shown = compact && hidesDetail ? "" : detail
+        let spoken = [name, detail, "\(value) \(unit)", caption].filter { !$0.isEmpty }.joined(separator: ", ")
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                // The detail gives way first where the tile is narrow.
+                Text(name).font(.system(size: 12, weight: .semibold)).foregroundStyle(Deck.secondary)
+                    .layoutPriority(1)
+                Spacer(minLength: 0)
+                Text(shown).font(.system(size: 12)).foregroundStyle(Deck.tertiary).minimumScaleFactor(0.65)
             }
-            HStack(alignment: .firstTextBaseline, spacing: 3) {
-                Text(value).font(.system(size: 24, weight: .semibold, design: .rounded)).lineLimit(1)
-                    .minimumScaleFactor(0.6)
-                Text(unit).deckText(.caption).lineLimit(1)
+            .lineLimit(1)
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Text(value).font(.system(size: 26, weight: .semibold, design: .rounded))
+                Text(unit).font(.system(size: 14, weight: .semibold)).foregroundStyle(Deck.secondary)
                 if let tone {
                     Spacer(minLength: 0)
                     DeckDot(tone)
                 }
             }
-            MetricSparkline(values: history, color: tint, floor: floor, ceiling: ceiling).frame(height: 24)
-            Text(line).font(.system(size: 11)).foregroundStyle(Deck.tertiary).lineLimit(1).frame(
-                height: 14, alignment: .leading)
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+            .padding(.top, 4)
+            chart.padding(.top, 6)
+            if !compact, !caption.isEmpty {
+                Text(caption).font(.system(size: 11.5)).foregroundStyle(Deck.tertiary).lineLimit(1).padding(.top, 6)
+            }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: Deck.Radius.tile, style: .continuous).fill(Deck.card))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 11)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: Deck.Radius.tile + 2, style: .continuous).fill(Deck.card))
         .overlay(
-            RoundedRectangle(cornerRadius: Deck.Radius.tile, style: .continuous).strokeBorder(
+            RoundedRectangle(cornerRadius: Deck.Radius.tile + 2, style: .continuous).strokeBorder(
                 Deck.hairline, lineWidth: 1)
         )
+        .help(spoken)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(spoken)
+    }
+
+    @ViewBuilder private var chart: some View {
+        switch visual {
+        case .line(let values, let tint, let floor):
+            MetricSparkline(values: values, color: tint, floor: floor).frame(minHeight: 20)
+        case .bar(let parts, let tint):
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+                MetricBar(parts: parts, tint: tint)
+            }
+            .frame(minHeight: 20)
+        case .none:
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+/// An 8 point bar of parts of the whole, each lighter than the one before, on the control colour.
+private struct MetricBar: View {
+    let parts: [(fraction: Double, strength: Double)]
+    let tint: Color
+
+    var body: some View {
+        GeometryReader { track in
+            HStack(spacing: 0) {
+                ForEach(Array(parts.enumerated()), id: \.offset) { _, part in
+                    Rectangle().fill(tint.opacity(part.strength))
+                        .frame(width: track.size.width * min(max(part.fraction, 0), 1))
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Deck.control)
+            .clipShape(Capsule())
+        }
+        .frame(height: 8)
+        .accessibilityHidden(true)
     }
 }
 
@@ -193,62 +379,5 @@ struct MetricSparkline: View {
             let level = min(max(value / max(top, .leastNonzeroMagnitude), 0), 1)
             return CGPoint(x: Double(index) * step, y: size.height - 1 - level * (size.height - 3))
         }
-    }
-}
-
-/// The busiest processes: a header to sort by, then as many rows as the height has room for.
-private struct ProcessTable: View {
-    let snapshot: PerformanceFeature.Snapshot
-    @Binding var sort: ProcessSort
-
-    private static let rowHeight: CGFloat = 24
-    private static let headerHeight: CGFloat = 22
-
-    var body: some View {
-        GeometryReader { space in
-            let fit = Int((space.size.height - Self.headerHeight) / Self.rowHeight)
-            // Under one row there is nothing to sort: the table makes room for the cards first.
-            if fit >= 1 {
-                VStack(spacing: 0) {
-                    header
-                    ForEach(sort.rows(in: snapshot, limit: fit)) { process in
-                        HStack(spacing: 8) {
-                            Text(process.name).deckText(.body).lineLimit(1).frame(
-                                maxWidth: .infinity, alignment: .leading)
-                            Text(MacFormat.processCPU(process.cpu)).deckText(.detail).frame(
-                                width: 44, alignment: .trailing)
-                            Text(MacFormat.processMemory(process.memory)).deckText(.detail)
-                                .frame(width: 58, alignment: .trailing)
-                        }
-                        .frame(height: Self.rowHeight)
-                        .accessibilityElement(children: .combine)
-                    }
-                }
-            }
-        }
-        .frame(maxHeight: .infinity)
-    }
-
-    private var header: some View {
-        HStack(spacing: 8) {
-            title("Process", .name).frame(maxWidth: .infinity, alignment: .leading)
-            title("CPU", .cpu).frame(width: 44, alignment: .trailing)
-            title("Memory", .memory).frame(width: 58, alignment: .trailing)
-        }
-        .frame(height: Self.headerHeight)
-    }
-
-    private func title(_ text: String, _ key: ProcessSort) -> some View {
-        Button {
-            sort = key
-        } label: {
-            Text(text)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(sort == key ? Deck.text : Deck.tertiary)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Sort by \(text)")
-        .accessibilityAddTraits(sort == key ? .isSelected : [])
     }
 }

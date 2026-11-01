@@ -300,6 +300,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                             usage: preferences.isEnabled(.usage) ? usage : nil))
                 default: nil
                 }
+            },
+            hasRow: { [unowned self] space in
+                space.hasSecondRow(
+                    shelfFilled: !shelf.items.isEmpty, clipboardHistory: clipboard.showsHistory,
+                    agentsRow: preferences.isEnabled(.usage) || agents.waitingCount > 0)
             })
         let coordinator = PanelCoordinator(preferences: preferences, content: content)
         // Esc closes an open add field first, and the deck only when there is none.

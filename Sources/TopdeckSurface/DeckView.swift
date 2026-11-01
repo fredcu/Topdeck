@@ -4,7 +4,7 @@ import SwiftUI
 import TopdeckCore
 
 /// The open deck's contents: the top row with the spaces in two wings around the camera, the second
-/// row with the space's title and its actions, and the body. The panel and its black shape
+/// row with the page's own content and its actions (left out when the page has none), and the body. The panel and its black shape
 /// are the notch view's; the deck never changes size when the space does.
 struct DeckView: View {
     let engine: NotchEngine
@@ -27,14 +27,26 @@ struct DeckView: View {
     var body: some View {
         let state = engine.state
         let detail = state.detail
+        // The navigation names the space, so a row with nothing of the page's own in it is not drawn.
+        let showsRow = detail != nil || content.hasRow(space)
         VStack(spacing: 0) {
             wings(state.spaceSet)
-            secondRow(detail: detail)
-                .zIndex(1)  // the add field's style panel hangs over the columns
-            pageBody(Page(space: space, detail: detail), enabled: state.spaceSet.enabled)
+            if showsRow {
+                secondRow(detail: detail)
+                    .zIndex(1)  // the add field's style panel hangs over the columns
+            }
+            pageBody(Page(space: space, detail: detail), enabled: state.spaceSet.enabled, showsRow: showsRow)
         }
         // Inside the shoulders, which are the shape's concave top corners.
         .padding(.horizontal, metrics.notch == nil ? 0 : NotchMetrics.shoulder)
+        .overlay(alignment: .topTrailing) {
+            // Where the row's buttons would be, a little up so the icons clear the first card.
+            if !showsRow {
+                pinAndSettings
+                    .padding(.trailing, (metrics.notch == nil ? 0 : NotchMetrics.shoulder) + Deck.Metric.inset)
+                    .padding(.top, metrics.topRowHeight + Deck.Metric.gap - 6)
+            }
+        }
         .overlay(alignment: .bottomTrailing) {
             // Inside the bottom corner's rounding, in the margin under the cards.
             resizeGrip
@@ -97,8 +109,6 @@ struct DeckView: View {
                 DeckClock()
             } else if let leading = content.leading(space) {
                 leading
-            } else {
-                Text(space.headline()).deckText(.title).lineLimit(1)
             }
             if space == .now {
                 // The one slot between the clock and the actions: a request, a meeting, the add field.
@@ -115,8 +125,7 @@ struct DeckView: View {
             }
             HStack(spacing: 2) {
                 content.actions(space, detail)
-                DeckIconButton(.pin, label: pinned ? "Unpin" : "Keep open", on: pinned) { engine.send(.togglePin) }
-                DeckIconButton(.gear, label: "Settings") { content.openSettings() }
+                pinAndSettings
             }
             .padding(.top, space == .now ? 1 : 0)
         }
@@ -125,9 +134,17 @@ struct DeckView: View {
         .frame(height: space == .now ? Deck.Metric.nowRow : Deck.Metric.subRow, alignment: .top)
     }
 
+    /// Keep open and Settings, at the right end of the second row, or at the body's top right when there is none.
+    private var pinAndSettings: some View {
+        HStack(spacing: 2) {
+            DeckIconButton(.pin, label: pinned ? "Unpin" : "Keep open", on: pinned) { engine.send(.togglePin) }
+            DeckIconButton(.gear, label: "Settings") { content.openSettings() }
+        }
+    }
+
     // MARK: Body
 
-    private func pageBody(_ page: Page, enabled: Set<FeatureID>) -> some View {
+    private func pageBody(_ page: Page, enabled: Set<FeatureID>, showsRow: Bool) -> some View {
         ZStack {
             pageContent(page, enabled: enabled)
                 .id(page)
@@ -135,8 +152,11 @@ struct DeckView: View {
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.15), value: page)
         .padding(.horizontal, space == .now ? Deck.Metric.inset : Deck.Metric.side)
+        // Without a row the body starts under the navigation, and its right-hand column makes room for the buttons.
+        .padding(.top, showsRow ? 0 : Deck.Metric.gap)
         .padding(.bottom, Deck.Metric.side)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .environment(\.deckCornerInset, showsRow ? 0 : Deck.Metric.cornerInset)
         // Overlay scroll bars would sit on top of lists; faded edges show there's more.
         .scrollIndicators(.never)
     }
@@ -194,11 +214,6 @@ struct DeckView: View {
                 }
             }
     }
-}
-
-extension SpaceID {
-    /// The title at the left of the second row.
-    func headline() -> String { title }
 }
 
 /// Three diagonal strokes that run from the right edge to the bottom edge, like a window's resize

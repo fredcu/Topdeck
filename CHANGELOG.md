@@ -2,6 +2,8 @@
 
 ## [0.1.0]
 
+- A space's name is no longer repeated under the navigation: pages with nothing of their own for the second row (an empty Shelf, Clipboard turned off, Tools, Mac) lose it, and pin and Settings move to the body's top right.
+- Mac has a thermal strip with the system's state and the CPU, GPU, SSD and battery temperatures, six plainer tiles (with the battery's time left), the volume and brightness in one card, and a list of Sound, Displays, Network, Storage and System that shows where each stands. The busiest-processes table is gone from the page.
 - Tools is tidier: the capture tools are two toolbars, the recording options are three small toggles at the end of the second, recent captures are a grid without kind badges, and Timer, Keep Awake, Sleep Screen, Pick Colour and Shortcuts are one list with a pill on each row.
 - An empty Shelf is a drop zone with an illustration and a Choose Files… button; with files, Add Files… is an icon in the second row, and dragging files over the tiles shows how many will be added.
 - Recording stops only once on repeated clicks. Cancelling an export and retrying keeps the new task's state; exports use separate temporary files and replace an existing output without deleting it first.

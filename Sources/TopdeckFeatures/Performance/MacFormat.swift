@@ -18,7 +18,7 @@ enum MacFormat {
     }
 
     /// The speed of both directions as one figure in one unit, and each direction in that unit:
-    /// ("3.1", "KB/s", "↓2.8  ↑0.3").
+    /// ("3.1", "KB/s", "↓ 2.8  ↑ 0.3").
     static func traffic(_ rate: Rate?) -> (value: String, unit: String, detail: String) {
         guard let rate else { return ("–", "KB/s", "") }
         let total = NetworkFeature.speed(rate.down + rate.up)
@@ -32,7 +32,18 @@ enum MacFormat {
             let value = bytes / divisor
             return String(format: value < 9.95 ? "%.1f" : "%.0f", value)
         }
-        return (total.value, total.unit, "↓\(figure(rate.down))  ↑\(figure(rate.up))")
+        return (total.value, total.unit, "↓ \(figure(rate.down))  ↑ \(figure(rate.up))")
+    }
+
+    /// "3:42" for 222 minutes.
+    static func clock(minutes: Int) -> String { String(format: "%d:%02d", minutes / 60, minutes % 60) }
+
+    /// The battery card's line: the time left on battery ("3:42 left"), the time to full or "Charging" while
+    /// charging, and the state when plugged in and not charging. Empty while the system works the time out.
+    static func battery(_ report: BatteryReport) -> String {
+        if report.isCharging { return report.minutesToFull.map { "\(clock(minutes: $0)) to full" } ?? "Charging" }
+        if report.isPluggedIn { return report.percent >= 100 ? "Charged" : "Not charging" }
+        return report.minutesToEmpty.map { "\(clock(minutes: $0)) left" } ?? ""
     }
 
     /// "R 81  W 1014 KB/s": the disk's reads and writes in KB/s, below a hundred MB/s.

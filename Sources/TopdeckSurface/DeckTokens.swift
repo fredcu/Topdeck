@@ -169,6 +169,9 @@ public enum Deck {
         public static let buttonHeight: CGFloat = 32
         /// An icon button's square.
         public static let iconButton: CGFloat = 30
+        /// What a right-hand column leaves free at its top when the page has no second row and pin and Settings
+        /// stand there instead: the buttons and a small gap.
+        public static let cornerInset: CGFloat = 30
     }
 }
 
@@ -275,6 +278,9 @@ extension EnvironmentValues {
     @Entry public var deckAccent: Color = Deck.Accent.now
     /// The detail screen over the open space's body (Mac's Sound, Storage and so on), if one is.
     @Entry public var deckDetail: FeatureID?
+    /// How much a page's right-hand column leaves free at the top for pin and Settings, which stand there while
+    /// the page has no second row; 0 when the row is shown.
+    @Entry public var deckCornerInset: CGFloat = 0
     /// Slides a detail screen over the body, or (nil) takes it away. The deck sets it.
     @Entry public var openDeckDetail = DeckDetailOpener { _ in }
 }

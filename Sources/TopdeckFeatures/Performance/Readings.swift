@@ -130,6 +130,10 @@ struct BatteryReport: Equatable, Sendable {
     /// Capacity when new and today, in mAh.
     var designCapacity: Int?
     var currentCapacity: Int?
+    /// The system's estimates in minutes: to empty while on battery, to full while charging; nil while it works
+    /// them out.
+    var minutesToEmpty: Int?
+    var minutesToFull: Int?
 
     /// What is left of the capacity when new, in whole percent. macOS's own figure in Settings can
     /// differ by a point or two.
@@ -147,6 +151,10 @@ struct BatteryReport: Equatable, Sendable {
         percent = maximum > 0 ? Int((Double(current) / Double(maximum) * 100).rounded()) : 0
         isCharging = info[kIOPSIsChargingKey] as? Bool ?? false
         isPluggedIn = (info[kIOPSPowerSourceStateKey] as? String) == kIOPSACPowerValue
+        // -1 while the system is still working it out.
+        func minutes(_ key: String) -> Int? { (info[key] as? Int).flatMap { $0 > 0 ? $0 : nil } }
+        minutesToEmpty = isPluggedIn ? nil : minutes(kIOPSTimeToEmptyKey)
+        minutesToFull = isCharging ? minutes(kIOPSTimeToFullChargeKey) : nil
     }
 
     /// From the registry. Apple silicon keeps the mAh figures in `BatteryData`, Intel loose.
@@ -186,6 +194,51 @@ struct Temperatures: Equatable, Sendable {
     }
 
     var isEmpty: Bool { chip == nil && ssd == nil && battery == nil && gpu == nil }
+}
+
+/// The system's own verdict on heat (`ProcessInfo.thermalState`): serious and critical both mean it is slowing
+/// the Mac down.
+enum ThermalLevel: Equatable, Sendable {
+    case normal, fair, throttling
+
+    init(_ state: ProcessInfo.ThermalState) {
+        switch state {
+        case .nominal: self = .normal
+        case .fair: self = .fair
+        case .serious, .critical: self = .throttling
+        @unknown default: self = .normal
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .normal: "Normal"
+        case .fair: "Fair"
+        case .throttling: "Throttling"
+        }
+    }
+}
+
+/// How hot a sensor reads, in the bands of the thermal strip's gauges.
+enum Heat: Int, Comparable, Sendable {
+    case cool, warm, hot, critical
+
+    init(degrees: Double) {
+        switch degrees {
+        case ..<70: self = .cool
+        case ..<85: self = .warm
+        case ..<95: self = .hot
+        default: self = .critical
+        }
+    }
+
+    /// How full a gauge is: the reading against 110°.
+    static func gauge(_ degrees: Double) -> Double { min(max(degrees / 110, 0), 1) }
+
+    /// From here the reading's own digits take the colour too.
+    var tintsReading: Bool { self >= .hot }
+
+    static func < (lhs: Heat, rhs: Heat) -> Bool { lhs.rawValue < rhs.rawValue }
 }
 
 /// The last values of one reading, oldest first, in a fixed place: a new one replaces the oldest once it is full.

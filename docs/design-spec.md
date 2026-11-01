@@ -49,8 +49,14 @@ decorative uses it. Go and stop are for state, not decoration.
   bottom radius 30. Below the notch it fades over 55 points to the body colour, which holds to the
   bottom. There is no border or glass theme. Remove the Glass theme.
 - Top row, height equal to the notch: navigation in two wings beside the camera.
-- Second row, 42 high: a title on the left, the space's actions on the right. A screen that slides over
-  a space's body (Mac's) puts a back button before its name.
+- Second row, 42 high: the page's own content on the left, its actions on the right, then pin and Settings.
+  The top navigation already names the space, so the row never repeats it, and it only holds content that
+  belongs to the page. A page with nothing for it has no row: the body moves up, to 10 under the navigation,
+  and pin and Settings stand at its top right instead, above the page's right-hand column, which leaves
+  `deckCornerInset` (30) free at its top. Which pages: Now always has one; the Shelf when it holds files; the
+  Clipboard while it shows its history; Agents while usage is on (its left side is empty until an agent waits,
+  then "N waiting" and the total); Tools and Mac never. A screen that slides over a space's body (Mac's) brings
+  the row back, with a back button before its name. The row appears and goes without animation.
 - Body below. The deck never changes size when switching spaces.
 - On displays without a notch, use the same layout with the same gap between wings.
 
@@ -119,8 +125,9 @@ opens the notch on Now with the add field set to Note.
 
 ### Shelf
 
-Board `Shelf3`. Second row: the item count (Bold 20) and the total size at the left; Add Files…, Select and
-Clear at the right. Add Files… is the empty-state illustration's small version (`ShelfTrayArt`, 18 in a 26
+Board `Shelf3`. Second row, only while there are files: the item count (Bold 20) and the total size at the
+left; Add Files…, Select and Clear at the right. An empty shelf has no row, and the targets start under pin
+and Settings. Add Files… is the empty-state illustration's small version (`ShelfTrayArt`, 18 in a 26
 button, in its own colours, lit with `Deck.control` on hover); it opens the file panel, in Downloads or where
 the last pick was, for files and folders. Body: a grid of three large tiles (the board's 102 high at 700 wide,
 the same ratio at 620), each a real Quick Look thumbnail, or the file's kind colour (`Deck.Kind`, defined once)
@@ -142,8 +149,9 @@ A target is not clicked while the shelf is empty, but files dropped on it are st
 
 ### Clipboard
 
-Board `Clipboard3`. Second row: the filters All, Text, Images, Links, Files at the left; a menu, Keep open and
-Settings at the right. The menu holds what the board has no place for: Select Items, Clear History, paste as
+Board `Clipboard3`. Second row, while the history shows: the filters All, Text, Images, Links, Files at the left;
+a menu, Keep open and Settings at the right. Turned off, or waiting for access, there is no row and the card
+starts under pin and Settings. The menu holds what the board has no place for: Select Items, Clear History, paste as
 plain text, link cleaning, and turning the history off. Ignored apps stay in Settings. Left column, 296 wide:
 the search field and the list, each row 44 high with a kind icon (a real thumbnail for an image), the title and
 "source, age". Right column: the chosen item large (an image scaled to fit, text and links scrollable, a file
@@ -158,7 +166,8 @@ also copied stays one item (the pictures are matched by a fingerprint of their P
 
 ### Tools
 
-Board `Tools3`, with the owner's changes, tidied. Body, left: two toolbars, each one card cut into equal cells
+Board `Tools3`, with the owner's changes, tidied. No second row: pin and Settings stand above the right list.
+Body, left: two toolbars, each one card cut into equal cells
 by hairlines (64 high, 56 at the smallest size): a 19pt line icon over a Semibold 12 name, no icon chips,
 the icons in the Tools accent. Bar one: Area, Window, Screen, Scrolling, Text. Bar two: Record Window, Record
 Screen, Edit Video and a narrow last cell with the recording options (see Recording); the two Record cells
@@ -200,23 +209,35 @@ released when the recording ends.
 
 ### Mac
 
-Board `Mac3`. Left: six cards in three columns (CPU, GPU, network, disk, memory, battery), each a coloured
-icon (green, orange, blue, magenta `#F07BD0`, yellow `#FFD166`, green), a detail at the right (a
-temperature, a capacity, the connection), a large value with its unit, a sparkline of the last minute and
-one line of detail. A Mac without a battery shows its uptime in the last card. Below them the busiest
-processes, as many rows as fit, sorted by a click on a header (Process, CPU, Memory); at 620×340 the
-rows go first. Right, 156 wide: the output volume (a click on its icon mutes) and the brightness of the
-external monitors that answer over DDC (hidden when none does; the built-in display needs a private API the
-plan does not name), then Sound, Displays, Network, Storage and System. A row slides that tab's existing screen
-over the whole body, with a back button in the second row, and everything those screens did stays there.
-The history is a ring buffer of a minute kept in memory while the page is on screen.
+Board `Mac3`, revised (the mockup `mac2`). No second row: pin and Settings stand above the right column.
+Left, a thermal strip (a card, radius 14, 52 high) over six tiles in three columns by two rows, the rows
+weighted 1.45 to 1 (charts above, bars below). The strip: "Thermal" (Semibold 12) over the system's state
+(Bold 13: Normal in go, Fair in secondary, Throttling, for serious and critical, in signal), a hairline, then
+CPU, GPU, SSD and Battery, each its name (11.5 tertiary), its degrees (Rounded 15 semibold) and a 4 point
+gauge filled to the reading over 110° in the colour of its heat: blue under 70, yellow to 84, orange to 94,
+stop from 95; from 85 the degrees take the colour too. Under CPU, "peak N°" (the hottest die), except at 620×340. A
+reading the Mac does not give shows "–" and an empty gauge; a Mac with no sensors shows the state alone.
+A tile: its name (Semibold 12 secondary) and a detail at the right (12 tertiary), the value (Rounded 26
+semibold, its unit 14), a chart or a bar and one caption (11.5 tertiary), no icon chips. CPU: cores, the
+last minute, Load. GPU: the chip, the last minute, "Idle" when it is. Wi-Fi or Ethernet: the last minute,
+"↓ x  ↑ y". Memory: its size, a bar in app, wired and compressed, "N GB used". Storage: its size, free space,
+a bar of what is used, read and write speed. Battery: Health, the charge, a bar, the time left ("3:42 left"),
+or the time to full, or the state. A Mac without a battery shows its uptime in the last tile. At 620×340 the
+captions and the battery's detail are left out (they stay in the tooltip and for VoiceOver). Right, 192
+wide (176 at the smallest size): one card of the output volume (a click on its icon mutes) and the brightness
+of the external monitors that answer over DDC (hidden when none does; the built-in display needs a private API
+the plan does not name), 40 high each with the percent at the right; then one list of Sound, Displays, Network,
+Storage and System, sharing the height, each with where it stands (the output device, the display count, the
+connection, "Clean up", the macOS version) and a chevron. A row slides that tab's existing screen over the
+whole body, with the second row back, as "‹ Sound", and everything those screens did stays there. The history is
+a ring buffer of a minute kept in memory while the page is on screen.
 
 ### Agents
 
 Board `Agents3`, laid out in three columns like Now: side padding 18, a 14 gap, hairlines between, no cards but
 the request's. Below 660 wide the left column is 150 and the middle 192, else 176 and 214; the right takes the
-rest. Second row: the waiting count as the title ("1 waiting"), or "Agents" when none waits, and with sessions
-listed the period's total beside it (`$4,178.24  17.5B`, the tokens dropping out first when the row is short);
+rest. Second row: the waiting count at the left ("1 waiting"), nothing when none waits, and the period's total
+beside it (`$4,178.24  17.5B`, the tokens dropping out first when the row is short);
 Today, 7 Days, 30 Days and All at the right (the choice is kept), then Refresh, an add-a-provider menu, pin and
 Settings.
 

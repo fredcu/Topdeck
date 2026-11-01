@@ -14,6 +14,7 @@ public struct ToolsScreen: View {
     let sleepDisplays: () -> Void
 
     @Environment(\.deckAccent) private var accent
+    @Environment(\.deckCornerInset) private var cornerInset
     @State private var open: Row?
 
     private enum Row: Hashable { case timer, awake, sleep, color, shortcuts }
@@ -62,6 +63,7 @@ public struct ToolsScreen: View {
         .background(shape.fill(Deck.card))
         .overlay(shape.strokeBorder(Deck.hairline, lineWidth: 1))
         .clipShape(shape)
+        .padding(.top, cornerInset)
         .frame(maxHeight: .infinity)
     }
 

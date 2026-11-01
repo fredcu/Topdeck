@@ -79,8 +79,8 @@ public struct AgentsScreen: View {
     }
 }
 
-/// The second row's title: how many agents wait for you, or "Agents" when none does. With sessions listed the
-/// period's total sits beside it, since the left column no longer shows it.
+/// The second row's left side: how many agents wait for you, nothing when none does (the navigation names the
+/// space). With sessions listed the period's total sits beside it, since the left column no longer shows it.
 public struct AgentsTitle: View {
     let agents: AgentsFeature?
     let usage: UsageFeature?
@@ -92,8 +92,10 @@ public struct AgentsTitle: View {
 
     public var body: some View {
         let waiting = agents?.waitingCount ?? 0
-        let title = Text(waiting > 0 ? "\(waiting) waiting" : "Agents").deckText(.title).lineLimit(1)
-        if agents?.hasActivity == true, let usage {
+        let title = Text("\(waiting) waiting").deckText(.title).lineLimit(1)
+        if waiting == 0 {
+            EmptyView()
+        } else if let usage {
             let totals = AgentsUsage.totals(usage.toolUsage())
             // The tokens go first, then the cost, when the row is short of room.
             ViewThatFits(in: .horizontal) {

@@ -292,7 +292,7 @@ struct MacPageTests {
         #expect(MacFormat.bytes(156_000_000_000) == ("156", "GB"))
         #expect(MacFormat.bytes(nil) == ("–", ""))
         let traffic = MacFormat.traffic(Rate(down: 2_800, up: 300))
-        #expect(traffic.value == "3.1" && traffic.unit == "KB/s" && traffic.detail == "↓2.8  ↑0.3")
+        #expect(traffic.value == "3.1" && traffic.unit == "KB/s" && traffic.detail == "↓ 2.8  ↑ 0.3")
         #expect(MacFormat.traffic(Rate(down: 12_000_000, up: 400_000)).unit == "MB/s")
         #expect(MacFormat.disk(read: 81_000, written: 1_014_000) == "R 81  W 1014 KB/s")
         #expect(MacFormat.disk(read: nil, written: nil).isEmpty)
@@ -300,6 +300,43 @@ struct MacPageTests {
         #expect(MacFormat.uptime(3 * 86_400 + 4 * 3600 + 120) == "3d 4h")
         #expect(MacFormat.uptime(5 * 3600 + 12 * 60) == "5h 12m" && MacFormat.uptime(30) == "1m")
         #expect(MacFormat.processCPU(1.44) == "1.4%")
+    }
+
+    @Test func theSystemsThermalStateIsNormalFairOrThrottling() {
+        #expect(ThermalLevel(.nominal) == .normal && ThermalLevel(.fair) == .fair)
+        #expect(ThermalLevel(.serious) == .throttling && ThermalLevel(.critical) == .throttling)
+        #expect([ThermalLevel.normal, .fair, .throttling].map(\.title) == ["Normal", "Fair", "Throttling"])
+    }
+
+    @Test func aReadingsHeatIsInBandsAndItsGaugeFillsOver110Degrees() {
+        #expect(Heat(degrees: 69.9) == .cool && Heat(degrees: 70) == .warm && Heat(degrees: 84.9) == .warm)
+        #expect(Heat(degrees: 85) == .hot && Heat(degrees: 94.9) == .hot)
+        #expect(Heat(degrees: 95) == .critical && Heat(degrees: 140) == .critical)
+        #expect(!Heat.warm.tintsReading && Heat.hot.tintsReading && Heat.critical.tintsReading)
+        #expect(Heat.gauge(55) == 0.5 && Heat.gauge(200) == 1 && Heat.gauge(-3) == 0)
+    }
+
+    @Test func theBatteryLineIsTheTimeLeftOrTheChargingState() {
+        var battery = BatteryReport(powerSource: [
+            "Current Capacity": 80, "Max Capacity": 100, "Power Source State": "Battery Power", "Time to Empty": 222,
+        ])
+        #expect(battery.minutesToEmpty == 222 && MacFormat.battery(battery) == "3:42 left")
+        battery.minutesToEmpty = nil
+        #expect(MacFormat.battery(battery).isEmpty, "still working it out")
+        let charging = BatteryReport(powerSource: [
+            "Current Capacity": 50, "Max Capacity": 100, "Is Charging": true, "Power Source State": "AC Power",
+            "Time to Full Charge": 65, "Time to Empty": 10,
+        ])
+        #expect(charging.minutesToEmpty == nil && MacFormat.battery(charging) == "1:05 to full")
+        let unknown = BatteryReport(powerSource: [
+            "Current Capacity": 50, "Max Capacity": 100, "Is Charging": true, "Power Source State": "AC Power",
+            "Time to Full Charge": -1,
+        ])
+        #expect(MacFormat.battery(unknown) == "Charging")
+        let held = BatteryReport(powerSource: [
+            "Current Capacity": 80, "Max Capacity": 100, "Power Source State": "AC Power",
+        ])
+        #expect(MacFormat.battery(held) == "Not charging")
     }
 
     @Test func aGPUTemperatureComesOnlyFromSensorsThatSayGPU() {

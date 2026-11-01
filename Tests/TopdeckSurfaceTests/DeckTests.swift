@@ -202,12 +202,6 @@ struct ClosedContentTests {
     }
 }
 
-struct SpaceHeadlineTests {
-    @Test func aSpaceIsTitledByName() {
-        #expect(SpaceID.tools.headline() == "Tools")
-    }
-}
-
 /// The shared components on the deck's black, as the Design language board lays them out. With
 /// SNAPSHOT_DIR set, the picture is written there to compare with the board.
 @MainActor

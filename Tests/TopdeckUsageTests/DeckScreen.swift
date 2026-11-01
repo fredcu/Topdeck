@@ -5,19 +5,20 @@ import Testing
 import TopdeckCore
 import TopdeckSurface
 
-/// A screen drawn the way the deck draws it: a black panel with the second row (its title and
-/// actions) over the body. Always checks that it draws; with SNAPSHOT_DIR set, also writes a 2x PNG there.
+/// A screen drawn the way the deck draws it: a black panel with the second row (the page's own content and
+/// actions) over the body, or without one, as the deck does when the page has nothing for it. Always checks that it draws; with SNAPSHOT_DIR set, also writes a 2x PNG there.
 @MainActor
 enum DeckScreen {
     /// The open deck's default size and its smallest.
     nonisolated static let normal = CGSize(width: 700, height: 430)
     nonisolated static let smallest = CGSize(width: 620, height: 340)
 
-    /// `space` is the open one: its accent, and the label lit in the wings. Without `leading` the second row
-    /// shows the space's name.
+    /// `space` is the open one: its accent, and the label lit in the wings. Without `leading` the left of the
+    /// second row is empty. With `row` false there is no second row: pin and Settings stand at the body's top
+    /// right and the body leaves them room.
     static func render(
         _ body: some View, name: String, size: CGSize = normal, space: SpaceID = .agents,
-        leading: AnyView? = nil, settle: TimeInterval = 0,
+        row: Bool = true, leading: AnyView? = nil, settle: TimeInterval = 0,
         actions: some View = EmptyView()
     ) throws {
         func wing(_ spaces: [SpaceID]) -> some View {
@@ -37,25 +38,35 @@ enum DeckScreen {
             }
             .padding(.horizontal, 10)
             .frame(height: 37)
-            HStack(spacing: 0) {
-                if let leading {
-                    leading
-                } else {
-                    Text(space.title).deckText(.title)
+            if row {
+                HStack(spacing: 0) {
+                    if let leading { leading }
+                    Spacer(minLength: Deck.Metric.gap)
+                    HStack(spacing: 2) {
+                        actions
+                        DeckIconButton(.pin, label: "Keep open") {}
+                        DeckIconButton(.gear, label: "Settings") {}
+                    }
                 }
-                Spacer(minLength: Deck.Metric.gap)
+                .padding(.horizontal, 18)
+                .frame(height: Deck.Metric.subRow)
+            }
+            body
+                .padding(.horizontal, Deck.Metric.side)
+                .padding(.top, row ? 0 : Deck.Metric.gap)
+                .padding(.bottom, Deck.Metric.side)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .environment(\.deckCornerInset, row ? 0 : Deck.Metric.cornerInset)
+        }
+        .overlay(alignment: .topTrailing) {
+            if !row {
                 HStack(spacing: 2) {
-                    actions
                     DeckIconButton(.pin, label: "Keep open") {}
                     DeckIconButton(.gear, label: "Settings") {}
                 }
+                .padding(.trailing, 18)
+                .padding(.top, 37 + Deck.Metric.gap - 6)
             }
-            .padding(.horizontal, 18)
-            .frame(height: Deck.Metric.subRow)
-            body
-                .padding(.horizontal, Deck.Metric.side)
-                .padding(.bottom, Deck.Metric.side)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .frame(width: size.width, height: size.height)
         .background(

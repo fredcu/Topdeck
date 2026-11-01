@@ -91,7 +91,8 @@ struct ToolsSnapshotTests {
     ) -> NotchContent {
         NotchContent(
             feature: { _ in AnyView(EmptyView()) }, now: { AnyView(EmptyView()) }, badge: { $0 == .agents ? 2 : 0 },
-            actions: actions, dropFiles: { _ in false }, openSettings: {}, screen: screen, slot: slot)
+            actions: actions, dropFiles: { _ in false }, openSettings: {}, screen: screen, slot: slot,
+            hasRow: { $0.hasSecondRow(shelfFilled: false, clipboardHistory: false) })
     }
 
     @Test(arguments: [

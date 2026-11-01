@@ -3,19 +3,24 @@ import AppKit
 import SwiftUI
 import Testing
 import TopdeckCore
-import TopdeckSurface
 
 @testable import TopdeckFeatures
 @testable import TopdeckMixer
+@testable import TopdeckSurface
 
-/// The Mac space in the deck's chrome with sample readings, at the default and the smallest open size, and one
-/// of the screens that slide over it. With SNAPSHOT_DIR set, also writes 2x PNGs there.
+/// The Mac space in the real deck (no second row of its own, pin and Settings above the right column) with
+/// sample readings, at the default and the smallest open size, hot, without sensors, and one of the screens that
+/// slide over it. With SNAPSHOT_DIR set, also writes 2x PNGs there.
 @MainActor
 struct MacSnapshotTests {
     private static let sizes = [("", CGSize(width: 700, height: 430)), ("-620x340", CGSize(width: 620, height: 340))]
+    private static let metrics = NotchMetrics(
+        screen: CGRect(x: 0, y: 0, width: 1512, height: 982), safeAreaTop: 32,
+        left: CGRect(x: 0, y: 950, width: 662, height: 32), right: CGRect(x: 850, y: 950, width: 662, height: 32))
 
     /// A reading like the board's: a quiet Mac with a battery, and a minute of history that moves a little.
-    private func sample(battery: Bool = true) -> PerformanceFeature {
+    /// `hot` is a Mac that is slowing down; `sensors` false one that reports no temperatures.
+    private func sample(battery: Bool = true, hot: Bool = false, sensors: Bool = true) -> PerformanceFeature {
         func reading(_ step: Int) -> PerformanceFeature.Snapshot {
             var snapshot = PerformanceFeature.Snapshot()
             let wave = Double((step * 37) % 11)
@@ -28,10 +33,21 @@ struct MacSnapshotTests {
             snapshot.diskFree = 156_000_000_000
             snapshot.diskTotal = 460_000_000_000
             snapshot.network = Rate(down: 2_800 + wave * 700, up: 300 + wave * 40)
-            snapshot.temperatures = Temperatures(from: [
-                (name: "PMU tdie1", value: 36), (name: "GPU MTR Temp Sensor", value: 34),
-                (name: "gas gauge battery", value: 32),
-            ])
+            if sensors {
+                snapshot.temperatures = Temperatures(
+                    from: hot
+                        ? [
+                            (name: "PMU tdie1", value: 88), (name: "PMU tdie2", value: 104),
+                            (name: "GPU MTR Temp Sensor", value: 88), (name: "NAND CH0 temp", value: 52),
+                            (name: "gas gauge battery", value: 39),
+                        ]
+                        : [
+                            (name: "PMU tdie1", value: 35), (name: "PMU tdie2", value: 61),
+                            (name: "GPU MTR Temp Sensor", value: 41), (name: "NAND CH0 temp", value: 38),
+                            (name: "gas gauge battery", value: 34),
+                        ])
+            }
+            snapshot.thermal = hot ? .throttling : .normal
             snapshot.loadAverage = 1.42
             snapshot.chipName = "M5"
             snapshot.networkInterface = "Wi-Fi"
@@ -40,6 +56,7 @@ struct MacSnapshotTests {
                 report.percent = 80
                 report.designCapacity = 6000
                 report.currentCapacity = 6000
+                report.minutesToEmpty = 222
                 snapshot.battery = report
             }
             let apps: [(String, Double, Double)] = [
@@ -101,6 +118,33 @@ struct MacSnapshotTests {
         monitors.phase = .stopped
     }
 
+    @Test func aHotMacShowsThrottlingAndTheReadingsThatRunHot() throws {
+        let hot = sample(hot: true)
+        #expect(hot.snapshot.thermal == .throttling && hot.snapshot.temperatures?.chip == 96)
+        let screen = MacScreen(
+            performance: hot, mixer: mixer(), monitors: nil, enabled: Set(FeatureID.allCases),
+            detail: { _ in AnyView(EmptyView()) })
+        try render(screen, name: "R3c-Mac-hot", detail: nil)
+    }
+
+    @Test func aMacThatReportsNoTemperaturesShowsOnlyTheState() throws {
+        let quiet = sample(sensors: false)
+        #expect(quiet.snapshot.temperatures == nil)
+        let screen = MacScreen(
+            performance: quiet, mixer: mixer(), monitors: nil, enabled: Set(FeatureID.allCases),
+            detail: { _ in AnyView(EmptyView()) })
+        try render(screen, name: "R3c-Mac-nosensors", detail: nil)
+    }
+
+    @Test func theSystemRowNamesTheVersion() {
+        #expect(
+            MacRows.systemName(OperatingSystemVersion(majorVersion: 27, minorVersion: 2, patchVersion: 0))
+                == "macOS 27.2")
+        #expect(
+            MacRows.systemName(OperatingSystemVersion(majorVersion: 15, minorVersion: 6, patchVersion: 1))
+                == "macOS 15.6.1")
+    }
+
     @Test func aMacWithoutABatteryShowsItsUptime() throws {
         let screen = MacScreen(
             performance: sample(battery: false), mixer: nil, monitors: nil, enabled: [.performance, .storage],
@@ -110,46 +154,24 @@ struct MacSnapshotTests {
 
     private func render(_ screen: some View, name: String, detail: FeatureID?) throws {
         for (suffix, size) in Self.sizes {
-            let deck = VStack(spacing: 0) {
-                HStack(spacing: 0) {
-                    HStack(spacing: 4) {
-                        ForEach([SpaceID.now, .shelf, .clipboard]) {
-                            DeckNavItem($0.title, accent: $0.accent, selected: false) {}
-                        }
-                    }.frame(maxWidth: .infinity, alignment: .leading)
-                    Color.clear.frame(width: 196)
-                    HStack(spacing: 4) {
-                        ForEach([SpaceID.tools, .agents, .mac]) {
-                            DeckNavItem($0.title, accent: $0.accent, selected: $0 == .mac) {}
-                        }
-                    }.frame(maxWidth: .infinity, alignment: .trailing)
-                }
-                .padding(.horizontal, 10)
-                .frame(height: 37)
-                HStack(spacing: 0) {
-                    if let detail {
-                        DeckIconButton(.chevronLeft, label: "Back") {}
-                        Text(SpaceID.mac.detailTitle(detail)).deckText(.title)
-                    } else {
-                        Text("Mac").deckText(.title)
-                    }
-                    Spacer()
-                    DeckIconButton(.pin, label: "Keep open") {}
-                    DeckIconButton(.gear, label: "Settings") {}
-                }
-                .padding(.horizontal, 18)
-                .frame(height: Deck.Metric.subRow)
-                screen
-                    .padding(.horizontal, Deck.Metric.side)
-                    .padding(.bottom, Deck.Metric.side)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    .scrollIndicators(.never)
-            }
+            // The deck's own view, so the navigation, the row (or its absence) and the corner buttons are the real ones.
+            let preferences = NotchPreferences(defaults: UserDefaults(suiteName: "MacSnapshot-\(UUID())")!)
+            preferences.resizeExpanded(to: size)
+            let engine = NotchEngine()
+            engine.send(.setSpaces(preferences.spaceSet))
+            engine.send(.show)
+            engine.send(.selectSpace(.mac))
+            if let detail { engine.send(.openDetail(detail)) }
+            let content = NotchContent(
+                feature: { _ in AnyView(EmptyView()) }, now: { AnyView(EmptyView()) }, badge: { $0 == .agents ? 1 : 0 },
+                dropFiles: { _ in false }, openSettings: {}, screen: { _, _ in AnyView(screen) },
+                hasRow: { $0.hasSecondRow(shelfFilled: false, clipboardHistory: false) })
+            let deck = DeckView(
+                engine: engine, metrics: Self.metrics, preferences: preferences, content: content, space: .mac,
+                pinned: false
+            )
             .frame(width: size.width, height: size.height)
-            .background(Deck.panelFill(height: size.height, notch: 37))
-            .foregroundStyle(Deck.text)
-            .environment(\.deckAccent, SpaceID.mac.accent)
-            .environment(\.deckDetail, detail)
+            .background(Deck.panelFill(height: size.height, notch: Self.metrics.topRowHeight))
             .environment(\.colorScheme, .dark)
             .transaction { $0.animation = nil }
             let host = NSHostingView(rootView: deck)

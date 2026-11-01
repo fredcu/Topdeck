@@ -31,6 +31,7 @@ public final class PerformanceFeature: NotchFeature {
         var battery: BatteryReport?
         var loadAverage: Double?
         var chipName: String?
+        var thermal = ThermalLevel.normal
         /// "Wi-Fi", "Ethernet", or the interface's name.
         var networkInterface: String?
 
@@ -79,6 +80,9 @@ public final class PerformanceFeature: NotchFeature {
         for reading in readings { history.record(reading) }
         snapshot = readings.last ?? Snapshot()
     }
+
+    /// "Wi-Fi", "Ethernet" or the interface's name, for the Mac page's Network row.
+    public var networkName: String? { snapshot.networkInterface }
 
     /// Whether a reading is scheduled.
     var isSampling: Bool { timer != nil }

@@ -135,6 +135,7 @@ struct SpaceSnapshotTests {
     private func draw(_ shelf: ShelfFeature, _ name: String, _ size: (String, CGSize), incoming: Int? = nil) throws {
         try DeckScreen.render(
             ShelfView(shelf: shelf, incoming: incoming), name: "R3b-\(name)-\(size.0)", size: size.1, space: .shelf,
+            row: SpaceID.shelf.hasSecondRow(shelfFilled: !shelf.items.isEmpty, clipboardHistory: false),
             leading: shelf.headerLeading(),
             settle: Self.pictures ? 1.0 : 0, actions: shelf.headerActions)
     }
@@ -142,6 +143,7 @@ struct SpaceSnapshotTests {
     private func draw(_ clipboard: ClipboardFeature, _ name: String, _ size: (String, CGSize)) throws {
         try DeckScreen.render(
             clipboard.view, name: "R3b-\(name)-\(size.0)", size: size.1, space: .clipboard,
+            row: SpaceID.clipboard.hasSecondRow(shelfFilled: false, clipboardHistory: clipboard.showsHistory),
             leading: clipboard.headerLeading(), actions: clipboard.headerActions)
     }
 
@@ -195,5 +197,8 @@ struct SpaceSnapshotTests {
         clipboard.phase = .stopped
         let empty = try self.clipboard(in: try self.folder(), filled: false)
         try draw(empty, "Clipboard-empty", size)
+        empty.stopRecording()
+        #expect(!empty.showsHistory)
+        try draw(empty, "Clipboard-off", size)
     }
 }

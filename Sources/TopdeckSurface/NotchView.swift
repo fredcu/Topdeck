@@ -27,9 +27,12 @@ public struct NotchContent {
     public var join: (URL) -> Void
     /// Pauses, resumes or stops a recording, from the closed notch's buttons.
     public var recording: (RecordingControl) -> Void
-    /// What stands at the left of the second row of a space, in place of its name: the
-    /// Clipboard's filters, the Shelf's count. Nil keeps the name.
+    /// What stands at the left of the second row of a space: the Clipboard's filters, the Shelf's count. Nil
+    /// leaves the left empty; the navigation already names the space.
     public var leading: (SpaceID) -> AnyView?
+    /// Whether the space's page has a second row right now. Without one the body moves up and pin and Settings
+    /// stand at its top right. A detail screen always has one; Now says yes.
+    public var hasRow: (SpaceID) -> Bool
 
     public init(
         feature: @escaping (FeatureID) -> AnyView,
@@ -42,7 +45,8 @@ public struct NotchContent {
         slot: @escaping (SpaceID) -> AnyView = { _ in AnyView(EmptyView()) },
         join: @escaping (URL) -> Void = { NSWorkspace.shared.open($0) },
         recording: @escaping (RecordingControl) -> Void = { _ in },
-        leading: @escaping (SpaceID) -> AnyView? = { _ in nil }
+        leading: @escaping (SpaceID) -> AnyView? = { _ in nil },
+        hasRow: @escaping (SpaceID) -> Bool = { _ in true }
     ) {
         self.feature = feature
         self.now = now
@@ -55,6 +59,7 @@ public struct NotchContent {
         self.join = join
         self.recording = recording
         self.leading = leading
+        self.hasRow = hasRow
     }
 }
 

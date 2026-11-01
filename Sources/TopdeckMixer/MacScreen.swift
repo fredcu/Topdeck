@@ -4,10 +4,11 @@ import TopdeckCore
 import TopdeckFeatures
 import TopdeckSurface
 
-/// The Mac space's body, as the board: the performance cards and processes on the left; on the right the
-/// output volume and display brightness, then Sound, Displays, Network, Storage and System. A row slides
-/// its screen over the whole body (the deck's back button brings the page back), so everything those
-/// screens do stays where it was. A part is left out when its feature is off.
+/// The Mac space's body, as the board: the thermal strip and the performance tiles on the left; on the right
+/// one card with the output volume and display brightness, then one list of Sound, Displays, Network, Storage
+/// and System, each with its current value. A row slides its screen over the whole body (the deck's back
+/// button brings the page back), so everything those screens do stays where it was. A part is left out when
+/// its feature is off. The page has no second row of its own: pin and Settings stand above the right column.
 public struct MacScreen: View {
     let performance: PerformanceFeature?
     let mixer: Mixer?
@@ -18,6 +19,7 @@ public struct MacScreen: View {
 
     @Environment(\.deckDetail) private var open
     @Environment(\.openDeckDetail) private var openDetail
+    @Environment(\.deckCornerInset) private var cornerInset
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(
@@ -47,41 +49,104 @@ public struct MacScreen: View {
     }
 
     private var page: some View {
-        HStack(spacing: Deck.Metric.gap) {
-            if let performance {
-                PerformanceView(performance: performance)
-                Rectangle().fill(Deck.hairline).frame(width: 1)
+        GeometryReader { space in
+            HStack(spacing: Deck.Metric.gap) {
+                if let performance {
+                    PerformanceView(performance: performance)
+                }
+                side.frame(width: performance == nil ? nil : (space.size.width < 560 ? 176 : 192))
             }
-            side.frame(width: performance == nil ? nil : 156)
         }
     }
 
     // MARK: The right column
 
     private var side: some View {
-        VStack(spacing: 0) {
-            if let mixer { VolumeRow(mixer: mixer) }
-            if let monitors, enabled.contains(.monitors), let brightness = monitors.brightness {
-                BrightnessRow(level: brightness) { monitors.setBrightness($0) }
-            }
-            DeckSeparator().padding(.vertical, 8)
-            ForEach(SpaceID.mac.details.filter(enabled.contains), id: \.self) { feature in
-                Button {
-                    openDetail(feature)
-                } label: {
-                    HStack {
-                        Text(SpaceID.mac.detailTitle(feature)).deckText(.body, color: Deck.secondary)
-                        Spacer(minLength: 0)
-                        DeckIconView(.chevronRight, size: 12).foregroundStyle(Deck.tertiary)
-                    }
-                    .frame(height: 30)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(SpaceID.mac.detailTitle(feature))
-            }
-            Spacer(minLength: 0)
+        VStack(spacing: Deck.Metric.gap) {
+            sliders
+            list
         }
+        .padding(.top, cornerInset)
+    }
+
+    /// Volume and brightness in one card, 40 high each, a hairline between.
+    @ViewBuilder private var sliders: some View {
+        let brightness = enabled.contains(.monitors) ? monitors?.brightness : nil
+        if mixer != nil || brightness != nil {
+            VStack(spacing: 0) {
+                if let mixer { VolumeRow(mixer: mixer) }
+                if mixer != nil, brightness != nil { Rectangle().fill(Deck.hairline).frame(height: 1) }
+                if let monitors, let brightness { BrightnessRow(level: brightness) { monitors.setBrightness($0) } }
+            }
+            .modifier(MacCard())
+        }
+    }
+
+    /// The screens that slide over the page, in one card sharing its height, each with where things stand.
+    private var list: some View {
+        let features = SpaceID.mac.details.filter(enabled.contains)
+        return VStack(spacing: 0) {
+            ForEach(Array(features.enumerated()), id: \.element) { index, feature in
+                if index > 0 { Rectangle().fill(Deck.hairline).frame(height: 1) }
+                row(feature)
+            }
+        }
+        .modifier(MacCard())
+        .frame(maxHeight: .infinity)
+    }
+
+    private func row(_ feature: FeatureID) -> some View {
+        let title = SpaceID.mac.detailTitle(feature)
+        let value = value(of: feature)
+        return Button {
+            openDetail(feature)
+        } label: {
+            HStack(spacing: 8) {
+                Text(title).font(.system(size: 13, weight: .semibold)).lineLimit(1).layoutPriority(1)
+                Text(value).font(.system(size: 12)).foregroundStyle(Deck.tertiary).lineLimit(1)
+                    .truncationMode(.tail).frame(maxWidth: .infinity, alignment: .trailing)
+                DeckIconView(.chevronRight, size: 10).foregroundStyle(Deck.tertiary)
+            }
+            .padding(.leading, 12)
+            .padding(.trailing, 10)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityValue(value)
+    }
+
+    /// Where the screen's subject stands now.
+    private func value(of feature: FeatureID) -> String {
+        switch feature {
+        case .sound: mixer?.output?.name ?? ""
+        case .monitors: "\(NSScreen.screens.count)"
+        case .network: performance?.networkName ?? ""
+        case .storage: "Clean up"
+        case .admin: MacRows.systemName(ProcessInfo.processInfo.operatingSystemVersion)
+        default: ""
+        }
+    }
+}
+
+/// Words on the page's rows, as pure functions.
+enum MacRows {
+    /// "macOS 27.2", with the patch when there is one: "macOS 15.6.1".
+    static func systemName(_ version: OperatingSystemVersion) -> String {
+        let patch = version.patchVersion > 0 ? ".\(version.patchVersion)" : ""
+        return "macOS \(version.majorVersion).\(version.minorVersion)\(patch)"
+    }
+}
+
+/// A card of the page's right column: the card colour, a hairline outline, clipped to the radius.
+private struct MacCard: ViewModifier {
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Deck.Radius.tile + 2, style: .continuous)
+        content
+            .background(shape.fill(Deck.card))
+            .overlay(shape.strokeBorder(Deck.hairline, lineWidth: 1))
+            .clipShape(shape)
     }
 }
 
@@ -93,7 +158,7 @@ private struct VolumeRow: View {
         let output = mixer.output
         let level = output.map { $0.isMuted ? 0 : $0.level } ?? 0
         SideLevel(
-            icon: .volume, tint: Deck.Accent.now, level: level, label: "Output volume",
+            icon: .volume, tint: Deck.text, level: level, label: "Output volume",
             enabled: output?.hasVolume == true, set: { mixer.setDeviceLevel($0, for: .output) },
             toggle: { mixer.toggleDeviceMute(.output) }
         )
@@ -112,7 +177,7 @@ private struct BrightnessRow: View {
     }
 }
 
-/// A 30 point row: a tinted icon and a slider in that tint.
+/// A 40 point row: an icon, a slider in `tint`, and the percent.
 private struct SideLevel: View {
     let icon: DeckIcon
     let tint: Color
@@ -123,14 +188,11 @@ private struct SideLevel: View {
     var toggle: (() -> Void)?
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 9) {
             Button {
                 toggle?()
             } label: {
-                DeckIconView(icon, size: 13)
-                    .foregroundStyle(tint)
-                    .frame(width: 22, height: 22)
-                    .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(tint.tint(0.2)))
+                DeckIconView(icon, size: 16).foregroundStyle(Deck.secondary).frame(width: 18, height: 22)
             }
             .buttonStyle(.plain)
             .disabled(toggle == nil)
@@ -138,7 +200,11 @@ private struct SideLevel: View {
             .accessibilityLabel(toggle == nil ? "" : "Mute")
             DeckSlider(level, label: label, enabled: enabled, set: set)
                 .environment(\.deckAccent, tint)
+            Text("\(Int((min(max(level, 0), 1) * 100).rounded()))%")
+                .font(.system(size: 12, weight: .semibold)).monospacedDigit().foregroundStyle(Deck.secondary)
+                .frame(width: 34, alignment: .trailing).accessibilityHidden(true)
         }
-        .frame(height: 30)
+        .padding(.horizontal, 12)
+        .frame(height: 40)
     }
 }

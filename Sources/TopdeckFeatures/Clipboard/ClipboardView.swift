@@ -10,6 +10,7 @@ import TopdeckSurface
 struct ClipboardView: View {
     let clipboard: ClipboardFeature
     @FocusState private var focused: Bool
+    @Environment(\.deckCornerInset) private var cornerInset
 
     var body: some View {
         if !clipboard.isRecording {
@@ -20,6 +21,7 @@ struct ClipboardView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .padding(.top, cornerInset)
         } else if clipboard.access == .asks || clipboard.access == .denied {
             DeckCard {
                 VStack(spacing: Deck.Metric.gap) {
@@ -31,6 +33,7 @@ struct ClipboardView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .padding(.top, cornerInset)
             .onAppear(perform: clipboard.refreshAccess)
         } else {
             history.onAppear(perform: clipboard.refreshAccess)
