@@ -89,11 +89,23 @@ public final class MonitorsFeature: NotchFeature {
     public var phase: FeaturePhase = .stopped {
         didSet {
             guard phase != oldValue else { return }
-            let dimmed = oldValue == .stopped && startWatching()
+            let dimmed = oldValue == .stopped && keepsDimming && startWatching()
             if phase == .foreground || dimmed { refresh() }
-            if phase == .stopped {
+            // Stopped also means a full-screen app, a locked screen or a sleeping display: the dimming stays,
+            // or the monitor would flash to full brightness. Only `keepsDimming` turning off puts it back.
+            if phase == .stopped { release() }
+        }
+    }
+    /// Whether dimmed monitors stay dimmed: false once the feature is turned off or Topdeck quits, which puts
+    /// every monitor's own curve back.
+    public var keepsDimming = true {
+        didSet {
+            guard keepsDimming != oldValue else { return }
+            if keepsDimming {
+                if phase != .stopped, startWatching() { refresh() }
+            } else {
                 stopWatching()
-                release()
+                backend.dimmer.restoreAll()
             }
         }
     }
@@ -125,6 +137,7 @@ public final class MonitorsFeature: NotchFeature {
     /// their own curve back. Watches in the background too, since the dimming has to hold off screen.
     /// True if it dimmed any.
     private func startWatching() -> Bool {
+        guard observers.isEmpty else { return dimRemembered() }
         let events: [(NotificationCenter, Notification.Name)] = [
             (.default, NSApplication.didChangeScreenParametersNotification),
             (NSWorkspace.shared.notificationCenter, NSWorkspace.didWakeNotification),
@@ -165,7 +178,6 @@ public final class MonitorsFeature: NotchFeature {
     }
 
     private func release() {
-        backend.dimmer.restoreAll()
         answeringDDC = []
         generation += 1
         monitors = []

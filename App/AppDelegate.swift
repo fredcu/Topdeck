@@ -317,6 +317,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         coordinator.onNotchesChange = { [weak self] notches in
             guard let self else { return }
             features.update(notches: notches, enabled: Set(preferences.enabledFeatures))
+            monitors.keepsDimming = preferences.isEnabled(.monitors)
             if !notches.contains(where: { $0.presentation.openSpace != nil }) { escapeKey.shortcut = nil }
         }
         notchKey.onPress = { [weak self, weak coordinator] in
@@ -435,6 +436,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         // Stops every feature, including the media helper process and the camera.
         features.update(notches: [], enabled: [])
+        monitors.keepsDimming = false  // every dimmed monitor back to its own curve
         capture.recorder.stopForQuit()  // so a recording's file is whole
         capture.saveVideoEdits()
         pinnedNotes.stop()

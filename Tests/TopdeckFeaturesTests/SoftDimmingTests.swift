@@ -183,7 +183,7 @@ struct SoftDimmingFeatureTests {
         monitors.phase = .background
         #expect(dimmer.applied.map(\.display) == [1], "only the monitor with a remembered level")
         #expect(dimmer.applied.first?.level == 0.5)
-        monitors.phase = .stopped
+        monitors.keepsDimming = false
     }
 
     @Test func itIsAppliedAgainAfterTheDisplaysChangeAndAfterWake() async {
@@ -197,15 +197,29 @@ struct SoftDimmingFeatureTests {
         NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.didWakeNotification, object: nil)
         #expect(await eventually { dimmer.applied.count > afterChange })
         #expect(dimmer.applied.allSatisfy { $0.display == 1 && $0.level == 0.5 })
-        monitors.phase = .stopped
+        monitors.keepsDimming = false
     }
 
-    @Test func stoppingPutsEveryCurveBackAndStopsWatching() async {
+    @Test func aFullScreenAppOrALockedScreenKeepsTheDimming() async {
+        SoftDimming.Levels(defaults: defaults).set(0.5, for: "monitor-1")
+        let monitors = feature(displays: [(1, "Dell S3422DWG")])
+        monitors.phase = .foreground
+        #expect(await settled(monitors))
+        monitors.phase = .stopped  // the notch suspended, not the feature turned off
+        #expect(dimmer.restoredAll == 0, "the monitor must not flash to full brightness")
+        let applied = dimmer.applied.count
+        NotificationCenter.default.post(name: NSApplication.didChangeScreenParametersNotification, object: nil)
+        #expect(await eventually { dimmer.applied.count > applied }, "still put back after a display change")
+        monitors.keepsDimming = false
+    }
+
+    @Test func turningTheFeatureOffPutsEveryCurveBackAndStopsWatching() async {
         SoftDimming.Levels(defaults: defaults).set(0.5, for: "monitor-1")
         let monitors = feature(displays: [(1, "Dell S3422DWG")])
         monitors.phase = .foreground
         #expect(await settled(monitors))
         monitors.phase = .stopped
+        monitors.keepsDimming = false
         #expect(dimmer.restoredAll == 1)
         let applied = dimmer.applied.count
         NotificationCenter.default.post(name: NSApplication.didChangeScreenParametersNotification, object: nil)
