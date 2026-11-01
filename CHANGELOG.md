@@ -13,6 +13,7 @@
   layouts.
 - Clipboard pastes into the app in front, as plain text if you like, removes tracking from links, and skips apps you list.
 - Agents: answer Claude Code and Codex permission requests and Claude's questions from the notch.
+- Agents has three columns like Now: sessions (or the period's total, share and last 30 days) on the left, and a table with each tool's spend beside its quota on the right.
 - Keep Awake: keep the screen on or let it sleep, and stay awake until a chosen time.
 - Input Sources: each app gets its own keyboard input source when you switch to it, Chinese ones included.
 - Storage: clean Xcode's DerivedData, device support, archives, and caches, and see what fills the home folder. Items go to the Trash after a review.

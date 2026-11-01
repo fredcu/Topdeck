@@ -90,7 +90,7 @@ struct UsageSnapshotTests {
 
     /// The tab as the deck shows it, at the default size and the smallest; with SNAPSHOT_DIR set, also PNGs.
     private func render(_ usage: UsageFeature, name: String) throws {
-        let title = AnyView(AgentsTitle(agents: nil))
+        let title = AnyView(AgentsTitle(agents: nil, usage: usage))
         try DeckScreen.render(
             AgentsScreen(agents: nil, usage: usage), name: name, leading: title, actions: usage.actions)
         try DeckScreen.render(

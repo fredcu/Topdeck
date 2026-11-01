@@ -4,17 +4,24 @@ import TopdeckFeatures
 import TopdeckSurface
 
 /// The Agents space's left column: the requests to answer first, then the sessions waiting on a terminal, then
-/// the ones at work, a card each. A session that has finished or gone quiet is not listed. Clicking a session
-/// goes to its terminal.
+/// the ones at work. A session that has finished or gone quiet is not listed. Clicking a session goes to its
+/// terminal.
 struct AgentsColumn: View {
     let agents: AgentsFeature
+    /// For how long ago each session moved.
+    let now: Date
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 7) {
-                ForEach(agents.requests) { AgentRequestCard(agents: agents, request: $0) }
-                ForEach(agents.waitingSessions) { SessionCard(agents: agents, session: $0) }
-                ForEach(agents.runningSessions) { SessionCard(agents: agents, session: $0) }
+            VStack(spacing: 0) {
+                if !agents.requests.isEmpty {
+                    VStack(spacing: 7) {
+                        ForEach(agents.requests) { AgentRequestCard(agents: agents, request: $0) }
+                    }
+                    .padding(.bottom, 8)
+                }
+                ForEach(agents.waitingSessions) { SessionRow(agents: agents, session: $0, now: now) }
+                ForEach(agents.runningSessions) { SessionRow(agents: agents, session: $0, now: now) }
             }
             .padding(.bottom, 6)
         }
@@ -22,36 +29,43 @@ struct AgentsColumn: View {
     }
 }
 
-/// A session: its project and a dot for its state, the tool and what it is doing, and what it is waiting for.
-private struct SessionCard: View {
+/// A session under a hairline: the tool's colour, its project and how long since it last moved; under them what
+/// it is doing, or, in the signal colour, that it waits for you.
+private struct SessionRow: View {
     let agents: AgentsFeature
     let session: AgentSession
+    let now: Date
 
     var body: some View {
         let waiting = session.state == .waiting
-        let shape = RoundedRectangle(cornerRadius: 11, style: .continuous)
         Button {
             agents.open(session)
         } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack {
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 6) {
+                    Circle().fill(Deck.Provider.color(session.tool.rawValue)).frame(width: 7, height: 7)
                     Text(session.project).font(.system(size: 13, weight: .semibold)).lineLimit(1)
                     Spacer(minLength: 4)
-                    DeckDot(waiting ? .signal : .go)
+                    Text(AgentsFormat.elapsed(since: session.updated, now: now))
+                        .font(.system(size: 11).monospacedDigit()).foregroundStyle(Deck.tertiary).lineLimit(1)
                 }
-                Text("\(session.tool.name), \(waiting ? "waiting" : "working")").deckText(.caption).lineLimit(1)
-                if let detail = session.detail {
-                    Text(detail).deckText(.command).font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(Deck.secondary).lineLimit(1)
+                Group {
+                    if waiting {
+                        Text("Waiting for you").font(.system(size: 12, weight: .semibold)).foregroundStyle(Deck.signal)
+                    } else if let detail = session.detail {
+                        Text(detail).font(.system(size: 11, design: .monospaced)).foregroundStyle(Deck.secondary)
+                    } else {
+                        Text(session.tool.name).font(.system(size: 11)).foregroundStyle(Deck.secondary)
+                    }
                 }
+                .lineLimit(1)
+                .padding(.leading, 13)
             }
             .foregroundStyle(Deck.text)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 9)
+            .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(shape.fill(waiting ? Deck.signalFill : Deck.card))
-            .overlay(shape.strokeBorder(waiting ? Deck.signal.opacity(0.5) : Deck.hairline, lineWidth: 1))
-            .contentShape(shape)
+            .overlay(alignment: .top) { DeckSeparator() }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(session.app == nil)
@@ -94,6 +108,7 @@ private struct AgentRequestCard: View {
     /// Who is asking, and with what.
     private var header: some View {
         HStack(spacing: 6) {
+            Circle().fill(Deck.Provider.color(request.tool.rawValue)).frame(width: 7, height: 7)
             Text(request.project)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(request.isQuestion ? Deck.text : Deck.signal)
@@ -106,15 +121,20 @@ private struct AgentRequestCard: View {
     @ViewBuilder private var permission: some View {
         if !request.summary.isEmpty {
             Text(request.summary)
-                .deckText(.command)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(Deck.text)
                 .lineLimit(3)
                 .truncationMode(.middle)
                 .textSelection(.enabled)
+                .padding(.vertical, 5)
+                .padding(.horizontal, 6)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Deck.deck.opacity(0.28)))
         }
         HStack(spacing: 6) {
-            Button("Deny") { agents.answer(request, .deny) }.buttonStyle(.deck(fill: true, slot: true))
-            Button("Allow") { agents.answer(request, .allow) }.buttonStyle(.deck(.primary, fill: true, slot: true))
+            Button("Deny") { agents.answer(request, .deny) }.buttonStyle(.deck(fill: true, slot: true, height: 26))
+            Button("Allow") { agents.answer(request, .allow) }.buttonStyle(
+                .deck(.primary, fill: true, slot: true, height: 26))
         }
         if let rule = request.alwaysAllowRule {
             Button {

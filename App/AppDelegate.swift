@@ -293,7 +293,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 switch space {
                 case .shelf: shelf.headerLeading()
                 case .clipboard: clipboard.headerLeading()
-                case .agents: AnyView(AgentsTitle(agents: preferences.isEnabled(.agents) ? agents : nil))
+                case .agents:
+                    AnyView(
+                        AgentsTitle(
+                            agents: preferences.isEnabled(.agents) ? agents : nil,
+                            usage: preferences.isEnabled(.usage) ? usage : nil))
                 default: nil
                 }
             })

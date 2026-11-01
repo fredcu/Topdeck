@@ -41,6 +41,34 @@ struct ToolUsage: Identifiable, Equatable {
     let cost: Double?
 }
 
+/// One day's tokens and cost across the tools, for the bars of the last 30 days.
+struct DaySpend: Equatable {
+    /// The start of the day.
+    let date: Date
+    let tokens: Int
+    /// Zero for a day with none, or with no price.
+    let cost: Double
+}
+
+/// One tool's row of the table: what it used and what is left of its quota, level with each other.
+struct ToolRow: Identifiable, Equatable {
+    let id: String
+    let name: String
+    /// Nil when the tool used nothing in the period.
+    let usage: ToolUsage?
+    /// Nil when the tool has no quota to show.
+    let quota: QuotaBlock?
+
+    /// How many lines the quota needs: one for each window, one for a state, none without a block.
+    var quotaLines: Int {
+        guard let quota else { return 0 }
+        if case .rows(let rows) = quota.state { return rows.count }
+        return 1
+    }
+
+    var height: Double { AgentsUsage.rowHeight(lines: quotaLines) }
+}
+
 /// One quota row of a provider: 5 hours, a week or a month.
 struct QuotaRow: Identifiable, Equatable {
     enum Kind: Int, Comparable {
@@ -86,6 +114,28 @@ struct QuotaBlock: Identifiable, Equatable {
 }
 
 enum AgentsUsage {
+    // MARK: Layout
+
+    /// The width below which the narrower columns are used: Now's breakpoint.
+    static let narrow = 660.0
+
+    /// The widths of the left and middle columns; the right takes the rest.
+    static func columns(width: Double) -> (left: Double, middle: Double) {
+        width < narrow ? (150, 192) : (176, 214)
+    }
+
+    /// A table row is as tall as its quota needs, two lines at least, so spend and quota stay level.
+    static func rowHeight(lines: Int) -> Double { 9 + 17 * Double(max(2, lines)) }
+
+    /// The table: the tools with usage in the order given, then the tools that have a quota but no usage.
+    static func table(tools: [ToolUsage], blocks: [QuotaBlock]) -> [ToolRow] {
+        let quotas = Dictionary(blocks.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let used = tools.map { ToolRow(id: $0.id, name: $0.name, usage: $0, quota: quotas[$0.id]) }
+        let seen = Set(tools.map(\.id))
+        return used
+            + blocks.filter { !seen.contains($0.id) }.map { ToolRow(id: $0.id, name: $0.name, usage: nil, quota: $0) }
+    }
+
     // MARK: Cost and tokens
 
     /// The tools with usage in `period`, the dearest first. A tool whose models could not be priced still
@@ -113,7 +163,7 @@ enum AgentsUsage {
         return found.sorted { ($0.cost ?? -1, $0.tokens) > ($1.cost ?? -1, $1.tokens) }
     }
 
-    /// The slices of the donut, each tool's share of the total, in the order given. By cost where any tool has
+    /// The segments of the share bar, each tool's share of the total, in the order given. By cost where any tool has
     /// one, else by tokens.
     static func shares(_ tools: [ToolUsage]) -> [(id: String, fraction: Double)] {
         let byCost = tools.contains { ($0.cost ?? 0) > 0 }
@@ -121,6 +171,63 @@ enum AgentsUsage {
         let total = weights.reduce(0, +)
         guard total > 0 else { return [] }
         return zip(tools, weights).filter { $0.1 > 0 }.map { ($0.0.id, $0.1 / total) }
+    }
+
+    /// What the tools cost together, nil when none of them has a price; and their tokens.
+    static func totals(_ tools: [ToolUsage]) -> (cost: Double?, tokens: Int) {
+        let cost = tools.reduce(0) { $0 + ($1.cost ?? 0) }
+        return (cost > 0 ? cost : nil, tools.reduce(0) { $0 + $1.tokens })
+    }
+
+    /// The last `count` days across `providers`, oldest first, ending today; a day with no usage is zero.
+    static func daily(
+        snapshots: [String: ProviderSnapshot], providers: [UsageProvider], count: Int = 30, now: Date = .now,
+        calendar: Calendar = .current
+    ) -> [DaySpend] {
+        var byDay: [String: (tokens: Int, cost: Double)] = [:]
+        for provider in providers {
+            for day in snapshots[provider.id]?.usageHistory?.series.daily ?? [] {
+                let key = String(day.date.prefix(10))
+                byDay[key, default: (0, 0)].tokens += day.totalTokens
+                byDay[key, default: (0, 0)].cost += day.costUSD ?? 0
+            }
+        }
+        let today = calendar.startOfDay(for: now)
+        return (0..<count).reversed().compactMap { back in
+            calendar.date(byAdding: .day, value: -back, to: today).map { date in
+                let total = byDay[DailyUsageAccumulator.dayKey(from: date, calendar: calendar)] ?? (0, 0)
+                return DaySpend(date: date, tokens: total.tokens, cost: total.cost)
+            }
+        }
+    }
+
+    /// The days a period spans, counting today: one, 7 or 30; for All, from the first day with any usage.
+    static func days(
+        in period: UsagePeriod, snapshots: [String: ProviderSnapshot], providers: [UsageProvider], now: Date = .now,
+        calendar: Calendar = .current
+    ) -> Int {
+        switch period {
+        case .today: return 1
+        case .week: return 7
+        case .month: return 30
+        case .all:
+            let today = calendar.startOfDay(for: now)
+            let last = DailyUsageAccumulator.dayKey(from: today, calendar: calendar)
+            var first: String?
+            for provider in providers {
+                for day in snapshots[provider.id]?.usageHistory?.series.daily ?? [] {
+                    let key = String(day.date.prefix(10))
+                    guard day.totalTokens > 0 || (day.costUSD ?? 0) > 0, key <= last else { continue }
+                    if first == nil || key < first! { first = key }
+                }
+            }
+            let parts = first?.split(separator: "-").compactMap { Int($0) } ?? []
+            guard parts.count == 3,
+                let start = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2])),
+                let days = calendar.dateComponents([.day], from: start, to: today).day
+            else { return 1 }
+            return max(days + 1, 1)
+        }
     }
 
     // MARK: Quota
@@ -211,16 +318,17 @@ enum AgentsFormat {
         dollars.formatted(.currency(code: "USD").locale(Locale(identifier: "en_US")))
     }
 
-    /// In the donut: "$328", "$1.2K", "$12K", under ten dollars with its cents.
-    static func donutCost(_ dollars: Double) -> String {
-        if dollars < 10 { return String(format: "$%.2f", dollars) }
-        if dollars < 1000 { return String(format: "$%.0f", dollars) }
-        var value = dollars / 1000
-        var unit = "K"
-        if value >= 999.5 {
-            value /= 1000
-            unit = "M"
-        }
-        return value >= 9.95 ? String(format: "$%.0f%@", value, unit) : String(format: "$%.1f%@", value, unit)
+    /// "$4,178": whole dollars, for the large figure.
+    static func wholeCost(_ dollars: Double) -> String {
+        dollars.formatted(.currency(code: "USD").locale(Locale(identifier: "en_US")).precision(.fractionLength(0)))
+    }
+
+    /// How long since a session last moved: "now" under a minute, then "2m", "1h", "3d".
+    static func elapsed(since date: Date, now: Date) -> String {
+        let minutes = Int(max(now.timeIntervalSince(date), 0) / 60)
+        if minutes < 1 { return "now" }
+        if minutes < 60 { return "\(minutes)m" }
+        if minutes < 24 * 60 { return "\(minutes / 60)h" }
+        return "\(minutes / (24 * 60))d"
     }
 }

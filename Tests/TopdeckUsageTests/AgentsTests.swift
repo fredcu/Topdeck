@@ -238,7 +238,7 @@ struct AgentsFeatureTests {
         agents.received(try AgentRequest.parse(Data(ask.utf8), tool: .claude))
         #expect(agents.waitingCount == 3, "the two requests and the session waiting on its terminal")
         let usage = try AgentsSample.usage(AgentsSample.board(), defaults: defaults, cache: cache)
-        let title = AnyView(AgentsTitle(agents: agents))
+        let title = AnyView(AgentsTitle(agents: agents, usage: usage))
         for (name, size) in [
             ("R3c-Agents-waiting", DeckScreen.normal), ("R3c-Agents-waiting-620x340", DeckScreen.smallest),
         ] {
@@ -257,7 +257,7 @@ struct AgentsFeatureTests {
         agents.reload(announcing: false)
         #expect(!agents.hasActivity && agents.waitingCount == 0)
         let usage = try AgentsSample.usage(AgentsSample.board(), defaults: defaults, cache: cache)
-        let title = AnyView(AgentsTitle(agents: agents))
+        let title = AnyView(AgentsTitle(agents: agents, usage: usage))
         for (name, size) in [("R3c-Agents-idle", DeckScreen.normal), ("R3c-Agents-idle-620x340", DeckScreen.smallest)] {
             try DeckScreen.render(
                 AgentsScreen(agents: agents, usage: usage), name: name, size: size, leading: title,
