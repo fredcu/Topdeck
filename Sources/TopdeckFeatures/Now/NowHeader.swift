@@ -229,7 +229,8 @@ private struct NowStyleButton: View {
             DeckIconView(window == .desktop ? .display : .onTop, size: 9)
                 .foregroundStyle(Deck.text)
                 .frame(width: 13, height: 13)
-                .background(shape.fill(Deck.cardRaised))
+                .background(shape.fill(Deck.control))
+                // A ring in the field's own colour parts the badge from the swatch.
                 .overlay(shape.strokeBorder(Deck.cardRaised, lineWidth: 1.5).padding(-1.5))
         }
     }
