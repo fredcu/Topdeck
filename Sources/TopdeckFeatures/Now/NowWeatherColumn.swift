@@ -32,7 +32,8 @@ struct NowWeatherColumn: View {
                 Spacer(minLength: 0)
             }
             if let weather, weather.status == .ready {
-                WeatherAttributionLink(attribution: weather.attribution).padding(.top, 2)
+                // Clear of the deck's resize grip in the corner.
+                WeatherAttributionLink(attribution: weather.attribution).padding(.top, 2).padding(.trailing, 14)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -67,7 +68,7 @@ struct WeatherAttributionLink: View {
         Link(destination: attribution?.legal ?? Self.legal) {
             if let mark = attribution?.mark {
                 AsyncImage(url: mark) { image in
-                    image.resizable().scaledToFit().opacity(0.45)
+                    image.resizable().scaledToFit().opacity(0.7)
                 } placeholder: {
                     text
                 }
