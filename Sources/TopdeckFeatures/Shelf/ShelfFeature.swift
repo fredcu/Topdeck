@@ -34,6 +34,8 @@ public final class ShelfFeature: NotchFeature {
     @ObservationIgnored public var onActivity: ((Activity) -> Void)?
     /// Uploads to Cloudflare R2, offered from each file's menu.
     @ObservationIgnored public var uploads: R2Uploads?
+    /// Raised before the file panel opens, so the deck can get out of its way.
+    @ObservationIgnored public var onBegin: (() -> Void)?
     /// Starts a note with this text; the app wires it to Notes.
     @ObservationIgnored public var addToNote: ((String) -> Void)?
     /// The pictures on the tiles, made off the main thread and kept in memory.
@@ -44,13 +46,17 @@ public final class ShelfFeature: NotchFeature {
     /// A sandboxed build (the App Store edition) may only reach a dropped file again through a
     /// security-scoped bookmark, and holds access to each file while it's on the shelf.
     static let sandboxed = ProcessInfo.processInfo.environment["APP_SANDBOX_CONTAINER_ID"] != nil
+    /// Where the file panel last picked from, as a path.
+    static let lastFolderKey = "shelfLastFolder"
     @ObservationIgnored private let storeURL: URL
+    @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let quickLook = QuickLookSource()
     /// Files whose security scope is open, in a sandboxed build.
     @ObservationIgnored private var accessing: [ShelfItem.ID: URL] = [:]
 
-    public init(storeURL: URL = AppSupport.file("shelf.json")) {
+    public init(storeURL: URL = AppSupport.file("shelf.json"), defaults: UserDefaults = .standard) {
         self.storeURL = storeURL
+        self.defaults = defaults
         if let data = try? Data(contentsOf: storeURL) {
             items = (try? JSONDecoder().decode([ShelfItem].self, from: data)) ?? []
         }
@@ -78,6 +84,36 @@ public final class ShelfFeature: NotchFeature {
         let title = added.count == 1 ? "1 file" : "\(added.count) files"
         onActivity?(Activity(feature: .shelf, symbol: "tray.and.arrow.down.fill", title: title, duration: .seconds(2)))
         return true
+    }
+
+    /// Asks for files and folders and keeps them, starting where the last pick was.
+    public func chooseFiles() {
+        onBegin?()
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = true
+        panel.directoryURL = panelFolder
+        NSApp.activate()
+        guard panel.runModal() == .OK else { return }
+        rememberFolder(of: panel.urls)
+        add(panel.urls)
+    }
+
+    /// Where the file panel opens: the folder of the last pick, if it is still there, else Downloads.
+    var panelFolder: URL? {
+        var isFolder: ObjCBool = false
+        if let path = defaults.string(forKey: Self.lastFolderKey),
+            FileManager.default.fileExists(atPath: path, isDirectory: &isFolder), isFolder.boolValue
+        {
+            return URL(filePath: path, directoryHint: .isDirectory)
+        }
+        return FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+    }
+
+    /// Remembers the folder a pick came from: a file's folder, or the folder that holds a picked folder.
+    func rememberFolder(of urls: [URL]) {
+        guard let first = urls.first else { return }
+        defaults.set(first.deletingLastPathComponent().path, forKey: Self.lastFolderKey)
     }
 
     public func remove(_ item: ShelfItem) {

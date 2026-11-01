@@ -131,9 +131,11 @@ struct SpaceSnapshotTests {
         return clipboard
     }
 
-    private func draw(_ shelf: ShelfFeature, _ name: String, _ size: (String, CGSize)) throws {
+    /// `incoming` is how many files are being dragged over the zone or the tiles.
+    private func draw(_ shelf: ShelfFeature, _ name: String, _ size: (String, CGSize), incoming: Int? = nil) throws {
         try DeckScreen.render(
-            shelf.view, name: "R3b-\(name)-\(size.0)", size: size.1, space: .shelf, leading: shelf.headerLeading(),
+            ShelfView(shelf: shelf, incoming: incoming), name: "R3b-\(name)-\(size.0)", size: size.1, space: .shelf,
+            leading: shelf.headerLeading(),
             settle: Self.pictures ? 1.0 : 0, actions: shelf.headerActions)
     }
 
@@ -164,11 +166,13 @@ struct SpaceSnapshotTests {
         defer { try? FileManager.default.removeItem(at: folder) }
         let full = try await shelf(in: folder, filled: true)
         try draw(full, "Shelf-full", size)
+        try draw(full, "Shelf-full-hot", size, incoming: 2)
         full.select(try #require(full.items.first))
         try draw(full, "Shelf-selected", size)
         full.phase = .stopped
         let empty = try await shelf(in: try self.folder(), filled: false)
         try draw(empty, "Shelf-empty", size)
+        try draw(empty, "Shelf-empty-hot", size, incoming: 2)
     }
 
     @Test(.enabled(if: SpaceSnapshotTests.pictures), arguments: SpaceSnapshotTests.sizes)

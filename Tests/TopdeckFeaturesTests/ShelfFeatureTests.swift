@@ -119,6 +119,24 @@ struct ShelfFeatureTests {
         #expect(notes == ["memo.txt"])
     }
 
+    @Test func theFilePanelOpensInDownloadsThenWhereTheLastPickWas() throws {
+        let defaults = try #require(UserDefaults(suiteName: "ShelfTests-\(UUID().uuidString)"))
+        let shelf = ShelfFeature(storeURL: store, defaults: defaults)
+        let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+        #expect(shelf.panelFolder == downloads)
+
+        shelf.rememberFolder(of: [try file("a.txt")])
+        #expect(shelf.panelFolder?.standardizedFileURL == folder.standardizedFileURL)
+
+        // A picked folder is remembered by the folder that holds it, and a folder that is gone is forgotten.
+        let inner = folder.appending(path: "inner", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: inner, withIntermediateDirectories: true)
+        shelf.rememberFolder(of: [inner])
+        #expect(shelf.panelFolder?.standardizedFileURL == folder.standardizedFileURL)
+        try FileManager.default.removeItem(at: folder)
+        #expect(shelf.panelFolder == downloads)
+    }
+
     @Test func uploadNeedsR2ToBeSetUp() throws {
         let shelf = ShelfFeature(storeURL: store)
         #expect(!shelf.isAvailable(.upload) && shelf.isAvailable(.airDrop) && shelf.isAvailable(.note))

@@ -323,6 +323,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         media.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
         media.onOngoing = { [weak coordinator] in coordinator?.setOngoing($0, for: .media) }
         shelf.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }
+        shelf.onBegin = { [weak coordinator] in coordinator?.dismissAll() }
         shelf.uploads = r2
         shelf.addToNote = { [notes] text in notes.add(text) }
         r2.onActivity = { [weak coordinator] in coordinator?.broadcast(.activity($0)) }

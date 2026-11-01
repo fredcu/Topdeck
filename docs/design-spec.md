@@ -119,18 +119,26 @@ opens the notch on Now with the add field set to Note.
 
 ### Shelf
 
-Board `Shelf3`. Second row: the item count (Bold 20) and the total size at the left; Select and Clear at the
-right. Body: a grid of three large tiles (the board's 102 high at 700 wide, the same ratio at 620), each a
-real Quick Look thumbnail, or the file's kind colour (`Deck.Kind`, defined once) with its extension, then the
-name and "KIND, size". Four targets stand to the right, 172 wide: AirDrop, Upload to R2, Add to Note, Open
+Board `Shelf3`. Second row: the item count (Bold 20) and the total size at the left; Add Files…, Select and
+Clear at the right. Add Files… is the empty-state illustration's small version (`ShelfTrayArt`, 18 in a 26
+button, in its own colours, lit with `Deck.control` on hover); it opens the file panel, in Downloads or where
+the last pick was, for files and folders. Body: a grid of three large tiles (the board's 102 high at 700 wide,
+the same ratio at 620), each a real Quick Look thumbnail, or the file's kind colour (`Deck.Kind`, defined once)
+with its extension, then the name and "KIND, size". Four targets stand to the right, 172 wide: AirDrop, Upload to R2, Add to Note, Open
 With. Upload to R2 is dimmed until R2 is set up.
 
 Click ticks a tile (Command-click, or Select mode, ticks several), double-click opens it, Space opens Quick
 Look, and a tile drags out as a file. A target acts on the ticked tiles, or on all when none is ticked; tiles
 or files dropped on it are acted on instead. Add to Note starts a note with a text file's content or else the
 file's path; Open With pops up the apps that can open the file. Items dropped together are not grouped: the
-model keeps no groups. Thumbnails are made off the main thread and kept in memory. An empty shelf is one line,
-"Drop files here", and the drop highlight.
+model keeps no groups. Thumbnails are made off the main thread and kept in memory. An empty shelf is a dashed
+drop zone where the tiles go, with the targets beside it as always: the illustration (three kind-coloured
+cards in an open tray, 132 by 96), "Drop files here" (Semibold 15), one tertiary line, "Keep files at hand
+while you switch apps. Drag them onto the notch from anywhere.", and an outline button, Choose Files…. The
+smallest deck has no room for the line. Over the zone the border and a faint fill take the accent, the cards
+sink into the tray and the title reads "Let go to keep them here". With files, dragging over the tiles outlines
+the area in the accent and floats "Add N files" low in it; the tiles' own drop takes the files, not the notch's.
+A target is not clicked while the shelf is empty, but files dropped on it are still acted on.
 
 ### Clipboard
 

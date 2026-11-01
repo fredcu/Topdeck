@@ -6,39 +6,168 @@ import UniformTypeIdentifiers
 
 /// The shelf space: dropped files as large tiles, with the places to send them beside. Drag a tile out
 /// as a file, or onto a target to act on it. Click ticks, double-click opens, Space looks, and the context
-/// menu keeps reveal, AirDrop, upload to R2 and remove.
+/// menu keeps reveal, AirDrop, upload to R2 and remove. Empty, a drop zone stands where the tiles go.
 struct ShelfView: View {
     let shelf: ShelfFeature
+    /// How many files are already being dragged over the zone or the tiles, for a picture of that.
+    var incoming: Int?
     @FocusState private var focused: Bool
 
     var body: some View {
-        if shelf.items.isEmpty {
-            DeckEmptyLine("Drop files here")
-        } else {
-            HStack(alignment: .top, spacing: Deck.Metric.gap) {
-                ScrollView {
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 12) {
-                        ForEach(shelf.items.reversed()) { ShelfTile(shelf: shelf, item: $0) }
-                    }
-                }
-                .fadingEdges(atStart: false)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                VStack(spacing: 8) {
-                    ForEach(ShelfFeature.Target.allCases, id: \.self) { ShelfTargetView(shelf: shelf, target: $0) }
-                }
-                .frame(width: 172)
+        HStack(alignment: .top, spacing: Deck.Metric.gap) {
+            if shelf.items.isEmpty {
+                ShelfDropZone(shelf: shelf, incoming: incoming)
+            } else {
+                ShelfGrid(shelf: shelf, incoming: incoming)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .focusable()
-            .focused($focused)
-            .focusEffectDisabled()
-            .onAppear { focused = true }
-            .onKeyPress(.space) {
-                guard let item = shelf.items.first(where: { shelf.selected.contains($0.id) }) else { return .ignored }
-                shelf.quickLook(item)
-                return .handled
+            VStack(spacing: 8) {
+                ForEach(ShelfFeature.Target.allCases, id: \.self) { ShelfTargetView(shelf: shelf, target: $0) }
+            }
+            .frame(width: 172)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .focusable()
+        .focused($focused)
+        .focusEffectDisabled()
+        .onAppear { focused = true }
+        .onKeyPress(.space) {
+            guard let item = shelf.items.first(where: { shelf.selected.contains($0.id) }) else { return .ignored }
+            shelf.quickLook(item)
+            return .handled
+        }
+    }
+}
+
+/// The tiles, which keep files dragged onto them.
+private struct ShelfGrid: View {
+    let shelf: ShelfFeature
+    @State private var incoming: Int?
+    @Environment(\.deckAccent) private var accent
+
+    init(shelf: ShelfFeature, incoming: Int?) {
+        self.shelf = shelf
+        _incoming = State(initialValue: incoming)
+    }
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Deck.Radius.card, style: .continuous)
+        ScrollView {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 12) {
+                ForEach(shelf.items.reversed()) { ShelfTile(shelf: shelf, item: $0) }
             }
         }
+        .fadingEdges(atStart: false)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // The outline stands just outside the area, so tiles at its edge don't touch it.
+        .background { if incoming != nil { shape.fill(accent.tint(0.07)).padding(-5) } }
+        .overlay {
+            if let incoming {
+                shape.strokeBorder(accent, lineWidth: 1.5).padding(-5)
+                // Low in the area, where the tiles have left room.
+                GeometryReader { proxy in
+                    HStack(spacing: 6) {
+                        DeckIconView(.plus, size: 13)
+                        Text("Add ^[\(incoming) file](inflect: true)")
+                    }
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(Deck.onAccent)
+                    .padding(.horizontal, 13)
+                    .frame(height: 30)
+                    .background(Capsule().fill(accent).shadow(color: .black.opacity(0.4), radius: 9, y: 4))
+                    .position(x: proxy.size.width / 2, y: proxy.size.height * 0.72)
+                }
+                .allowsHitTesting(false)
+            }
+        }
+        .onDrop(of: [.fileURL], delegate: ShelfDropDelegate(shelf: shelf, incoming: $incoming))
+    }
+}
+
+/// The empty shelf: a dashed zone with the illustration, a line saying what it is for and the way to pick
+/// files by hand. Files dragged over it turn it into the accent, and dropping keeps them.
+private struct ShelfDropZone: View {
+    let shelf: ShelfFeature
+    @State private var incoming: Int?
+    @Environment(\.deckAccent) private var accent
+
+    /// The zone's height from which the line has room: the smallest deck's is 247, the usual deck's 337.
+    private static let heightForLine: CGFloat = 270
+
+    init(shelf: ShelfFeature, incoming: Int?) {
+        self.shelf = shelf
+        _incoming = State(initialValue: incoming)
+    }
+
+    var body: some View {
+        let hot = incoming != nil
+        let shape = RoundedRectangle(cornerRadius: Deck.Radius.card, style: .continuous)
+        // The explanatory line is the first to go where the zone is too short for it.
+        GeometryReader { proxy in
+            content(hot: hot, line: proxy.size.height >= Self.heightForLine)
+                .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(shape.fill(hot ? accent.tint(0.08) : .clear))
+        .overlay {
+            shape.strokeBorder(
+                hot ? accent : Deck.secondary.opacity(0.22),
+                style: StrokeStyle(lineWidth: 1.5, dash: hot ? [10, 3] : [6, 5]))
+        }
+        .contentShape(shape)
+        .onDrop(of: [.fileURL], delegate: ShelfDropDelegate(shelf: shelf, incoming: $incoming))
+    }
+
+    private func content(hot: Bool, line: Bool) -> some View {
+        VStack(spacing: 0) {
+            ShelfTrayArt(detail: true, hot: hot).frame(width: 132, height: 96)
+            Text(hot ? "Let go to keep them here" : "Drop files here")
+                .deckText(.item).lineLimit(1)
+                .padding(.top, 16)
+            if !hot {
+                if line {
+                    Text("Keep files at hand while you switch apps. Drag them onto the notch from anywhere.")
+                        .deckText(.body, color: Deck.tertiary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: 270)
+                        .padding(.top, 5)
+                }
+                Button(action: shelf.chooseFiles) {
+                    HStack(spacing: 6) {
+                        DeckIconView(.plus, size: 13)
+                        Text("Choose Files…")
+                    }
+                }
+                .buttonStyle(.deck(.outline, slot: true))
+                .padding(.top, 14)
+            }
+        }
+    }
+}
+
+/// Keeps the files dragged onto its view, and says how many are over it.
+@MainActor
+private struct ShelfDropDelegate: DropDelegate {
+    let shelf: ShelfFeature
+    @Binding var incoming: Int?
+
+    func validateDrop(info: DropInfo) -> Bool { info.hasItemsConforming(to: [.fileURL]) }
+
+    func dropEntered(info: DropInfo) { incoming = info.itemProviders(for: [.fileURL]).count }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .copy) }
+
+    func dropExited(info: DropInfo) { incoming = nil }
+
+    func performDrop(info: DropInfo) -> Bool {
+        incoming = nil
+        let providers = info.itemProviders(for: [.fileURL])
+        Task {
+            var urls: [URL] = []
+            for provider in providers { if let url = await provider.droppedFile() { urls.append(url) } }
+            shelf.add(urls)
+        }
+        return true
     }
 }
 
@@ -69,12 +198,35 @@ private struct ShelfActions: View {
 
     var body: some View {
         if !shelf.items.isEmpty {
+            ShelfAddButton(shelf: shelf)
             Button("Select") {
                 if shelf.isSelecting { shelf.finishSelecting() } else { shelf.isSelecting = true }
             }
             .buttonStyle(.deckPill(on: shelf.isSelecting))
             Button("Clear", action: shelf.removeAll).buttonStyle(.deckPill())
         }
+    }
+}
+
+/// Add Files…, as the illustration's small version.
+private struct ShelfAddButton: View {
+    let shelf: ShelfFeature
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: shelf.chooseFiles) {
+            ShelfTrayArt(detail: false)
+                .frame(width: 18, height: 18)
+                .frame(width: 26, height: 26)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous).fill(hovering ? Deck.control : .clear)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help("Add Files…")
+        .accessibilityLabel("Add Files…")
     }
 }
 
@@ -91,24 +243,31 @@ private struct ShelfTargetView: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: Deck.Radius.tile, style: .continuous)
         let available = shelf.isAvailable(target)
-        Button {
-            shelf.perform(target, on: shelf.actionURLs)
-        } label: {
-            HStack(spacing: 10) {
-                DeckIconView(icon, size: 16).foregroundStyle(tint)
-                    .frame(width: 30, height: 30)
-                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(tint.tint(0.2)))
-                Text(target.title).deckText(.body, color: Deck.text).fontWeight(.semibold).lineLimit(1)
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(shape.fill(over ? accent.tint(0.16) : Deck.card))
-            .overlay(shape.strokeBorder(over ? accent : Deck.hairline, lineWidth: 1))
-            .contentShape(shape)
+        let label = HStack(spacing: 10) {
+            DeckIconView(icon, size: 16).foregroundStyle(tint)
+                .frame(width: 30, height: 30)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(tint.tint(0.2)))
+            Text(target.title).deckText(.body, color: Deck.text).fontWeight(.semibold).lineLimit(1)
+            Spacer(minLength: 0)
         }
-        .buttonStyle(.plain)
-        .disabled(!available)
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(shape.fill(over ? accent.tint(0.16) : Deck.card))
+        .overlay(shape.strokeBorder(over ? accent : Deck.hairline, lineWidth: 1))
+        .contentShape(shape)
+        Group {
+            if shelf.items.isEmpty {
+                label  // nothing to act on by a click, but files can still be dropped here
+            } else {
+                Button {
+                    shelf.perform(target, on: shelf.actionURLs)
+                } label: {
+                    label
+                }
+                .buttonStyle(.plain)
+                .disabled(!available)
+            }
+        }
         .opacity(available ? 1 : 0.4)
         .onDrop(of: [.fileURL], isTargeted: $over) { providers in
             guard available else { return false }

@@ -130,6 +130,8 @@ public enum Deck {
         public static let audio = Color(hex: 0xA8325E)
         public static let code = Color(hex: 0x4F7A2F)
         public static let other = Color(hex: 0x4A5470)
+        /// The rose the Shelf's empty-state illustration blends `image` toward, for its front card.
+        public static let rose = Color(hex: 0xC85468)
     }
 
     // MARK: Shape

@@ -2,6 +2,7 @@
 
 ## [0.1.0]
 
+- An empty Shelf is a drop zone with an illustration and a Choose Files… button; with files, Add Files… is an icon in the second row, and dragging files over the tiles shows how many will be added.
 - Recording stops only once on repeated clicks. Cancelling an export and retrying keeps the new task's state; exports use separate temporary files and replace an existing output without deleting it first.
 - Topdeck starts from ILoveNotch 1.4.0, without Mirror, Android sharing, the App Store edition or Sparkle.
 - A new deck: black at the notch, fading to a deep blue-grey, 700 by 430 to begin with, and a colour for each space. Six spaces sit in two wings beside the camera: Now, Shelf and Clipboard on the left, Tools, Agents and Mac on the right, with sub-tabs for Agents and Mac. Settings reorders and hides them. Now shows what's playing, the agent waiting, the day's events and notes, a month, the weather, the timer and Keep Awake. The Glass theme, the tab row and the app drawer are gone.
